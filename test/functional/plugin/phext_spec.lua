@@ -38,9 +38,7 @@ local function buf_text()
 end
 
 local function cur_coord()
-  return exec_lua(
-    [[return require('nvim.phext.coord').tostring(require('nvim.phext').coordinate())]]
-  )
+  return exec_lua([[return require('nvim.phext.coord').tostring(require('nvim.phext').coordinate())]])
 end
 
 local function file_hash(path)
@@ -145,8 +143,9 @@ describe('phext runtime plugin', function()
       0,
       exec_lua(
         [[
+        local path = ...
         local idx = require('nvim.phext.index').build((function()
-          local f = assert(io.open(..., 'rb'))
+          local f = assert(io.open(path, 'rb'))
           local d = f:read('*a')
           f:close()
           return d
@@ -163,8 +162,9 @@ describe('phext runtime plugin', function()
       'created',
       exec_lua(
         [[
+        local path = ...
         local idx = require('nvim.phext.index').build((function()
-          local f = assert(io.open(..., 'rb'))
+          local f = assert(io.open(path, 'rb'))
           local d = f:read('*a')
           f:close()
           return d

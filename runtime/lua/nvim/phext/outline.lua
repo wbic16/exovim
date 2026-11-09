@@ -64,7 +64,7 @@ local function in_scope(coord, scope_coord, arm)
 end
 
 local function arm_string(coord, arm)
-  local p = ARM_POS[arm]
+  local p = ARM_POS[arm] or 1
   return ('%d.%d.%d'):format(coord[p], coord[p + 1], coord[p + 2])
 end
 
@@ -79,7 +79,7 @@ end
 
 --- Build outline lines + per-line actions for (arm, scope) from the
 --- effective entries. Pure function of the entry list.
----@param entries table[] effective entries ({ coord, text }), sorted
+---@param entries PhextIndexEntry[] effective entries ({ coord, text }), sorted
 ---@param arm string
 ---@param scope_coord integer[]
 ---@return string[] lines, table[] actions (parallel to lines)
@@ -101,12 +101,12 @@ function M.build(entries, arm, scope_coord)
       end
     end
   else
-    local p = ARM_POS[arm]
+    local p = ARM_POS[arm] or 1
     local groups = {}
     local order = {}
     for _, e in ipairs(entries) do
       if in_scope(e.coord, scope_coord, arm) then
-        local gk = ('%d.%d.%d'):format(e.coord[p], e.coord[p + 1], e.coord[p + 2])
+        local gk = ('%d.%d.%d'):format(e.coord[p] or 0, e.coord[p + 1] or 0, e.coord[p + 2] or 0)
         local g = groups[gk]
         if not g then
           g = { count = 0, first = e, coord = e.coord }
@@ -118,7 +118,10 @@ function M.build(entries, arm, scope_coord)
     end
     for _, gk in ipairs(order) do
       local g = groups[gk]
-      local title = first_line(g.first.text)
+      if not g then
+        error('phext outline: group vanished')
+      end
+      local title = first_line(g.first.text or '')
       emit(
         ('%s · %d scroll%s · %s'):format(
           arm_string(g.coord, arm),
@@ -141,21 +144,25 @@ end
 --- finest populated level — v1 default is "inner" when re-opening an
 --- existing outline, else "outer"... simpler: default "outer").
 --- `goto_fn(coord)` performs the jump into the phext buffer.
----@param session table PhextSession
+---@param session PhextSession
 ---@param arm_name string '', 'outer', 'middle' or 'inner'
----@param goto_fn function
+---@param goto_fn fun(coord: integer[])
 function M.open(session, arm_name, goto_fn)
   local phext = require('nvim.phext')
   local eff = phext._eff_index(session)
   local state = session._outline
   if not state then
-    state = { arm = 'outer', scope = coord_mod.copy(session.coord), bufnr = nil }
+    state = {
+      arm = 'outer',
+      scope = coord_mod.copy(session.coord or coord_mod.default()),
+      bufnr = nil,
+    }
     session._outline = state
   end
   local arm = arm_of(arm_name)
   if arm then
     state.arm = arm
-    state.scope = coord_mod.copy(session.coord)
+    state.scope = coord_mod.copy(session.coord or coord_mod.default())
   end
 
   local cache_key = ('%d|%s|%s'):format(session.revision, state.arm, coord_mod.key(state.scope))
@@ -222,7 +229,7 @@ function M.open(session, arm_name, goto_fn)
     vim.cmd('vsplit')
     win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(win, buf)
-    vim.api.nvim_win_set_width(win, math.max(40, math.floor(vim.o.columns * 0.4)))
+    vim.api.nvim_win_set_config(win, { width = math.max(40, math.floor(vim.o.columns * 0.4)) })
   else
     vim.api.nvim_set_current_win(win)
   end
@@ -231,8 +238,8 @@ function M.open(session, arm_name, goto_fn)
 end
 
 --- <CR> handler: descend or jump depending on the line's action.
----@param session table
----@param goto_fn function
+---@param session PhextSession
+---@param goto_fn fun(coord: integer[])
 function M.activate(session, goto_fn)
   local state = session._outline
   if not state then

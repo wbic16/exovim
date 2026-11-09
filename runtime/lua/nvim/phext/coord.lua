@@ -104,7 +104,7 @@ M.key = M.tostring
 
 ---@param a integer[]
 ---@param b integer[]
----@return integer -1, 0 or 1 (document order = lexicographic by position 1..9)
+---@return integer cmp -1, 0 or 1 (document order = lexicographic by position 1..9)
 function M.compare(a, b)
   for i = 1, 9 do
     if a[i] ~= b[i] then
@@ -126,7 +126,7 @@ end
 ---@param c integer[]
 ---@param pos integer 1..9
 function M.apply_break(c, pos)
-  c[pos] = c[pos] + 1
+  c[pos] = (c[pos] or 0) + 1
   for i = pos + 1, 9 do
     c[i] = 1
   end
@@ -168,9 +168,9 @@ function M.step(c, dim, delta)
   end
   local pos = 10 - dim
   if delta > 0 then
-    out[pos] = out[pos] + delta
+    out[pos] = (out[pos] or 0) + delta
   else
-    out[pos] = math.max(1, out[pos] + delta)
+    out[pos] = math.max(1, (out[pos] or 0) + delta)
   end
   for i = pos + 1, 9 do
     out[i] = 1
@@ -225,7 +225,7 @@ function M.parse(s, base)
   if type(s) ~= 'string' then
     return nil, 'coordinate must be a string'
   end
-  s = s:match('^%s*(.-)%s*$')
+  s = s:match('^%s*(.-)%s*$') or ''
   if s == '' then
     return nil, 'empty coordinate'
   end

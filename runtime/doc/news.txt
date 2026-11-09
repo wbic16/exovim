@@ -296,6 +296,11 @@ DIAGNOSTICS
 
 EDITOR
 
+• Phext scroll navigation (|phext|): `.phext` files open as one buffer
+  per file showing a single scroll, addressed by a 9-dimensional
+  coordinate. Navigate with |:PhextGoto|, |:PhextStep|, |:PhextNext| and
+  the outline from |:PhextToc|; an edit touches exactly one scroll and a
+  `:write` rewrites only that scroll's span of the file.
 • Multiple cursors (|multicursor|): edit in many places at once.
   • Toggle cursors with |Q|, |<C-LeftMouse>|, or |mcursor-api|.
   • Toggle "follow mode" with |q=| or the 'follow' option.
