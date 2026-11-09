@@ -42,7 +42,7 @@ end
 
 --- Find all matches of a Vim-regex `pattern` in the session's scrolls.
 --- Returns quickfix entries plus a parallel list of target coordinates.
----@param session table PhextSession
+---@param session PhextSession
 ---@param pattern string
 ---@return table[] items, table[] targets ({ coord, lnum })
 function M.collect(session, pattern)
@@ -52,7 +52,7 @@ function M.collect(session, pattern)
   local items = {}
   local targets = {}
   for _, e in ipairs(eff.entries) do
-    local lines = split_lines(e.text)
+    local lines = split_lines(e.text or '')
     for lnum, line in ipairs(lines) do
       if vim.fn.match(line, pat) >= 0 then
         items[#items + 1] = {
@@ -69,9 +69,9 @@ function M.collect(session, pattern)
 end
 
 --- :PhextSearch {pattern}
----@param session table
+---@param session PhextSession
 ---@param pattern string
----@param goto_fn function(coord, lnum)
+---@param goto_fn fun(coord: integer[], lnum: integer)
 function M.run(session, pattern, goto_fn)
   local items, targets = M.collect(session, pattern)
   if #items == 0 then
@@ -107,9 +107,9 @@ function M.run(session, pattern, goto_fn)
 end
 
 --- :PhextTitles {pattern} — pick a scroll by its first line.
----@param session table
+---@param session PhextSession
 ---@param pattern string plain-text, case-insensitive filter ('' = all)
----@param goto_fn function(coord)
+---@param goto_fn fun(coord: integer[])
 function M.titles(session, pattern, goto_fn)
   local phext = require('nvim.phext')
   local eff = phext._eff_index(session)
@@ -117,7 +117,7 @@ function M.titles(session, pattern, goto_fn)
   local choices = {}
   local coords = {}
   for _, e in ipairs(eff.entries) do
-    local title = (e.text:match('^([^\n]*)') or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    local title = ((e.text or ''):match('^([^\n]*)') or ''):gsub('^%s+', ''):gsub('%s+$', '')
     if title == '' then
       title = '(no title)'
     end

@@ -31,8 +31,10 @@ M.navigate = navigate
 ---@field revision integer bumped whenever `edits` changes
 ---@field cursors table<string, integer[]> coordinate key -> {row, col}
 ---@field mark integer[]|nil the phext mark (mP / 'P)
----@field _eff PhextIndex|nil cached effective index (index + edits)
+---@field _eff PhextEffIndex|nil cached effective index (index + edits)
 ---@field _eff_revision integer
+---@field _outline table|nil outline (table-of-contents) state
+---@field _outline_cache table|nil cached outline lines/actions
 
 ---@type table<integer, PhextSession>
 local sessions = {}
@@ -101,7 +103,9 @@ local function original_text(session, key)
   if not i then
     return ''
   end
-  return index_mod.entry_text(session.index, session.index.entries[i])
+  local entry = session.index.entries[i]
+  assert(entry)
+  return index_mod.entry_text(session.index, entry)
 end
 
 --- The effective text of a scroll: edit if present, else the indexed text,
@@ -133,7 +137,7 @@ M._dirty = session_dirty
 --- removed, inserted scrolls merged in), cached per revision. Navigation,
 --- outline, search, and completion all read through this view.
 ---@param session PhextSession
----@return PhextIndex index-like table ({ entries, by_key }); entries carry `text`
+---@return PhextEffIndex
 local function eff_index(session)
   if session._eff and session._eff_revision == session.revision then
     return session._eff
@@ -338,6 +342,7 @@ end
 ---@param path string
 ---@param bytes string
 local function new_session(buf, path, bytes)
+  ---@type PhextSession
   local session = {
     bufnr = buf,
     path = path,
@@ -350,6 +355,10 @@ local function new_session(buf, path, bytes)
     revision = 0,
     cursors = {},
     mark = nil,
+    _eff = nil,
+    _eff_revision = -1,
+    _outline = nil,
+    _outline_cache = nil,
   }
   sessions[buf] = session
   vim.bo[buf].buftype = 'acwrite'
@@ -416,7 +425,7 @@ function M.write(buf)
   if not ok then
     error(('phext: write failed: %s'):format(werr), 0)
   end
-  local current = coord_mod.copy(session.coord)
+  local current = session.coord and coord_mod.copy(session.coord) or coord_mod.default()
   session.bytes = out
   session.index = index_mod.build(out)
   session.edits = {}
@@ -507,14 +516,19 @@ function M.complete_goto(lead)
 end
 
 --- Global hook used by input() completion (v:lua cannot reach locals).
+---@param lead string
+---@return string[]
 _G.PhextGotoComplete = function(lead)
   return M.complete_goto(lead)
 end
 
 ---@param session PhextSession
 function M.prompt_goto(session)
-  local input =
-    vim.fn.input('PhextGoto: ', coord_mod.key(session.coord), 'customlist,v:lua.PhextGotoComplete')
+  local input = vim.fn.input(
+    'PhextGoto: ',
+    session.coord and coord_mod.key(session.coord) or '',
+    'customlist,v:lua.PhextGotoComplete'
+  )
   if input and input ~= '' then
     M.cmd_goto({ args = input })
   end
@@ -546,10 +560,11 @@ function M.cmd_coord()
     return
   end
   capture_current(s)
+  local coord = s.coord or coord_mod.default()
   local eff = eff_index(s)
-  local info = navigate.describe(eff, s.coord)
+  local info = navigate.describe(eff, coord)
   local lines = {
-    ('coordinate: %s'):format(coord_mod.key(s.coord)),
+    ('coordinate: %s'):format(coord_mod.key(coord)),
     ('active dimension: %d (%s)'):format(s.dim, coord_mod.DIM_NAMES[s.dim]),
     info.occupied and ('occupied: yes — scroll %d of %d'):format(info.rank, info.total)
       or ('occupied: no — %d scrolls in file'):format(info.total),
@@ -577,7 +592,7 @@ function M.cmd_dim(opts)
     return
   end
   s.dim = dim
-  notify(('phext: active dimension %d (%s)'):format(dim, coord_mod.DIM_NAMES[dim]))
+  notify(('phext: active dimension %d (%s)'):format(dim, coord_mod.DIM_NAMES[dim] or ''))
 end
 
 ---@param opts table :PhextStep {dim} [+n|-n] — dim optional when the first
@@ -594,7 +609,7 @@ function M.cmd_step(opts)
     for tok in arg:gmatch('%S+') do
       local signed = tok:match('^([+-]%d+)$')
       if signed then
-        delta = tonumber(signed)
+        delta = tonumber(signed) or delta
       else
         local d = coord_mod.dim_number(tok)
         if not d then
@@ -605,7 +620,7 @@ function M.cmd_step(opts)
       end
     end
   end
-  M.goto_coord(s, coord_mod.step(s.coord, dim, delta))
+  M.goto_coord(s, coord_mod.step(s.coord or coord_mod.default(), dim, delta))
 end
 
 ---@param opts table
@@ -615,7 +630,8 @@ function M.cmd_next(opts)
     return
   end
   capture_current(s)
-  local target = navigate.next_populated(eff_index(s), s.coord, opts.count or 1)
+  local target =
+    navigate.next_populated(eff_index(s), s.coord or coord_mod.default(), opts.count or 1)
   if target then
     display(s, target, { jump = true })
   else
@@ -630,7 +646,8 @@ function M.cmd_prev(opts)
     return
   end
   capture_current(s)
-  local target = navigate.prev_populated(eff_index(s), s.coord, opts.count or 1)
+  local target =
+    navigate.prev_populated(eff_index(s), s.coord or coord_mod.default(), opts.count or 1)
   if target then
     display(s, target, { jump = true })
   else
@@ -645,10 +662,11 @@ function M.step_populated(session, dir)
   capture_current(session)
   local eff = eff_index(session)
   local target
+  local coord = session.coord or coord_mod.default()
   if dir > 0 then
-    target = navigate.next_in_dim(eff, session.coord, session.dim, vim.v.count1)
+    target = navigate.next_in_dim(eff, coord, session.dim, vim.v.count1)
   else
-    target = navigate.prev_in_dim(eff, session.coord, session.dim, vim.v.count1)
+    target = navigate.prev_in_dim(eff, coord, session.dim, vim.v.count1)
   end
   if target then
     display(session, target, { jump = true })
@@ -686,7 +704,8 @@ function M.cmd_delete()
     return
   end
   capture_current(s)
-  local key = coord_mod.key(s.coord)
+  local coord = s.coord or coord_mod.default()
+  local key = coord_mod.key(coord)
   if s.index.by_key[key] then
     if s.edits[key] ~= '' then
       s.edits[key] = ''
@@ -698,7 +717,7 @@ function M.cmd_delete()
       s.revision = s.revision + 1
     end
   end
-  display(s, s.coord, { jump = false })
+  display(s, coord, { jump = false })
   vim.bo[s.bufnr].modified = session_dirty(s)
   notify('phext: scroll emptied — it is deleted on :write')
 end

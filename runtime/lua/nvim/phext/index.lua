@@ -22,10 +22,16 @@ local M = {}
 ---@field coord integer[] coordinate array (see nvim.phext.coord)
 ---@field s integer byte offset of the first text byte (1-based)
 ---@field e integer byte offset one past the last text byte
+---@field text string? entry text (effective-index entries only)
 
 ---@class PhextIndex
 ---@field bytes string original byte stream
 ---@field entries PhextIndexEntry[] occupied scrolls in document order
+---@field by_key table<string, integer> coordinate key -> entry index
+
+---@class PhextEffIndex : PhextIndex
+---@field bytes string? unused for effective indexes (entries carry `text`)
+---@field entries PhextIndexEntry[] effective entries (entries carry `text`)
 ---@field by_key table<string, integer> coordinate key -> entry index
 
 --- Build the sparse index with one pass over `bytes`. O(#bytes).
@@ -65,7 +71,7 @@ function M.entry_text(idx, entry)
 end
 
 --- Entry index for a coordinate, or nil when the coordinate is not occupied.
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@return integer|nil
 function M.find(idx, coord)
@@ -73,14 +79,16 @@ function M.find(idx, coord)
 end
 
 --- First entry index whose coordinate is >= `coord` (lower bound).
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@return integer index in 1..#entries+1
 function M.lower_bound(idx, coord)
   local lo, hi = 1, #idx.entries + 1
   while lo < hi do
     local mid = math.floor((lo + hi) / 2)
-    if coord_mod.compare(idx.entries[mid].coord, coord) < 0 then
+    local mid_entry = idx.entries[mid]
+    assert(mid_entry)
+    if coord_mod.compare(mid_entry.coord, coord) < 0 then
       lo = mid + 1
     else
       hi = mid
@@ -90,12 +98,13 @@ function M.lower_bound(idx, coord)
 end
 
 --- Entry index of the next occupied scroll after `coord`, or nil.
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@return integer|nil
 function M.next_populated(idx, coord)
   local i = M.lower_bound(idx, coord)
-  if i <= #idx.entries and coord_mod.eq(idx.entries[i].coord, coord) then
+  local bound_entry = idx.entries[i]
+  if i <= #idx.entries and bound_entry and coord_mod.eq(bound_entry.coord, coord) then
     i = i + 1
   end
   if i <= #idx.entries then
@@ -105,7 +114,7 @@ function M.next_populated(idx, coord)
 end
 
 --- Entry index of the previous occupied scroll before `coord`, or nil.
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@return integer|nil
 function M.prev_populated(idx, coord)
@@ -119,14 +128,14 @@ end
 --- Next occupied scroll found by stepping user dimension `dim` from `coord`:
 --- the first occupied scroll with the same prefix above that dimension and a
 --- greater component in it. Binary search, never a step loop. Or nil.
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@param dim integer user dimension 1..9
 ---@return integer|nil entry index
 function M.next_in_dim(idx, coord, dim)
   local pos = 10 - dim
   local target = coord_mod.copy(coord)
-  target[pos] = target[pos] + 1
+  target[pos] = (target[pos] or 0) + 1
   for i = pos + 1, 9 do
     target[i] = 1
   end
@@ -135,6 +144,7 @@ function M.next_in_dim(idx, coord, dim)
     return nil
   end
   local entry = idx.entries[i]
+  assert(entry)
   for p = 1, pos - 1 do
     if entry.coord[p] ~= coord[p] then
       return nil
@@ -146,7 +156,7 @@ end
 --- Previous occupied scroll when stepping user dimension `dim` back from
 --- `coord`: the last occupied scroll with the same prefix above that
 --- dimension and a smaller component in it. Or nil.
----@param idx PhextIndex
+---@param idx PhextIndex|PhextEffIndex
 ---@param coord integer[]
 ---@param dim integer user dimension 1..9
 ---@return integer|nil entry index
@@ -164,6 +174,7 @@ function M.prev_in_dim(idx, coord, dim)
     return nil
   end
   local entry = idx.entries[i]
+  assert(entry)
   for p = 1, pos - 1 do
     if entry.coord[p] ~= coord[p] then
       return nil
@@ -185,8 +196,8 @@ local function gap_breaks(from, to)
   local cur = coord_mod.copy(from)
   local out = {}
   for pos = 1, 9 do
-    while cur[pos] < to[pos] do
-      out[#out + 1] = string.char(coord_mod.BREAK_BYTE[pos])
+    while (cur[pos] or 0) < (to[pos] or 0) do
+      out[#out + 1] = string.char(coord_mod.BREAK_BYTE[pos] or 0)
       coord_mod.apply_break(cur, pos)
     end
   end
@@ -270,7 +281,9 @@ function M.serialize(idx, edits)
   -- break run encoding empty address space) when the last scroll is an
   -- untouched original.
   if prev and prev.orig == #idx.entries and not prev.edited then
-    out[#out + 1] = idx.bytes:sub(idx.entries[prev.orig].e)
+    local last_entry = idx.entries[prev.orig]
+    assert(last_entry)
+    out[#out + 1] = idx.bytes:sub(last_entry.e)
   end
   return table.concat(out)
 end

@@ -10,7 +10,9 @@ vim.b.did_ftplugin = true
 
 -- Coordinate replaces line number as the primary "where am I"; the
 -- segment is require('nvim.phext').status() (see runtime/doc/phext.txt).
-vim.opt_local.statusline = "%{%v:lua.require'nvim.phext'.status()%} %= %l,%c %P"
+-- Set via the function form: the option-value meta type for 'statusline'
+-- rejects the %{%...%} expression form on direct assignment.
+vim.opt_local.statusline:append("%{%v:lua.require'nvim.phext'.status()%} %= %l,%c %P")
 
 vim.bo.commentstring = '# %s'
 
