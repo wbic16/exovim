@@ -38,7 +38,9 @@ local function buf_text()
 end
 
 local function cur_coord()
-  return exec_lua([[return require('nvim.phext.coord').tostring(require('nvim.phext').coordinate())]])
+  return exec_lua(
+    [[return require('nvim.phext.coord').tostring(require('nvim.phext').coordinate())]]
+  )
 end
 
 local function file_hash(path)
