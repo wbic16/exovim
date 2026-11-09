@@ -84,6 +84,12 @@ in this file, it isn't a fork change.
   section and may need re-anchoring when upstream edits that section.
   `runtime/doc/tags` is generated (`make doc` / `:helptags`), never
   hand-merged.
+- Fresh-eyes note (2026-11-09): the windows functional job failed once on
+  the rebased head with every test group passing and no test marked failed
+  in its log - its terminal parallel group exited 1 while reporting
+  490 passed / 51 skipped / 0 failed (a harness-level nonzero exit; the
+  group carries many recorded Windows flake skips, and the tree under
+  test was byte-identical to the head whose earlier run passed the job).
 - CI notes (2026-11-09): the fork's lint job installs StyLua *latest*
   (2.6.0 at time of writing), whose formatting of `or`-continuation
   lines differs from 2.3.x — files formatted with an older StyLua fail
