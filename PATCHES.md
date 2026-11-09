@@ -7,15 +7,22 @@ in this file, it isn't a fork change.
 ## Patch 1 — phext scroll navigation (runtime plugin)
 
 - **Base:** upstream `master` at
-  `c868e1ab3d11ac2a0cc3c284b16808f3de5adf31`
-  ("fix(remote-ssh): validation #42746", 2026-11-07). At patch time the
+  `dca26833799f7456a2518bb8cb46c417aff57a75`
+  ("feat(connect)!: stop the old server #42770", 2026-11-09). The patch
+  originally landed on c868e1ab (2026-11-08); on 2026-11-09 the fork's
+  `master` was fast-forwarded to dca26833 and the branch rebased onto
+  it (old tip preserved on
+  `backup/emise-phext-support-20261109-pre-rebase`). At each base the
   fork's `master` and upstream `master` were the identical SHA
-  (0 ahead / 0 behind, verified by fetch on 2026-11-08), so the patch
-  bases on upstream directly.
+  (verified by fetch), so the patch bases on upstream directly.
 - **Branch:** `emise/phext-support`.
 - **Shape:** purely additive. **Zero existing upstream files are
   modified** — the whole patch set is new files. Replaying it onto a
   fresh upstream checkout is: add the files below, nothing else.
+  (Since 2026-11-09, one exception forced by upstream's own CI: the
+  news check requires a FEATURES entry for any feature PR, so the
+  branch also adds a 5-line entry to `runtime/doc/news.txt` — the only
+  upstream-file hunk in the set.)
 - **Why no C, and why no `runtime/lua/vim/filetype.lua` entry:** upstream
   CONTRIBUTING asks that new functionality be implemented in Lua, and
   filetype *detection* parity with Vim is maintained upstream ("detection
@@ -35,15 +42,15 @@ in this file, it isn't a fork change.
 | `PHEXT.md` | — | The phext-upgrade record: classification (A canonical format / B derived buffer+index / D undo+grammar+LSP), coordinate map, invariants, measured costs, honest limits. |
 | `PATCHES.md` | — | This file. |
 | `runtime/plugin/phext.lua` | 115 | Plugin entry: `g:loaded_phext` opt-out guard; autocmd detection for `*.phext` (the coordinator decision that keeps the patch additive); `BufWriteCmd` for `phext://*` buffer names; registers all `:Phext*` user commands. |
-| `runtime/lua/nvim/phext/init.lua` | 775 | Session layer: scroll-as-buffer model (one buffer per file, content swapped per scroll), per-scroll edit capture, serialise-on-write with external-change refusal, buffer-local mappings (`gP`, `g1`–`g9`, `g]`/`g[`, `]]`/`[[`, `]P`/`[P`, `mP`/`'P`), command implementations, `coordinate()`/`status()` Lua API. |
+| `runtime/lua/nvim/phext/init.lua` | 794 | Session layer: scroll-as-buffer model (one buffer per file, content swapped per scroll), per-scroll edit capture, serialise-on-write with external-change refusal, buffer-local mappings (`gP`, `g1`–`g9`, `g]`/`g[`, `]]`/`[[`, `]P`/`[P`, `mP`/`'P`), command implementations, `coordinate()`/`status()` Lua API. |
 | `runtime/lua/nvim/phext/coord.lua` | 254 | Coordinate parse/format/arithmetic: 1-based floor, **no upper cap** (libphext 0.4.0 removed the 999 cap — do not reintroduce), delimiter-break semantics, dimension stepping with reset-lower, full and trailing-arm partial parsing. Pure Lua, unit-tested outside Neovim. |
-| `runtime/lua/nvim/phext/index.lua` | 278 | Sparse index: single-pass delimiter walk (faithful port of the reference walk; delimiter bytes from libphext-rs `phext.rs`: library 0x01, shelf 0x1F, series 0x1E, collection 0x1D, volume 0x1C, book 0x1A, chapter 0x19, section 0x18, scroll 0x17), occupied = span ≥ 1 byte, binary-search populated lookup, and the serialiser (verbatim gap splice around untouched scrolls; canonical gap breaks only where edits force them). |
-| `runtime/lua/nvim/phext/navigate.lua` | 131 | Navigation decisions (pure logic): arithmetic step, next/prev populated, next/prev within a dimension (filtered binary search, prefix fixed — design §6.3), coordinate description for `:PhextCoord`. |
-| `runtime/lua/nvim/phext/outline.lua` | 265 | The TOC outline buffer: one zoom arm at a time (Outer/Middle/Inner), populated nodes only, cached per (revision, arm, scope); `<CR>` descends/jumps, `>`/`<` zoom, `q` closes. |
+| `runtime/lua/nvim/phext/index.lua` | 291 | Sparse index: single-pass delimiter walk (faithful port of the reference walk; delimiter bytes from libphext-rs `phext.rs`: library 0x01, shelf 0x1F, series 0x1E, collection 0x1D, volume 0x1C, book 0x1A, chapter 0x19, section 0x18, scroll 0x17), occupied = span ≥ 1 byte, binary-search populated lookup, and the serialiser (verbatim gap splice around untouched scrolls; canonical gap breaks only where edits force them). |
+| `runtime/lua/nvim/phext/navigate.lua` | 143 | Navigation decisions (pure logic): arithmetic step, next/prev populated, next/prev within a dimension (filtered binary search, prefix fixed — design §6.3), coordinate description for `:PhextCoord`. |
+| `runtime/lua/nvim/phext/outline.lua` | 272 | The TOC outline buffer: one zoom arm at a time (Outer/Middle/Inner), populated nodes only, cached per (revision, arm, scope); `<CR>` descends/jumps, `>`/`<` zoom, `q` closes. |
 | `runtime/lua/nvim/phext/search.lua` | 140 | `:PhextSearch` (all scrolls → quickfix, module = coordinate, buffer-local `<CR>` performs the coordinate+line jump) and `:PhextTitles` (first-line picker via `vim.ui.select`). |
-| `runtime/ftplugin/phext.lua` | 17 | Scroll-buffer presentation: coordinate statusline segment (`require('nvim.phext').status()`), commentstring, `b:undo_ftplugin`. |
+| `runtime/ftplugin/phext.lua` | 19 | Scroll-buffer presentation: coordinate statusline segment (`require('nvim.phext').status()`), commentstring, `b:undo_ftplugin`. |
 | `runtime/doc/phext.txt` | 236 | Help: concepts, commands, mappings, API, options, limits. Not yet added to `runtime/doc/index.txt` (upstream-owned; follow-up). |
-| `test/functional/plugin/phext_spec.lua` | 228 | Functional tests in upstream busted style: open/session, no-op write identity, populated walk, gap skipping, partial goto, step semantics, mutation control, delete/create on save, trailing-newline matrix, search→quickfix, external-change refusal. |
+| `test/functional/plugin/phext_spec.lua` | 230 | Functional tests in upstream busted style: open/session, no-op write identity, populated walk, gap skipping, partial goto, step semantics, mutation control, delete/create on save, trailing-newline matrix, search→quickfix, external-change refusal. |
 | `test/functional/fixtures/phext/basic.phext` | 22 B | Fixture: `alpha\nline2` ⟨0x17⟩ `beta` ⟨0x18⟩ `gamma` (sha256 3d34ce18…). |
 | `test/functional/fixtures/phext/gaps.phext` | 11 B | Fixture: gap at scroll 2 + trailing break (sha256 907b1136…). |
 | `test/functional/fixtures/phext/newlines.phext` | 8 B | Fixture: trailing-newline matrix (sha256 438d9828…). |
@@ -72,9 +79,17 @@ in this file, it isn't a fork change.
   (it echoes with `err=true`), so all other error paths use a
   non-raising `nvim_echo` helper — do not "simplify" those back to
   `vim.notify(..., ERROR)`.
-- Known rebase friction: none in existing files (there are no hunks in
-  upstream files). `runtime/doc/tags` is generated (`make doc` /
-  `:helptags`), never hand-merged.
+- Known rebase friction: the `runtime/doc/news.txt` FEATURES hunk is
+  the only hunk in an upstream file; it sits at the top of the EDITOR
+  section and may need re-anchoring when upstream edits that section.
+  `runtime/doc/tags` is generated (`make doc` / `:helptags`), never
+  hand-merged.
+- CI notes (2026-11-09): the fork's lint job installs StyLua *latest*
+  (2.6.0 at time of writing), whose formatting of `or`-continuation
+  lines differs from 2.3.x — files formatted with an older StyLua fail
+  the check; format with the latest. The `wasm` check (nvim.wasm
+  build) fails identically on plain upstream master (dca26833) and on
+  the pre-patch base — pre-existing upstream, not this patch.
 - Squash note: this patch lands as several small commits on
   `emise/phext-support` during development; per the phext-upgrade
   process it is squashed to ONE commit before any upstream-facing PR,
