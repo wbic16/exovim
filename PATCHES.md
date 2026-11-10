@@ -126,9 +126,42 @@ PHEXT.md: plain-Lua corpus harness 60/60, stock-nvim 0.11.4 headless
 integration 37/37, phcc L1.5 nlua0 byte-identity and L2a full-build
 PASS on the 0.13.0-dev tree.
 
-Release-base receipts (2026-11-09) are appended here once the
-exovim-0.12 build + test pass completes; nothing below this line is
-claimed until it is measured on this base.
+Release-base receipts (2026-11-09, measured on this base):
+
+- **gcc build (aletheia-core, RelWithDebInfo):** `NVIM
+  v0.12.6-exovim.1-e403245610`, binary SHA-256
+  `fbc3b234b7b8af02187b3c7399af8e3ee74f73b351b9aa49a6c2ff74bfde7d88`.
+- **Plain-Lua unit/corpus harness (Lua 5.1.5): 62 passed / 0 failed** —
+  includes canonical-rebuild byte-identity over the live phext corpus
+  (agi.phext 2,529,253 B / 7,581 scrolls; tasks.phext 259 scrolls).
+- **Headless integration in the built binary: 37 passed / 0 failed.**
+- **Functional harness: `make functionaltest
+  TEST_FILE=test/functional/plugin/phext_spec.lua` → 11 passed / 0
+  failed.** (First run failed at load — the spec's master-era
+  `t.describe` binding; see the Patch 1 adaptation note. The 11/11 is
+  the post-adaptation run.)
+- **Perf (built binary, agi.phext):** open+index 30.1 ms; next/prev pair
+  mean 0.154 ms; `:PhextToc` open incl. first outline build 5.0 ms.
+- **phcc @ `bdf12df21530` (the tip verified for the master line):
+  PASS** — control build on rock-mountain (deps gcc-built per the L2b
+  caveat; `CC=phcc`, `PREFER_LUA=ON`, `LUA_MATH_LIBRARY` pre-seed):
+  configure + full link, `--version` reports
+  `NVIM v0.12.6-exovim.1-e403245610`, binary SHA-256
+  `11f4ef8a1a44849ceb682cb3a3e91e902dd020585a5a7a1f73c60ba9e2ecedde`,
+  phext integration suite inside the phcc-built binary **37 passed / 0
+  failed** (perf in that binary: open+index 162.1 ms, goto 0.190 ms —
+  tcc-compiled code is slower; the gcc numbers above are the release
+  numbers).
+- **phcc @ `8217e426b3` (current published tip): FAIL — phcc-side
+  regression, not a tree problem.** The build stops in the first nlua0
+  objects with `phcc/include/stddef.h:17: error: 'nullptr' undeclared`:
+  phcc commit F42 (`9114a290`, C23 nullptr work, landed between the two
+  tips) added `typedef typeof(nullptr) nullptr_t;` to phcc's own
+  `<stddef.h>`, but the keyword is not enabled under the dialect flags
+  this build requests, so phcc's own header fails to parse. The control
+  build above (identical tree, older tip) passing is the evidence that
+  classifies this as a phcc regression; it is a finding for the phcc
+  workstream and does not block this fork's gcc release.
 
 ## Follow-ups (not in these patches)
 

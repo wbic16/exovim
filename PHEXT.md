@@ -198,6 +198,25 @@ Receipts (2026-11-08, aletheia-core, master-based tree):
   phcc; compiling libuv itself under phcc is still open. No claim is
   made that the whole dependency tree is phcc-compiled.
 
+Receipts (2026-11-09, this fork's 0.12.6 release base):
+
+- **phcc @ `bdf12df21530`: PASS on the 0.12.6 tree** (control build,
+  rock-mountain; same recipe, Make generator where ninja is absent).
+  Configure + full link; `NVIM v0.12.6-exovim.1-e403245610`; binary
+  SHA-256
+  `11f4ef8a1a44849ceb682cb3a3e91e902dd020585a5a7a1f73c60ba9e2ecedde`;
+  the phext integration suite inside the phcc-built binary passes
+  **37/37** (perf there: open+index 162.1 ms, goto 0.190 ms — the gcc
+  build remains the release build).
+- **phcc @ `8217e426b3` (published tip as of 2026-11-09): FAIL** in
+  the first nlua0 objects — `phcc/include/stddef.h:17: error:
+  'nullptr' undeclared`. phcc's F42 commit (`9114a290`) added
+  `typedef typeof(nullptr) nullptr_t;` to phcc's own `<stddef.h>`;
+  the keyword is not enabled under this build's dialect flags, so the
+  header itself fails to parse. The bdf12df2 control on the identical
+  tree passing classifies this as a phcc-side regression, not a
+  property of the 0.12 C tree. Full record in PATCHES.md.
+
 The phext runtime plugin in this patch is pure Lua and loads
 identically under the phcc-built editor (cross-tested headlessly:
 open / goto / edit / write / mutation control / no-op write identity
