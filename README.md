@@ -1,3 +1,36 @@
+# exovim — a fork of Neovim 0.12.6 with phext support
+
+**exovim** is a full fork of [Neovim](https://github.com/neovim/neovim)
+0.12.6 (upstream `release-0.12` line) that adds **phext scroll
+navigation**: `.phext` files open as one buffer per file showing a
+single scroll, addressed by a 9-dimensional coordinate, with
+coordinate goto, per-dimension stepping, an outline view, and
+per-scroll byte-exact editing. See [PHEXT.md](PHEXT.md) for what the
+phext support adds, its invariants, and its measured costs; see
+[PATCHES.md](PATCHES.md) for this fork's complete divergence from the
+upstream release base — every fork change is recorded there.
+
+Build exactly as upstream (below), then install under the `exovim`
+name — the supported install is a dedicated prefix plus a symlink, so
+an existing Neovim install is never touched:
+
+```sh
+make CMAKE_BUILD_TYPE=RelWithDebInfo CMAKE_INSTALL_PREFIX=/opt/exovim
+sudo make install
+sudo ln -s /opt/exovim/bin/nvim /usr/local/bin/exovim
+exovim --version   # NVIM v0.12.6-exovim.1
+```
+
+Internals remain Neovim's, deliberately: the binary target, config
+and data directories (`~/.config/nvim`), `NVIM_*` environment
+variables, and the `vim` API are unchanged, so the existing Neovim
+plugin ecosystem works unmodified. "exovim" names the distribution —
+the editor you get is Neovim 0.12.6 plus phext.
+
+Upstream Neovim README follows.
+
+---
+
 <h1 align="center">
   <img src="https://raw.githubusercontent.com/neovim/neovim.github.io/master/static/logos/neovim-logo-300x87.png" alt="Neovim">
 
