@@ -55,7 +55,7 @@ char *get_mess_lang(void)
 {
   char *p;
 
-#ifdef LC_MESSAGES
+#if defined(LC_MESSAGES)
   p = get_locale_val(LC_MESSAGES);
 #else
   // This is necessary for Win32, where LC_MESSAGES is not defined and $LANG
@@ -159,19 +159,19 @@ void ex_language(exarg_T *eap)
   // confusion with a two letter language name "me" or "ct".
   char *p = skiptowhite(eap->arg);
   if ((*p == NUL || ascii_iswhite(*p)) && p - eap->arg >= 3) {
-    if (STRNICMP(eap->arg, "messages", (size_t)(p - eap->arg)) == 0) {
+    if (STRNICMP(eap->arg, "messages", p - eap->arg) == 0) {
       what = VIM_LC_MESSAGES;
       name = skipwhite(p);
       whatstr = "messages ";
-    } else if (STRNICMP(eap->arg, "ctype", (size_t)(p - eap->arg)) == 0) {
+    } else if (STRNICMP(eap->arg, "ctype", p - eap->arg) == 0) {
       what = LC_CTYPE;
       name = skipwhite(p);
       whatstr = "ctype ";
-    } else if (STRNICMP(eap->arg, "time", (size_t)(p - eap->arg)) == 0) {
+    } else if (STRNICMP(eap->arg, "time", p - eap->arg) == 0) {
       what = LC_TIME;
       name = skipwhite(p);
       whatstr = "time ";
-    } else if (STRNICMP(eap->arg, "collate", (size_t)(p - eap->arg)) == 0) {
+    } else if (STRNICMP(eap->arg, "collate", p - eap->arg) == 0) {
       what = LC_COLLATE;
       name = skipwhite(p);
       whatstr = "collate ";
@@ -235,11 +235,6 @@ void ex_language(exarg_T *eap)
       maketitle();
     }
   }
-
-  // TODO(bfredl): isident=@ should not depend on the locale
-  buf_init_isk_chartab(curbuf);
-  init_isf_chartab();
-  init_isi_chartab();
 }
 
 static char **locales = NULL;       // Array of all available locales
@@ -293,7 +288,7 @@ static void init_locales(void)
 #endif
 }
 
-#ifdef EXITFREE
+#if defined(EXITFREE)
 void free_locales(void)
 {
   if (locales == NULL) {
@@ -343,15 +338,8 @@ char *get_locales(expand_T *xp, int idx)
 
 void lang_init(void)
 {
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !defined(ZIG_BUILD)
   if (!os_env_exists("LANG", true)) {
-# if defined(ZIG_BUILD)
-    // fuck it just use the objectively correct values:
-    os_setenv("LANG", "C.UTF-8", true);
-    setlocale(LC_ALL, "C.UTF-8");
-    // Make sure strtod() uses a decimal point, not a comma.
-    setlocale(LC_NUMERIC, "C");
-# else
     char buf[50] = { 0 };
 
     // $LANG is not set, either because it was unset or Nvim was started
@@ -370,7 +358,6 @@ void lang_init(void)
     } else {
       ELOG("$LANG is empty and the macOS primary language cannot be inferred.");
     }
-# endif
   }
 #endif
 }

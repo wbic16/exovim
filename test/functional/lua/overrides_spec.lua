@@ -3,9 +3,7 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local eq = t.eq
-local matches = t.matches
 local NIL = vim.NIL
 local feed = n.feed
 local clear = n.clear
@@ -59,15 +57,15 @@ describe('print', function()
     eq('', exec_capture('luafile ' .. fname))
     -- TODO(bfredl): these look weird, print() should not use "E5114:" style errors..
     eq(
-      'Vim(lua):E5108: Lua: E5114: Converting print argument #2: nil',
+      'Vim(lua):E5108: Lua: E5114: Converting print argument #2: [NULL]',
       pcall_err(command, 'lua print("foo", v_nilerr, "bar")')
     )
     eq(
       'Vim(lua):E5108: Lua: E5114: Converting print argument #2: Xtest-functional-lua-overrides-luafile:2: abc',
       pcall_err(command, 'lua print("foo", v_abcerr, "bar")')
     )
-    matches(
-      '^Vim%(lua%):E5108: Lua: E5114: Converting print argument #2: table: 0x%x+$',
+    eq(
+      'Vim(lua):E5108: Lua: E5114: Converting print argument #2: <Unknown error: lua_tolstring returned NULL for tostring result>',
       pcall_err(command, 'lua print("foo", v_tblout, "bar")')
     )
   end)
@@ -107,13 +105,13 @@ describe('print', function()
       'Vim(lua):E5108: Lua: Xtest-functional-lua-overrides-luafile:2: 1234',
       pcall_err(command, 'lua number_error()')
     )
-    eq('Vim(lua):E5108: Lua: nil', pcall_err(command, 'lua nil_error()'))
-    matches('^Vim%(lua%):E5108: Lua: table: 0x%x+$', pcall_err(command, 'lua table_error()'))
+    eq('Vim(lua):E5108: Lua: [NULL]', pcall_err(command, 'lua nil_error()'))
+    eq('Vim(lua):E5108: Lua: [NULL]', pcall_err(command, 'lua table_error()'))
     eq(
       'Vim(lua):E5108: Lua: Internal Error [11234] my mistake',
       pcall_err(command, 'lua custom_error()')
     )
-    eq('Vim(lua):E5108: Lua: [UNPRINTABLE ERROR]', pcall_err(command, 'lua bad_custom_error()'))
+    eq('Vim(lua):E5108: Lua: [NULL]', pcall_err(command, 'lua bad_custom_error()'))
   end)
   it('prints strings with NULs and NLs correctly', function()
     api.nvim_set_option_value('more', true, {})
@@ -160,15 +158,20 @@ describe('print', function()
 
   it('blank line in message works', function()
     local screen = Screen.new(40, 8)
+    screen:set_default_attr_ids({
+      [0] = { bold = true, foreground = Screen.colors.Blue },
+      [1] = { bold = true, foreground = Screen.colors.SeaGreen },
+      [2] = { bold = true, reverse = true },
+    })
     feed([[:lua print('\na')<CR>]])
     screen:expect {
       grid = [[
                                               |
-      {1:~                                       }|*3
-      {3:                                        }|
+      {0:~                                       }|*3
+      {2:                                        }|
                                               |
       a                                       |
-      {6:Press ENTER or type command to continue}^ |
+      {1:Press ENTER or type command to continue}^ |
     ]],
     }
     feed('<CR>')
@@ -176,67 +179,31 @@ describe('print', function()
     screen:expect {
       grid = [[
                                               |
-      {1:~                                       }|*2
-      {3:                                        }|
+      {0:~                                       }|*2
+      {2:                                        }|
       b                                       |
                                               |
       c                                       |
-      {6:Press ENTER or type command to continue}^ |
+      {1:Press ENTER or type command to continue}^ |
     ]],
     }
   end)
 end)
 
-describe('_G.debug', function()
+describe('debug.debug', function()
   local screen --- @type test.functional.ui.screen
 
   before_each(function()
     screen = Screen.new()
+    screen:set_default_attr_ids {
+      [0] = { bold = true, foreground = 255 },
+      [1] = { bold = true, reverse = true },
+      E = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
+      cr = { bold = true, foreground = Screen.colors.SeaGreen4 },
+    }
   end)
 
-  it('if broken, Nvim reports it instead of crashing #41504', function()
-    -- If user code breaks `_G.debug.traceback`, Nvim should function enough to allow ":qa!".
-    -- But `_G.debug=nil` panics immediately, and that is intentional/wontfix.
-    for _, override in ipairs({ 'debug.traceback = nil', '_G.debug = {}' }) do
-      clear()
-      eq(
-        true,
-        exec_lua(([[
-          %s
-          local called = false
-          -- nvim_buf_call() is the shortest path from Lua to nlua_pcall().
-          vim.api.nvim_buf_call(0, function() called = true end)
-          return called
-        ]]):format(override))
-      )
-      -- Error reports the broken situation.
-      matches(
-        'boom\nNo traceback: debug.traceback is not a function',
-        pcall_err(exec_lua, [[vim.api.nvim_buf_call(0, function() error('boom') end)]])
-      )
-      -- vim.on_key() callbacks run on every keystroke, they should not break either.
-      exec_lua([[
-        _G.keys = 0
-        vim.on_key(function() _G.keys = _G.keys + 1 end)
-      ]])
-      feed('jjj')
-      eq(3, exec_lua('return _G.keys'))
-    end
-
-    -- We accept non-broken `debug.traceback` overrides (e.g. tui_spec.lua does this).
-    matches(
-      'boom %(custom traceback%)',
-      pcall_err(
-        exec_lua,
-        [[
-          debug.traceback = function(msg) return msg .. ' (custom traceback)' end
-          vim.api.nvim_buf_call(0, function() error('boom') end)
-        ]]
-      )
-    )
-  end)
-
-  it('debug() works', function()
+  it('works', function()
     command([[lua
       function Test(a)
         print(a)
@@ -248,8 +215,8 @@ describe('_G.debug', function()
     screen:expect {
       grid = [[
                                                            |
-      {1:~                                                    }|*10
-      {3:                                                     }|
+      {0:~                                                    }|*10
+      {1:                                                     }|
       nil                                                  |
       lua_debug> ^                                          |
     ]],
@@ -257,8 +224,8 @@ describe('_G.debug', function()
     feed('print("TEST")\n')
     screen:expect([[
                                                            |
-      {1:~                                                    }|*8
-      {3:                                                     }|
+      {0:~                                                    }|*8
+      {1:                                                     }|
       nil                                                  |
       lua_debug> print("TEST")                             |
       TEST                                                 |
@@ -267,50 +234,50 @@ describe('_G.debug', function()
     feed('<C-c>')
     screen:expect([[
                                                            |
-      {1:~                                                    }|*2
-      {3:                                                     }|
+      {0:~                                                    }|*2
+      {1:                                                     }|
       nil                                                  |
       lua_debug> print("TEST")                             |
       TEST                                                 |
                                                            |
-      {9:E5108: Lua: [string ":lua"]:5: attempt to perform ari}|
-      {9:thmetic on local 'a' (a nil value)}                   |
-      {9:stack traceback:}                                     |
-      {9:        [string ":lua"]:5: in function 'Test'}        |
-      {9:        [string ":lua"]:1: in main chunk}             |
-      Interrupt: {6:Press ENTER or type command to continue}^   |
+      {E:E5108: Lua: [string ":lua"]:5: attempt to perform ari}|
+      {E:thmetic on local 'a' (a nil value)}                   |
+      {E:stack traceback:}                                     |
+      {E:        [string ":lua"]:5: in function 'Test'}        |
+      {E:        [string ":lua"]:1: in main chunk}             |
+      Interrupt: {cr:Press ENTER or type command to continue}^   |
     ]])
     feed('<C-l>:lua Test()\n')
     screen:expect([[
                                                            |
-      {1:~                                                    }|*10
-      {3:                                                     }|
+      {0:~                                                    }|*10
+      {1:                                                     }|
       nil                                                  |
       lua_debug> ^                                          |
     ]])
     feed('\n')
     screen:expect([[
                                                            |
-      {1:~                                                    }|*4
-      {3:                                                     }|
+      {0:~                                                    }|*4
+      {1:                                                     }|
       nil                                                  |
       lua_debug>                                           |
-      {9:E5108: Lua: [string ":lua"]:5: attempt to perform ari}|
-      {9:thmetic on local 'a' (a nil value)}                   |
-      {9:stack traceback:}                                     |
-      {9:        [string ":lua"]:5: in function 'Test'}        |
-      {9:        [string ":lua"]:1: in main chunk}             |
-      {6:Press ENTER or type command to continue}^              |
+      {E:E5108: Lua: [string ":lua"]:5: attempt to perform ari}|
+      {E:thmetic on local 'a' (a nil value)}                   |
+      {E:stack traceback:}                                     |
+      {E:        [string ":lua"]:5: in function 'Test'}        |
+      {E:        [string ":lua"]:1: in main chunk}             |
+      {cr:Press ENTER or type command to continue}^              |
     ]])
   end)
 
-  it("debug() can be safely exited with 'cont'", function()
+  it("can be safely exited with 'cont'", function()
     feed('<cr>')
     feed(':lua debug.debug() print("x")<cr>')
     screen:expect {
       grid = [[
                                                            |
-      {1:~                                                    }|*12
+      {0:~                                                    }|*12
       lua_debug> ^                                          |
     ]],
     }
@@ -318,32 +285,32 @@ describe('_G.debug', function()
     feed('conttt<cr>') -- misspelled cont; invalid syntax
     screen:expect([[
                                                            |
-      {1:~                                                    }|*8
-      {3:                                                     }|
+      {0:~                                                    }|*8
+      {1:                                                     }|
       lua_debug> conttt                                    |
-      {9:E5115: Loading Lua debug string: (debug command):1: '}|
-      {9:=' expected near '<eof>'}                             |
+      {E:E5115: Loading Lua debug string: (debug command):1: '}|
+      {E:=' expected near '<eof>'}                             |
       lua_debug> ^                                          |
     ]])
 
     feed('cont<cr>') -- exactly "cont", exit now
     screen:expect([[
                                                            |
-      {1:~                                                    }|*6
-      {3:                                                     }|
+      {0:~                                                    }|*6
+      {1:                                                     }|
       lua_debug> conttt                                    |
-      {9:E5115: Loading Lua debug string: (debug command):1: '}|
-      {9:=' expected near '<eof>'}                             |
+      {E:E5115: Loading Lua debug string: (debug command):1: '}|
+      {E:=' expected near '<eof>'}                             |
       lua_debug> cont                                      |
       x                                                    |
-      {6:Press ENTER or type command to continue}^              |
+      {cr:Press ENTER or type command to continue}^              |
     ]])
 
     feed('<cr>')
     screen:expect {
       grid = [[
       ^                                                     |
-      {1:~                                                    }|*12
+      {0:~                                                    }|*12
                                                            |
     ]],
     }

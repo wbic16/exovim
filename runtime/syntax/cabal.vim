@@ -5,13 +5,8 @@
 " Previous Maintainer:	Vincent Berthoux <twinside@gmail.com>
 " File Types:   .cabal
 " Last Change:  22 Oct 2022
-"
-" 2026 Apr 29 by Léana: add missing haskell language editions
-" 2026 Apr 20 by Vim project: remove wrong oneline keyword #20018
-" 2026 Jun 26 by Vim project: add elif keyword #20623
-"
 " v1.6: Added support for foreign-libraries
-"       Added highlighting for various fields
+"       Added highlighting for various fields 
 " v1.5: Incorporated changes from
 "       https://github.com/sdiehl/haskell-vim-proto/blob/master/vim/syntax/cabal.vim
 "       Use `syn keyword` instead of `syn match`.
@@ -30,7 +25,7 @@
 "       Cabal known compiler are highlighted too.
 "
 " V1.2: Added cpp-options which was missing. Feature implemented
-"       by GHC, found with a GHC warning, but undocumented.
+"       by GHC, found with a GHC warning, but undocumented. 
 "       Whatever...
 "
 " v1.1: Fixed operator problems and added ftdetect file
@@ -54,7 +49,7 @@ syn iskeyword @,48-57,192-255,-
 " Case sensitive matches
 syn case match
 
-syn keyword cabalConditional	if elif else
+syn keyword cabalConditional	if else
 syn keyword cabalFunction	os arche impl flag
 syn match cabalComment		/--.*$/
 
@@ -191,20 +186,19 @@ syn match cabalVersionRegionA
 	\ contains=cabalVersionOperator,cabalVersion
 	\ keepend
 	\ /\%(==\|\^\?>=\|<=\|<\|>\)\s*\d\+\%(\.\d\+\)*\%(\.\*\)\?\>/
-" version inside `version: ...`
+" version inside `version: ...` 
 syn match cabalVersionRegionB
 	\ contains=cabalStatementRegion,cabalVersionOperator,cabalVersion
 	\ /^\s*\%(cabal-\)\?version\s*:.*$/
 
-" See the following link for all Haskell language editions supported by Cabal.
-" https://cabal.readthedocs.io/en/stable/cabal-package-description-file.html#pkg-field-default-language
-syn keyword cabalLanguage Haskell98 Haskell2010 GHC2021 GHC2024
+syn keyword cabalLanguage Haskell98 Haskell2010
 
 " title region
 syn match cabalName contained /:\@<=.*/
 syn match cabalNameRegion
 	\ contains=cabalStatementRegion,cabalName
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*name\s*:.*$/
 
 " author region
@@ -212,6 +206,7 @@ syn match cabalAuthor contained /:\@<=.*/
 syn match cabalAuthorRegion
 	\ contains=cabalStatementRegion,cabalStatement,cabalAuthor
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*author\s*:.*$/
 
 " maintainer region
@@ -219,6 +214,7 @@ syn match cabalMaintainer contained /:\@<=.*/
 syn match cabalMaintainerRegion
 	\ contains=cabalStatementRegion,cabalStatement,cabalMaintainer
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*maintainer\s*:.*$/
 
 " license region
@@ -226,6 +222,7 @@ syn match cabalLicense contained /:\@<=.*/
 syn match cabalLicenseRegion
 	\ contains=cabalStatementRegion,cabalStatement,cabalLicense
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*license\s*:.*$/
 
 " license-file region
@@ -233,6 +230,7 @@ syn match cabalLicenseFile contained /:\@<=.*/
 syn match cabalLicenseFileRegion
 	\ contains=cabalStatementRegion,cabalStatement,cabalLicenseFile
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*license-file\s*:.*$/
 
 " tested-with region with compilers and versions
@@ -240,6 +238,7 @@ syn keyword cabalCompiler contained ghc nhc yhc hugs hbc helium jhc lhc
 syn match cabalTestedWithRegion
 	\ contains=cabalStatementRegion,cabalStatement,cabalCompiler,cabalVersionRegionA
 	\ nextgroup=cabalStatementRegion
+	\ oneline
 	\ /^\c\s*tested-with\s*:.*$/
 
 " build type keywords

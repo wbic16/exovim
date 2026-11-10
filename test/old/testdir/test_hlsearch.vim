@@ -40,15 +40,6 @@ func Test_hlsearch_hangs()
     return
   endif
 
-  " So, it turns out the Windows 7 implements TimerQueue timers differently
-  " and they can expire *before* the requested time has elapsed. So allow for
-  " the timeout occurring after 80 ms (5 * 16 (the typical clock tick)).
-  if has("win32")
-    let min_timeout = 0.08
-  else
-    let min_timeout = 0.1
-  endif
-
   " This pattern takes a long time to match, it should timeout.
   new
   call setline(1, ['aaa', repeat('abc ', 100000), 'ccc'])
@@ -57,7 +48,8 @@ func Test_hlsearch_hangs()
   let @/ = '\%#=1a*.*X\@<=b*'
   redraw
   let elapsed = reltimefloat(reltime(start))
-  call assert_inrange(min_timeout, 1.0, elapsed)
+  call assert_true(elapsed > 0.1)
+  call assert_true(elapsed < 1.0)
   set nohlsearch redrawtime&
   bwipe!
 endfunc

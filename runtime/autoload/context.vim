@@ -117,7 +117,7 @@ else " No jobs
   endfunction
 
   function! s:typeset(path)
-    execute '!' . context#command() . ' ' . shellescape(fnamemodify(a:path, ":t"), 1)
+    execute '!' . context#command() . ' ' . shellescape(fnamemodify(a:path, ":t"))
     call call(get(b:, 'context_callback', get(g:, 'context_callback', 'context#callback')),
           \ [a:path, 0, v:shell_error])
   endfunction

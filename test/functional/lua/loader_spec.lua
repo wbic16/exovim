@@ -2,7 +2,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local exec_lua = n.exec_lua
 local command = n.command
 local clear = n.clear
@@ -14,12 +13,10 @@ describe('vim.loader', function()
   it('can be disabled', function()
     exec_lua(function()
       local orig_loader = _G.loadfile
-      local orig_loaders = { unpack(package.loaders) }
       vim.loader.enable()
       assert(orig_loader ~= _G.loadfile)
       vim.loader.enable(false)
       assert(orig_loader == _G.loadfile)
-      assert(vim.deep_equal(orig_loaders, package.loaders))
     end)
   end)
 

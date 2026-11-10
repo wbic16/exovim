@@ -12,4 +12,4 @@ endif
 set encoding=utf-8
 
 " Use safer defaults for various directories
-set backupdir=. undodir=. viewdir=.
+set backupdir=. directory=. undodir=. viewdir=.

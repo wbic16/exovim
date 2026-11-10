@@ -1,6 +1,4 @@
-local M = vim._defer_require('vim.ui', {
-  img = ..., --- @module 'vim.ui.img'
-})
+local M = {}
 
 ---@class vim.ui.select.Opts
 ---@inlinedoc
@@ -26,11 +24,11 @@ local M = vim._defer_require('vim.ui', {
 ---@field kind? string
 
 --- Prompts the user to pick from a list of items, allowing arbitrary (potentially asynchronous)
---- work until `on_choice`. This is the standard "picker" interface, used by |z=|, |:tselect|, etc.
+--- work until `on_choice`.
 ---
---- Plugins may override `vim.ui.select` to provide a custom picker; they are expected to call the
---- `format_item` and `preview_item` handlers (if any) provided by the caller. They may also use the
---- `kind` hint (if provided by the caller) to decide how to handle some items.
+--- Plugins may override `vim.ui.select` to provide a custom "picker" interface; they are expected
+--- to call the `format_item` and `preview_item` handlers (if any) provided by the caller. They may
+--- also use the `kind` hint (if provided by the caller) to decide how to handle some items.
 ---
 --- Note: the default `vim.ui.select` currently doesn't support preview.
 ---
@@ -134,10 +132,7 @@ function M.input(opts, on_confirm)
   local _canceled = vim.NIL
   opts = vim.tbl_extend('keep', opts, { cancelreturn = _canceled })
 
-  -- EmmyLua workaround: a direct call resolves the table overload correctly.
-  local ok, input = pcall(function()
-    return vim.fn.input(opts)
-  end)
+  local ok, input = pcall(vim.fn.input, opts)
   if not ok or input == _canceled then
     on_confirm(nil)
   else
@@ -182,7 +177,8 @@ end
 ---@see |vim.system()|
 function M.open(path, opt)
   vim.validate('path', path, 'string')
-  if not vim.uri.parse(path) then
+  local is_uri = path:match('%w+:')
+  if not is_uri then
     path = vim.fs.normalize(path)
   end
 
@@ -191,7 +187,7 @@ function M.open(path, opt)
   local job_opt = { text = true, detach = true } --- @type vim.SystemOpts
 
   if opt.cmd then
-    cmd = vim.list_extend(vim.list_slice(opt.cmd) --[[@as string[] ]], { path })
+    cmd = vim.list_extend(opt.cmd --[[@as string[] ]], { path })
   else
     local open_cmd, err = M._get_open_cmd()
     if err then
@@ -201,9 +197,6 @@ function M.open(path, opt)
     if open_cmd[1] == 'xdg-open' then
       job_opt.stdout = false
       job_opt.stderr = false
-    elseif open_cmd[1] == 'cmd.exe' and not path:find('[%s"]') then
-      -- Escape cmd.exe special chars, unless libuv quotes the arg (it has whitespace or '"').
-      path = path:gsub('([&|<>^%%!])', '^%1')
     end
     cmd = vim.list_extend(open_cmd, { path })
   end
@@ -260,7 +253,7 @@ local get_lsp_urls = function(bufnr)
         if document_link.target and range:has(position) then
           local target = document_link.target ---@type string
           if vim.startswith(target, 'file://') then
-            target = vim.uri.to_fname(target)
+            target = vim.uri_to_fname(target)
           end
           table.insert(urls, target)
         end
@@ -347,26 +340,28 @@ do
   --- Initialize Progress handlers.
   local function progress_init()
     progress_group = vim.api.nvim_create_augroup('nvim.ui.progress_status', { clear = true })
-    progress_autocmd = require('vim._core.util').nvim_on('Progress', progress_group, {
+    progress_autocmd = vim.api.nvim_create_autocmd('Progress', {
+      group = progress_group,
       desc = 'Tracks progress messages for vim.ui.progress_status()',
-    }, function(ev)
-      if not ev.data or not ev.data.id then
-        return
-      end
-      --- @cast ev.data vim.event.progress.data
-      ev.data.percent = ev.data.percent or 0
-      progress[ev.data.id] = ev.data
+      ---@param ev {data: vim.event.progress.data}
+      callback = function(ev)
+        if not ev.data or not ev.data.id then
+          return
+        end
+        ev.data.percent = ev.data.percent or 0
+        progress[ev.data.id] = ev.data
 
-      -- Clear finished items
-      if
-        ev.data.status == 'success'
-        or ev.data.percent == 100
-        or ev.data.status == 'failed'
-        or ev.data.status == 'cancel'
-      then
-        progress[ev.data.id] = nil
-      end
-    end)
+        -- Clear finished items
+        if
+          ev.data.status == 'success'
+          or ev.data.percent == 100
+          or ev.data.status == 'failed'
+          or ev.data.status == 'cancel'
+        then
+          progress[ev.data.id] = nil
+        end
+      end,
+    })
   end
 
   --- Gets a status description summarizing currently running progress messages.
@@ -384,7 +379,7 @@ do
         sum = sum + (progress_item.percent or 0)
       end
       local avg = math.floor(sum / count)
-      return string.format('%d%%(%d)', avg, count)
+      return string.format('%d%%%%(%d) ', avg, count)
     end
   end
 

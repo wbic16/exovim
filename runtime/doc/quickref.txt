@@ -7,7 +7,6 @@
 Quick reference guide
 
 							 *quickref* *Contents*
-
  tag	  subject			 tag	  subject	~
 |Q_ct|	list of help files		|Q_re|	Repeating commands
 |Q_lr|	motion: Left-right		|Q_km|	Key mapping
@@ -130,7 +129,7 @@ N is used to indicate an optional count that can be given before the command.
 
 |pattern|		Special characters in search patterns
 
-			meaning			magic	nomagic ~
+			meaning		      magic   nomagic	~
 		matches any single character	.	\.
 		       matches start of line	^	^
 			       matches <EOL>	$	$
@@ -148,16 +147,16 @@ N is used to indicate an optional count that can be given before the command.
 		   idem but excluding digits	\P	\P
 	     matches a white space character	\s	\s
 	 matches a non-white space character	\S	\S
-     ----------------------------------------------------------
+
 			       matches <Esc>	\e	\e
 			       matches <Tab>	\t	\t
 				matches <CR>	\r	\r
 				matches <BS>	\b	\b
-     ----------------------------------------------------------
+
      matches 0 or more of the preceding atom	*	\*
      matches 1 or more of the preceding atom	\+	\+
 	matches 0 or 1 of the preceding atom	\=	\=
-	matches 2 to 5 of the preceding atom	\{2,5}	\{2,5}
+	matches 2 to 5 of the preceding atom	\{2,5}  \{2,5}
 		  separates two alternatives	\|	\|
 		group a pattern into an atom	\(\)	\(\)
 
@@ -488,8 +487,6 @@ In Insert or Command-line mode:
 |v_is|	   N  is	Select "inner sentence"
 |v_ap|	   N  ap	Select "a paragraph"
 |v_ip|	   N  ip	Select "inner paragraph"
-|v_al|	      al	Select all lines
-|v_il|	      il	Select "inner line"
 |v_ab|	   N  ab	Select "a block" (from "[(" to "])")
 |v_ib|	   N  ib	Select "inner block" (from "[(" to "])")
 |v_aB|	   N  aB	Select "a Block" (from `[{` to `]}`)
@@ -730,7 +727,6 @@ Short explanation of each option:		*option-list*
 'foldnestmax'	  'fdn'     maximum fold depth
 'foldopen'	  'fdo'     for which commands a fold will be opened
 'foldtext'	  'fdt'     expression used to display for a closed fold
-'follow'		    multicursor: motions cascade to all cursors
 'formatexpr'	  'fex'     expression used with "gq" command
 'formatlistpat'   'flp'     pattern used to recognize a list header
 'formatoptions'   'fo'	    how automatic formatting is to be done
@@ -766,6 +762,7 @@ Short explanation of each option:		*option-list*
 'isfname'	  'isf'     characters included in file names and pathnames
 'isident'	  'isi'     characters included in identifiers
 'iskeyword'	  'isk'     characters included in keywords
+'isprint'	  'isp'     printable characters
 'joinspaces'	  'js'	    two spaces after a period with a join command
 'jumpoptions'	  'jop'     specifies how jumping is done
 'keymap'	  'kmp'     name of a keyboard mapping
@@ -844,7 +841,6 @@ Short explanation of each option:		*option-list*
 'scrollbind'	  'scb'     scroll in window as other windows scroll
 'scrolljump'	  'sj'	    minimum number of lines to scroll
 'scrolloff'	  'so'	    minimum nr. of lines above and below cursor
-'scrolloffpad'	  'sop'	    vertically center cursor at end of file
 'scrollopt'	  'sbo'     how 'scrollbind' should behave
 'sections'	  'sect'    nroff macros that separate sections
 'secure'		    secure mode for reading .vimrc in current dir
@@ -1020,7 +1016,7 @@ Short explanation of each option:		*option-list*
 |:version|	:ve[rsion]	show version information
 |:normal|	:norm[al][!] {commands}
 				execute Normal mode commands
-|:exmode|	1q:		switch to |Ex-mode|
+|gQ|		   gQ		switch to "Ex" mode
 
 |:redir|	:redir >{file}		redirect messages to {file}
 |:silent|	:silent[!] {command}	execute {command} silently
@@ -1145,7 +1141,7 @@ Context-sensitive completion on the command-line:
 |-+|	+[num]		    put the cursor at line [num] (default: last line)
 |-+c|	+{command}	    execute {command} after loading the file
 |-+/|	+/{pat} {file} ..   put the cursor at the first occurrence of {pat}
-|-e|	-e		    |Ex-mode|
+|-e|	-e		    Ex mode, start vim in Ex mode
 |-R|	-R		    Read-only mode, implies -n
 |-m|	-m		    modifications not allowed (resets 'write' option)
 |-d|	-d		    |diff-mode|
@@ -1200,7 +1196,7 @@ Context-sensitive completion on the command-line:
 				   file
 |:wN|	   :wN[ext][!] [file]	write file and edit previous file
 
-	     in current window	  in new window		action ~
+	     in current window    in new window	~
 |:argument|  :argu[ment] N	  :sar[gument] N	edit file N
 |:next|      :n[ext]		  :sn[ext]		edit next file
 |:next_f|    :n[ext] {arglist}	  :sn[ext] {arglist}	define new arg list

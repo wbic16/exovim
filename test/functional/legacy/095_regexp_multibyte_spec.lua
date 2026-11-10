@@ -4,9 +4,7 @@
 -- actually tried.
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 
-local describe, it, setup = t.describe, t.it, t.setup
 local insert, source = n.insert, n.source
 local clear, expect = n.clear, n.expect
 

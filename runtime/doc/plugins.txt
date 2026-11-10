@@ -18,15 +18,13 @@ loaded by default while others are not loaded until requested by |:packadd|.
 Standard plugins                                        *standard-plugin-list*
 
 Help-link		Loaded	Short description ~
-|dir|			Yes	Directory listing for |:edit|
-|difftool|		No	Compares directories (and files) side-by-side
+|difftool|		No	Compares two directories or files side-by-side
 |editorconfig|		Yes	Detect and interpret editorconfig
 |ft-shada|		Yes	Allows editing binary |shada| files
 |man.lua|		Yes	View manpages in Nvim
 |matchit|		Yes	Extended |%| matching
 |matchparen|		Yes	Highlight matching pairs
-|netrw|			No	Reading and writing files over a network
-|zip|			Yes	Read-only zip archive browser
+|netrw|			Yes	Reading and writing files over a network
 |package-cfilter|	No	Filtering quickfix/location list
 |package-justify|	No	Justify text
 |package-nohlsearch|	No	Automatically run :nohlsearch
@@ -41,161 +39,11 @@ Help-link		Loaded	Short description ~
 |pi_swapmouse|		No	Swap meaning of left and right mouse buttons
 |pi_tar.txt|		Yes	Tar file explorer
 |pi_tutor.txt|		Yes	Interactive tutorial
-|old-zip|		No	Legacy zip archive explorer
-
-==============================================================================
-Builtin plugin: dir                                                      *dir*
-
-Nvim opens a directory listing when you |:edit| a directory path, handled by
-the builtin "dir" plugin.  The listing is read-only, dir.lua does not provide
-actions which modify the filesystem.
-
-Each "dir" buffer is initialized as follows:
-- Sets 'filetype' to "directory".
-- Sets |current-directory| via |:bcd|, so |gf|, |:!| and friends work as
-  expected.
-- Keeps |alternate-file|, so |CTRL-^| returns to the buffer you came from.
-
-                                                    *g:loaded_nvim_dir_plugin*
-To disable the built-in directory browser, set this before startup: >lua
-    vim.g.loaded_nvim_dir_plugin = 1
-<
-
-MAPPINGS                                                        *dir-mappings*
-
-• <CR> opens the file or directory under the cursor.
-• a opens the file or directory under the cursor in a vertical split.
-• o opens the file or directory under the cursor in a horizontal split.
-• - opens the parent directory.
-• {count}- is like -, but a count of 1 opens the global working directory,
-  and a higher count goes up that many levels.
-• R reloads the directory listing.
-
-a and o are available for local directories and keep focus in the listing.
-'splitright' and 'splitbelow' control where the new window appears.
-
-These keys map to <Plug>(nvim-dir-open), <Plug>(nvim-dir-vsplit),
-<Plug>(nvim-dir-split), <Plug>(nvim-dir-up), and <Plug>(nvim-dir-reload); map those
-to use different keys. Default mappings are skipped when the target <Plug>
-mapping is already mapped. The default "-", "a", and "o" mappings are also
-skipped when their keys are already mapped.
-
-To make "-" open the parent directory from any buffer: >lua
-    vim.keymap.set('n', '-', '<Plug>(nvim-dir-up)')
-<
-
-                                                                 *dir-config*
-Directory buffers follow the global 'hidden' option by default. To delete them
-after use: >vim
-    autocmd FileType directory setlocal bufhidden=delete
-<
-A discarded listing is rebuilt on the next visit, so the cursor starts at the
-first entry instead of the one it was left on. "wipe" discards the buffer
-itself, leaving no |alternate-file|; see 'bufhidden'.
-
-
-Reshaping the listing                                             *dir-render*
-
-                                                                 *DirReadPost*
-A |User| autocommand fired after each listing is rendered, including reloads.
-The buffer is writable for the duration, so a handler can sort or filter it
-with ordinary commands, and the cursor is placed afterwards.
-
-Handlers may reorder or remove lines, but each remaining line must still be an
-entry name: |dir-mappings| resolve the line under the cursor against the
-buffer name, so rewriting line text makes <CR> open a nonexistent path.
-
-Sort directories last: >vim
-    autocmd User DirReadPost silent keeppatterns sort r /\/$/
-<
-Hide dot-prefixed entries: >vim
-    autocmd User DirReadPost silent keeppatterns g/^\./d _
-<
-Sort by modification time, newest first: >lua
-    vim.api.nvim_create_autocmd('User', {
-      pattern = 'DirReadPost',
-      callback = function(args)
-        local dir = vim.api.nvim_buf_get_name(args.buf)
-        local names = vim.api.nvim_buf_get_lines(args.buf, 0, -1, true)
-        local mtime = {} --- @type table<string, integer>
-        for _, name in ipairs(names) do
-          local stat = vim.uv.fs_stat(vim.fs.joinpath(dir, name))
-          mtime[name] = stat and stat.mtime.sec or 0
-        end
-        table.sort(names, function(a, b)
-          return mtime[a] > mtime[b]
-        end)
-        vim.api.nvim_buf_set_lines(args.buf, 0, -1, true, names)
-      end,
-    })
-<
-
-Decorating the listing                                          *dir-decorate*
-
-A |nvim_set_decoration_provider()| sets |extmarks| on the visible lines of
-each redraw, so they survive reordering by a |DirReadPost| handler.
-
-Classify each entry, and show where a symbolic link points: >lua
-    local ns = vim.api.nvim_create_namespace('my.dir.classify')
-    local glyph = {
-      fifo = '|', socket = '=', char = '%', block = '#',
-    }
-    vim.api.nvim_set_decoration_provider(ns, {
-      on_win = function(_, _, buf)
-        return vim.bo[buf].filetype == 'directory'
-      end,
-      on_range = function(_, _, buf, row)
-        local dir = vim.api.nvim_buf_get_name(buf)
-        local name = vim.api.nvim_buf_get_lines(buf, row, row + 1, true)[1]
-        local path = vim.fs.joinpath(dir, (name:gsub('/$', '')))
-        local stat = vim.uv.fs_lstat(path) or {}
-        local exe = stat.type == 'file'
-          and bit.band(stat.mode, tonumber('111', 8)) ~= 0
-        local char = glyph[stat.type] or (exe and '*')
-        if char then
-          vim.api.nvim_buf_set_extmark(buf, ns, row, #name, {
-            virt_text = { { char, 'Dimmed' } },
-            virt_text_pos = 'overlay',
-            ephemeral = true,
-          })
-        end
-        if stat.type == 'link' then
-          local target = vim.uv.fs_readlink(path) or '?'
-          vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
-            virt_text = { { '-> ' .. target, 'Dimmed' } },
-            virt_text_pos = 'eol',
-            ephemeral = true,
-          })
-        end
-        return row + 1
-      end,
-    })
-<
-
-Replacing the directory browser                                  *dir-disable*
-
-To use another directory browser for the current session, delete the
-`nvim.dir` autocommand group on or after |VimEnter| and handle |FileType| "directory".
-This clears the built-in directory-opening autocommands. >lua
-
-    vim.api.nvim_del_augroup_by_name('nvim.dir')
-    vim.api.nvim_create_autocmd('FileType', {
-      pattern = 'directory',
-      callback = function(args)
-        require('my_browser').open(args.buf, vim.api.nvim_buf_get_name(args.buf))
-      end,
-    })
-<
-                                                                       *netrw*
-To enable the legacy "netrw" plugin: >vim
-
-    :packadd netrw
-
-The plugin and its mappings remain loaded (it is a core component used by
-other features such as |zip|).
+|pi_zip.txt|		Yes	Zip archive explorer
 
 ==============================================================================
 Builtin plugin: difftool                                            *difftool*
+
 
 :DiffTool {left} {right}                                           *:DiffTool*
 Compares two directories or files side-by-side.
@@ -320,8 +168,7 @@ max_line_length                                 *editorconfig.max_line_length*
 root                                                       *editorconfig.root*
     If "true", then stop searching for `.editorconfig` files in parent
     directories. This property must be at the top-level of the `.editorconfig`
-    file (i.e. it must not be within a glob section). It only controls the
-    search and is excluded from property callbacks and |b:editorconfig|.
+    file (i.e. it must not be within a glob section).
 
 spelling_language                             *editorconfig.spelling_language*
     A code of the format ss or ss-TT, where ss is an ISO 639 language code and
@@ -345,32 +192,30 @@ Asks the user to download missing spellfiles. The spellfile is written to
 The plugin can be disabled by setting `g:loaded_spellfile_plugin = 1`.
 
 
-nvim.spellfile.Config                                  *nvim.spellfile.Config*
+*nvim.spellfile.Opts*
     A table with the following fields:
 
     Fields: ~
-      • {confirm}     (`boolean`, default: `true`) Whether to ask user to
-                      confirm download.
-      • {timeout_ms}  (`integer`, default: 15000) Number of milliseconds after
-                      which the |vim.net.request()| times out.
-      • {url}         (`string`) The base URL from where the spellfiles are
-                      downloaded. Uses `g:spellfile_URL` if it's set,
-                      otherwise https://ftp.nluug.nl/pub/vim/runtime/spell.
+      • {confirm}?     (`boolean`, default: `true`) Whether to ask user to
+                       confirm download.
+      • {timeout_ms}?  (`integer`, default: 15000) Number of milliseconds
+                       after which the |vim.net.request()| times out.
+      • {url}?         (`string`) The base URL from where the spellfiles are
+                       downloaded. Uses `g:spellfile_URL` if it's set,
+                       otherwise https://ftp.nluug.nl/pub/vim/runtime/spell.
 
 
 config({opts})                                            *spellfile.config()*
-    Configure spellfile download options. Omit {opts} to retrieve the current
-    configuration. Otherwise, update only the supplied fields.
-
-    For example: >lua
+    Configure spellfile download options. For example: >lua
         require('nvim.spellfile').config({ url = '...' })
 <
 
     Parameters: ~
-      • {opts}  (`Partial<nvim.spellfile.Config>?`)
+      • {opts}  (`nvim.spellfile.Opts?`) When omitted or `nil`, retrieve the
+                current configuration. Otherwise, a configuration table.
 
     Return: ~
-        (`nvim.spellfile.Config?`) Current config if {opts} is omitted.
+        (`nvim.spellfile.Opts?`) Current config if {opts} is omitted.
 
 get({lang})                                                  *spellfile.get()*
     Download spellfiles for language {lang} if available.
@@ -389,6 +234,7 @@ get({lang})                                                  *spellfile.get()*
 
 ==============================================================================
 Builtin plugin: tohtml                                        *package-tohtml*
+
 
 :[range]TOhtml {file}                                                *:TOhtml*
 Converts the buffer shown in the current window to HTML, opens the generated

@@ -234,21 +234,16 @@ local function stringify_message(message)
   return vim.inspect(message)
 end
 
---- True if `pending` starts with "<token>:". Used to bucket skips:
---- - 'N/A' for non-actionable skips.
---- - 'NVIM_TEST_INTEG' for integration tests.
----
 --- @private
 --- @param pending test.harness.Record
---- @param token string
 --- @return boolean
-function M:has_skip_token(pending, token)
-  if pending.name and vim.list_contains(vim.split(pending.name, '[ :]'), token) then
+function M:na_check(pending)
+  if pending.name and vim.list_contains(vim.split(pending.name, '[ :]'), 'N/A') then
     return true
   end
 
   if type(pending.message) == 'string' then
-    return vim.list_contains(vim.split(pending.message, '[ :]'), token)
+    return vim.list_contains(vim.split(pending.message, '[ :]'), 'N/A')
   end
 
   return false
@@ -317,12 +312,9 @@ function M:get_test_list(status, count, list, describe)
     ),
   }
   local na_count = 0
-  local integ_count = 0
 
   for _, item in ipairs(list) do
-    if status == 'skipped' and self:has_skip_token(item, 'NVIM_TEST_INTEG') then
-      integ_count = integ_count + 1
-    elseif status == 'skipped' and self:has_skip_token(item, 'N/A') then
+    if status == 'skipped' and self:na_check(item) then
       na_count = na_count + 1
     else
       local fullname = self:get_file_line(item.trace) .. self:nmbr(item.name)
@@ -332,11 +324,8 @@ function M:get_test_list(status, count, list, describe)
   end
 
   if na_count > 0 then
-    parts[#parts + 1] = self:nmbr(('Skipped %d N/A test(s) (not listed)\n'):format(na_count))
-  end
-  if integ_count > 0 then
     parts[#parts + 1] =
-      self:nmbr(('Skipped %d NVIM_TEST_INTEG test(s) (not listed)\n'):format(integ_count))
+      self:nmbr(('%d N/A %s not shown\n'):format(na_count, na_count == 1 and 'test' or 'tests'))
   end
 
   return table.concat(parts)

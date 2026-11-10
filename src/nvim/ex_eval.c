@@ -257,7 +257,7 @@ bool cause_errthrow(const char *mesg, bool multiline, bool concat, bool severe, 
       elem->throw_msg = NULL;
       *plist = elem;
       if (plist == msg_list || severe) {
-        // Skip the extra "Vim " prefix for message "E457".
+        // Skip the extra "Vim " prefix for message "E458".
         char *tmsg = elem->msg;
         if (strncmp(tmsg, "Vim E", 5) == 0
             && ascii_isdigit(tmsg[5])
@@ -378,9 +378,7 @@ bool do_intthrow(cstack_T *cstack)
   return true;
 }
 
-/// Gets an exception message that is to be stored in current_exception->value.
-///
-/// For error exceptions (ET_ERROR), formats the message as "Vim(cmdname):Exx: …".
+/// Get an exception message that is to be stored in current_exception->value.
 char *get_exception_string(void *value, except_type_T type, char *cmdname, bool *should_free)
 {
   char *ret;

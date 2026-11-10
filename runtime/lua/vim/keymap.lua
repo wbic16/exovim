@@ -16,8 +16,7 @@ local keymap = {}
 --- (Default: `false`)
 --- @field remap? boolean
 
---- Defines a |mapping| of |keycodes| to a function or keycodes. If `lhs` is a list, defines
---- a mapping for each (mode, lhs) pair.
+--- Defines a |mapping| of |keycodes| to a function or keycodes.
 ---
 --- Examples:
 ---
@@ -39,23 +38,15 @@ local keymap = {}
 ---     type = 'v',
 ---     exclusive = false,
 ---     eol = false,
----     bounds = true,
 ---   })
 ---   local line1 = region[1][1][2]
----   local line2 = region[1][2][2]
+---   local line2 = region[#region][1][2]
 ---   vim.print({ line1, line2 })
 --- end)
----
---- vim.keymap.set({ 'n', 'i' }, { 'a', 'b' }, '<cmd>echom localtime()<cr>')
---- -- ... is the same as:
---- vim.keymap.set('n', 'a', '<cmd>echom localtime()<cr>')
---- vim.keymap.set('i', 'a', '<cmd>echom localtime()<cr>')
---- vim.keymap.set('n', 'b', '<cmd>echom localtime()<cr>')
---- vim.keymap.set('i', 'b', '<cmd>echom localtime()<cr>')
 --- ```
 ---
 ---@param modes string|string[] Mode "short-name" (see |nvim_set_keymap()|), or a list thereof.
----@param lhs string|string[]  Left-hand side |{lhs}| of the mapping, or a list thereof.
+---@param lhs string           Left-hand side |{lhs}| of the mapping.
 ---@param rhs string|function  Right-hand side |{rhs}| of the mapping, can be a Lua function.
 ---@param opts? vim.keymap.set.Opts
 ---
@@ -65,16 +56,14 @@ local keymap = {}
 ---@see |mapset()|
 function keymap.set(modes, lhs, rhs, opts)
   vim.validate('modes', modes, { 'string', 'table' })
-  vim.validate('lhs', lhs, { 'string', 'table' })
+  vim.validate('lhs', lhs, 'string')
   vim.validate('rhs', rhs, { 'string', 'function' })
   vim.validate('opts', opts, 'table', true)
 
   opts = vim.deepcopy(opts or {}, true)
 
-  modes = type(modes) == 'string' and { modes } or modes
   ---@cast modes string[]
-  lhs = type(lhs) == 'string' and { lhs } or lhs
-  ---@cast lhs string[]
+  modes = type(modes) == 'string' and { modes } or modes
 
   if opts.expr and opts.replace_keycodes ~= false then
     opts.replace_keycodes = true
@@ -104,13 +93,13 @@ function keymap.set(modes, lhs, rhs, opts)
     opts.buffer = nil
   end
 
-  for _, m in ipairs(modes) do
-    for _, l in ipairs(lhs) do
-      if buf then
-        vim.api.nvim_buf_set_keymap(buf, m, l, rhs, opts)
-      else
-        vim.api.nvim_set_keymap(m, l, rhs, opts)
-      end
+  if buf then
+    for _, m in ipairs(modes) do
+      vim.api.nvim_buf_set_keymap(buf, m, lhs, rhs, opts)
+    end
+  else
+    for _, m in ipairs(modes) do
+      vim.api.nvim_set_keymap(m, lhs, rhs, opts)
     end
   end
 end
@@ -120,33 +109,28 @@ end
 ---
 --- Remove a mapping from the given buffer. `0` for current.
 --- @field buf? integer
---- When true, only match {lhs}, not {rhs}.
---- @field lhs? boolean
 
---- Removes a mapping, or removes each (mode, lhs) pair if `lhs` is a list.
----
+--- Remove an existing mapping.
 --- Examples:
 ---
 --- ```lua
 --- vim.keymap.del('n', 'lhs')
+---
 --- vim.keymap.del({'n', 'i', 'v'}, '<leader>w', { buf = 5 })
 --- ```
 ---
 ---@param modes string|string[]
----@param lhs string|string[]
+---@param lhs string
 ---@param opts? vim.keymap.del.Opts
 ---@see |vim.keymap.set()|
 function keymap.del(modes, lhs, opts)
-  vim.validate('modes', modes, { 'string', 'table' })
-  vim.validate('lhs', lhs, { 'string', 'table' })
+  vim.validate('mode', modes, { 'string', 'table' })
+  vim.validate('lhs', lhs, 'string')
   vim.validate('opts', opts, 'table', true)
 
   opts = opts or {}
-
   modes = type(modes) == 'string' and { modes } or modes
   --- @cast modes string[]
-  lhs = type(lhs) == 'string' and { lhs } or lhs
-  ---@cast lhs string[]
 
   local buf = opts.buf
   --- @cast opts +{buffer?:integer|boolean}
@@ -156,15 +140,13 @@ function keymap.del(modes, lhs, opts)
     buf = opts.buffer == true and 0 or opts.buffer --[[@as integer?]]
   end
 
-  local api_opts = { lhs = opts.lhs }
-
-  for _, m in ipairs(modes) do
-    for _, l in ipairs(lhs) do
-      if buf then
-        vim.api.nvim_buf_del_keymap(buf, m, l, api_opts)
-      else
-        vim.api.nvim_del_keymap(m, l, api_opts)
-      end
+  if buf then
+    for _, mode in ipairs(modes) do
+      vim.api.nvim_buf_del_keymap(buf, mode, lhs)
+    end
+  else
+    for _, mode in ipairs(modes) do
+      vim.api.nvim_del_keymap(mode, lhs)
     end
   end
 end

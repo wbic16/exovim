@@ -5,7 +5,7 @@ local FORMAT_DEPTH = 100
 
 --- @param value any
 --- @return string
-local function fmt(value)
+local function format_value(value)
   if type(value) == 'string' then
     return string.format('%q', value)
   end
@@ -36,8 +36,8 @@ end
 local function comparison_message(expected, actual, comparator)
   return ('Expected values to be %s.\nExpected:\n%s\nActual:\n%s'):format(
     comparator,
-    fmt(expected),
-    fmt(actual)
+    format_value(expected),
+    format_value(actual)
   )
 end
 
@@ -54,59 +54,6 @@ function M.eq(expected, actual, context)
   )
 end
 
---- Checks the supplied fields recursively, ignoring other record fields.
---- Lists must have the same length and order; their records may have extra fields.
---- Does not check the non-existence of a field.
----
---- Examples:
---- ```lua
---- local result = { id = 1, opts = { enabled = false, priority = 10 } }
---- eq_partial({ opts = { enabled = false } }, result) -- Passes.
---- eq(nil, result.missing) -- Check that a field is absent.
----
---- eq_partial({ { id = 1 } }, { { id = 1, name = 'test' } }) -- Passes.
---- eq_partial({ { id = 1 } }, { { id = 1 }, { id = 2 } }) -- Fails: extra list item.
---- ```
----
---- @param expected any
---- @param actual any
---- @param context? any
---- @return any
-function M.eq_partial(expected, actual, context)
-  local seen = {} --- @type table<table, table<table, boolean>>
-  local prefix = context ~= nil and tostring(context) .. ': ' or ''
-
-  --- @param want any
-  --- @param got any
-  --- @param path string
-  local function compare(want, got, path)
-    if type(want) ~= 'table' or type(got) ~= 'table' or next(want) == nil then
-      M.eq(want, got, prefix .. path)
-      return
-    end
-
-    if vim.islist(want) then
-      assert_value(vim.islist(got), got, prefix .. path, 'Expected a list.\nActual:\n' .. fmt(got))
-      M.eq(#want, #got, prefix .. path .. ' (length)')
-    end
-
-    if seen[want] and seen[want][got] then
-      return
-    end
-    seen[want] = seen[want] or {}
-    seen[want][got] = true
-
-    for key, value in pairs(want) do
-      local field = type(key) == 'string' and key:match('^[%a_][%w_]*$') and '.' .. key
-        or '[' .. fmt(key) .. ']'
-      compare(value, got[key], path .. field)
-    end
-  end
-
-  compare(expected, actual, 'actual')
-  return actual
-end
-
 --- @param expected any
 --- @param actual any
 --- @param context? any
@@ -116,9 +63,29 @@ function M.neq(expected, actual, context)
     not vim.deep_equal(expected, actual),
     actual,
     context,
-    ('Expected values to differ.\nValue:\n%s'):format(fmt(actual))
+    ('Expected values to differ.\nValue:\n%s'):format(format_value(actual))
   )
 end
+
+--- @param value any
+--- @param context? any
+--- @return any
+function M.is_true(value, context)
+  return M.eq(true, value, context)
+end
+
+--- @param value any
+--- @param context? any
+--- @return any
+function M.is_false(value, context)
+  return M.eq(false, value, context)
+end
+
+-- TODO(lewis6991): remove these aliases
+M.True = M.is_true
+M.False = M.is_false
+M.equals = M.eq
+M.Equal = M.eq
 
 return setmetatable(M, {
   --- @param condition any

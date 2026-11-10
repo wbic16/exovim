@@ -1,7 +1,6 @@
 local t = require('test.unit.testutil')
-local describe = t.describe
 local cimport = t.cimport
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 local lib =
   cimport('./src/nvim/msgpack_rpc/unpacker.h', './src/nvim/memory.h', './src/mpack/conv.h')
 local ffi = t.ffi

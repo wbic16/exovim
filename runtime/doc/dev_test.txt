@@ -4,7 +4,6 @@
                             NVIM REFERENCE MANUAL
 
 
-==============================================================================
 Writing tests for Nvim                                              *dev-test*
 
                                   Type |gO| to see the table of contents.
@@ -47,10 +46,10 @@ skipped.
 
 Harness isolation                                  *dev-test-harness-isolation*
 
-The Lua harness runs all selected spec files in one `nvim -l` process, then
-restores a baseline before each file. For each suite iteration, the file
-boundary baseline is captured after `--helper` is loaded, so helper-provided
-modules and defaults persist across files.
+The Lua harness runs all selected spec files in one low-level `nvim -ll`
+process, then restores a baseline before each file. For each suite iteration,
+the file boundary baseline is captured after `--helper` is loaded, so
+helper-provided modules and defaults persist across files.
 Helper files are preload-only: they may require modules, set defaults, and
 register suite-end cleanup, but they do not define tests or hooks.
 
@@ -222,7 +221,7 @@ With these installed you can use a configuration like this: >
         command = "nlua",
       },
       args = {
-        "-l",
+        "-ll",
         "test/runner.lua",
         "--helper=test/functional/preload.lua",
         "--lpath=build/?.lua",
@@ -420,15 +419,14 @@ Example: https://github.com/neovim/neovim/pull/35768
 
 FIXING LINT FAILURES
 
-`make emmylua-check` runs EmmyLua on the runtime Lua code, using `.emmyrc.json`.
-The checker is downloaded automatically. Enable more checks incrementally by
-removing codes from `diagnostics.disable` and fixing the resulting diagnostics.
+`make lint` (and `make lintlua`) runs [LuaLS](https://github.com/LuaLS/lua-language-server/wiki/Annotations)
+on the test code.
 
-If an EmmyLua warning must be ignored, specify the warning code. Example: >lua
+If a LuaLS/EmmyLS warning must be ignored, specify the warning code. Example: >lua
 
-    ---@diagnostic disable-next-line: unused
+    ---@diagnostic disable-next-line: unused-vararg
 
-https://github.com/EmmyLuaLs/emmylua-analyzer-rust
+https://github.com/LuaLS/lua-language-server/wiki/Annotations#diagnostic
 
 Ignore the smallest applicable scope (e.g. inside a function, not at the top of
 the file).
@@ -471,7 +469,6 @@ Number; !must be defined to function properly):
   suite run is killed
 
 - `NVIM_TEST` (FU) (D): lets Nvim process detect that it is running in a test.
-  With |v:testing| also set, all file I/O counts as slow (see `slow_io_ns()`).
 
 - `NVIM_LUA_NOTRACK` (F) (D): disable reference counting of Lua objects
 
@@ -514,11 +511,11 @@ Number; !must be defined to function properly):
   search inside `/.deps`. If absent, nothing is excluded.
 
 - `NVIM_TEST_CORE_DB_CMD` (FU) (S): command to get backtrace out of the
-  debugger. It may use environment variables `_NVIM_TEST_APP` (path to
+  debugger. E.g. `gdb -n -batch -ex "thread apply all bt full"
+  "$_NVIM_TEST_APP" -c "$_NVIM_TEST_CORE"`. Defaults to the example command.
+  This debug command may use environment variables `_NVIM_TEST_APP` (path to
   application which is being debugged: normally either nvim or luajit) and
-  `_NVIM_TEST_CORE` (core file to get backtrace from). Default: >
-    gdb -n -batch -ex "thread apply all bt full" "$_NVIM_TEST_APP" -c "$_NVIM_TEST_CORE"
-<
+  `_NVIM_TEST_CORE` (core file to get backtrace from).
 
 - `NVIM_TEST_CORE_RANDOM_SKIP` (FU) (D): makes `check_cores` not check cores
   after approximately 90% of the tests. Should be used when finding cores is

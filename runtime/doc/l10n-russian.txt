@@ -4,7 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Vassily Ragosin
 
 
-==============================================================================
 Russian language localization and support in Vim	   *russian* *Russian*
 
                                       Type |gO| to see the table of contents.

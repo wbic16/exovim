@@ -1,7 +1,7 @@
 local api = vim.api
 
 ---@type table<integer,vim.treesitter.LanguageTree>
-local parsers = {}
+local parsers = setmetatable({}, { __mode = 'v' })
 
 local M = vim._defer_require('vim.treesitter', {
   _fold = ..., --- @module 'vim.treesitter._fold'
@@ -36,32 +36,20 @@ function M._create_parser(buf, lang, opts)
   buf = vim._resolve_bufnr(buf)
 
   local self = LanguageTree.new(buf, lang, opts)
-  local tree_ref = setmetatable({ self }, { __mode = 'v' }) --- @type vim.treesitter.LanguageTree[]
 
   local function bytes_cb(_, ...)
-    local ref = tree_ref[1]
-    if ref == nil then
-      return true
-    end
-    ref:_on_bytes(...)
+    self:_on_bytes(...)
   end
 
   local function detach_cb(_, ...)
-    local ref = tree_ref[1]
-
-    if ref ~= nil then
-      if parsers[buf] == ref then
-        parsers[buf] = nil
-      end
-      ref:_on_detach(...)
+    if parsers[buf] == self then
+      parsers[buf] = nil
     end
+    self:_on_detach(...)
   end
 
   local function reload_cb(_)
-    local ref = tree_ref[1]
-    if ref ~= nil then
-      ref:_on_reload()
-    end
+    self:_on_reload()
   end
 
   local source = self:source() --[[@as integer]]
@@ -75,7 +63,6 @@ function M._create_parser(buf, lang, opts)
   return self
 end
 
---- @param lang string?
 local function valid_lang(lang)
   return lang and lang ~= ''
 end
@@ -110,12 +97,12 @@ function M.get_parser(buf, lang, opts)
     if not api.nvim_buf_is_loaded(buf) then
       return nil, string.format('Buffer %s must be loaded to create parser', buf)
     end
-    local status, res = pcall(M._create_parser, buf, assert(lang), opts)
-    if not status then
-      local msg = 'Parser could not be created for buffer %s and language "%s": %s'
-      return nil, string.format(msg, buf, lang, res)
+    local parser = vim.F.npcall(M._create_parser, buf, lang, opts)
+    if not parser then
+      return nil,
+        string.format('Parser could not be created for buffer %s and language "%s"', buf, lang)
     end
-    parsers[buf] = res
+    parsers[buf] = parser
   end
 
   parsers[buf]:register_cbs(opts.buf_attach_cbs)
@@ -212,7 +199,7 @@ end
 
 ---@param buf integer
 ---@param range Range
----@return string
+---@returns string
 local function buf_range_get_text(buf, range)
   local start_row, start_col, end_row, end_col = M._range.unpack4(range)
   local append_newline = end_col == 0 and start_row ~= end_row
@@ -226,7 +213,7 @@ local function buf_range_get_text(buf, range)
     end_row = end_row - 1
   end
 
-  local lines = api.nvim_buf_get_text(buf, start_row, start_col, end_row, end_col)
+  local lines = api.nvim_buf_get_text(buf, start_row, start_col, end_row, end_col, {})
   if append_newline then
     table.insert(lines, '')
   end
@@ -283,85 +270,37 @@ function M.node_contains(node, range)
   return M._range.contains(nrange, range)
 end
 
---- @class vim.treesitter.CaptureInfo
---- @field capture string Capture name
---- @field lang string Language name
---- @field metadata vim.treesitter.query.TSMetadata Query metadata, e.g. `priority` or `conceal`
---- @field id integer 1-based capture id in the query
---- @field pattern_id integer 1-based id of the matched pattern in the query
---- @field row integer Start row
---- @field col integer Start column
---- @field end_row integer End row
---- @field end_col integer End column (excluded)
-
----@deprecated Use vim.treesitter.get_captures() instead.
----@param buf integer
----@param row integer
----@param col integer
----@return vim.treesitter.CaptureInfo[]
-function M.get_captures_at_pos(buf, row, col)
-  vim.deprecate('vim.treesitter.get_captures_at_pos()', 'vim.treesitter.get_captures()', '0.15')
-  return M.get_captures(buf, { row, col })
-end
-
---- Returns highlight captures at a position, on a line, or overlapping a range.
+--- Returns a list of highlight captures at the given position
 ---
---- {start} and {stop} can be a row number or a `{row, col}` pair. All rows and
---- columns are 0-based; columns are byte offsets.
+--- Each capture is represented by a table containing the capture name as a string, the capture's
+--- language, a table of metadata (`priority`, `conceal`, ...; empty if none are defined), the id
+--- of the capture, and the (0-indexed) id of the matched pattern in the query.
 ---
---- Without {stop}, a row number queries the whole line and a `{row, col}` pair
---- queries one position.
----
---- With {stop}, return captures that overlap the range. The stop position is
---- excluded; a row number excludes that row. Empty ranges return no captures.
----
---- Each result includes the full captured node range, which may extend outside the
---- requested range. Returns an empty list if treesitter highlighting is not active
---- in {buf}.
----
----@since 15
 ---@param buf integer Buffer number (0 for current buffer)
----@param start integer|[integer,integer] Start row or `{row, col}`
----@param stop? integer|[integer,integer] Stop row or `{row, col}` (excluded)
----@return vim.treesitter.CaptureInfo[]
-function M.get_captures(buf, start, stop)
+---@param row integer Position row
+---@param col integer Position column
+---
+---@return {capture: string, lang: string, metadata: vim.treesitter.query.TSMetadata, id: integer, pattern_id: integer}[]
+function M.get_captures_at_pos(buf, row, col)
   buf = vim._resolve_bufnr(buf)
-
-  --- @type integer, integer, integer, integer
-  local start_row, start_col, end_row, end_col
-  if type(start) == 'number' then
-    start_row, start_col = start, 0
-  else
-    start_row, start_col = start[1], start[2]
-  end
-
-  if stop == nil then
-    end_row = type(start) == 'number' and start_row + 1 or start_row
-    end_col = type(start) == 'number' and 0 or start_col + 1
-  elseif type(stop) == 'number' then
-    end_row, end_col = stop, 0
-  else
-    end_row, end_col = stop[1], stop[2]
-  end
-
   local buf_highlighter = M.highlighter.active[buf]
 
-  if not buf_highlighter or M._range.cmp_pos.ge(start_row, start_col, end_row, end_col) then
+  if not buf_highlighter then
     return {}
   end
 
-  local matches = {} --- @type vim.treesitter.CaptureInfo[]
-  local query_range = { start_row, start_col, end_row, end_col } --- @type Range4
+  local matches = {}
 
-  -- Highlighting only parses visible ranges, so offscreen injections may be missing.
-  buf_highlighter.tree:parse(query_range)
   buf_highlighter.tree:for_each_tree(function(tstree, tree)
     if not tstree then
       return
     end
 
     local root = tstree:root()
-    if not M._range.intercepts({ root:range() }, query_range) then
+    local root_start_row, _, root_end_row, _ = root:range()
+
+    -- Only worry about trees within the line range
+    if root_start_row > row or root_end_row < row then
       return
     end
 
@@ -373,28 +312,21 @@ function M.get_captures(buf, start, stop)
       return
     end
 
-    local iter = query:iter_captures(root, buf_highlighter.bufnr, start_row, end_row, {
-      start_col = start_col,
-      end_col = end_col,
-    })
+    local iter = query:iter_captures(root, buf_highlighter.bufnr, row, row + 1)
+
     for id, node, metadata, match in iter do
-      local nsrow, nscol, nerow, necol = node:range()
-      if M._range.intercepts({ nsrow, nscol, nerow, necol }, query_range) then
+      if M.is_in_node_range(node, row, col) then
         ---@diagnostic disable-next-line: invisible
         local capture = query.captures[id] -- name of the capture in the query
         if capture ~= nil then
           local _, pattern_id = match:info()
-          matches[#matches + 1] = {
+          table.insert(matches, {
             capture = capture,
             metadata = metadata,
             lang = tree:lang(),
             id = id,
             pattern_id = pattern_id,
-            row = nsrow,
-            col = nscol,
-            end_row = nerow,
-            end_col = necol,
-          }
+          })
         end
       end
     end
@@ -412,7 +344,7 @@ function M.get_captures_at_cursor(win)
   local bufnr = api.nvim_win_get_buf(win)
   local cursor = api.nvim_win_get_cursor(win)
 
-  local data = M.get_captures(bufnr, { cursor[1] - 1, cursor[2] })
+  local data = M.get_captures_at_pos(bufnr, cursor[1] - 1, cursor[2])
 
   local captures = {}
 
@@ -570,7 +502,7 @@ end
 --- Returns the fold level for {lnum} in the current buffer. Can be set directly to 'foldexpr':
 ---
 --- ```lua
---- vim.wo.foldexpr = vim.treesitter.foldexpr
+--- vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
 --- ```
 ---
 ---@since 11

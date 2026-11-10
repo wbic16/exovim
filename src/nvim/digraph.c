@@ -19,10 +19,10 @@
 #include "nvim/ex_docmd.h"
 #include "nvim/ex_getln.h"
 #include "nvim/garray.h"
+#include "nvim/getchar.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
 #include "nvim/highlight_defs.h"
-#include "nvim/input.h"
 #include "nvim/keycodes.h"
 #include "nvim/mapping.h"
 #include "nvim/mbyte.h"
@@ -2079,15 +2079,6 @@ void ex_loadkeymap(exarg_T *eap)
 
   if (!getline_equal(eap->ea_getline, eap->cookie, getsourceline)) {
     emsg(_("E105: Using :loadkeymap not in a sourced file"));
-    return;
-  }
-
-  if (eap->skip) {
-    char *line;
-    // The rest of the script is the keymap, read it and throw it away.
-    while ((line = eap->ea_getline(0, eap->cookie, 0, true)) != NULL) {
-      xfree(line);
-    }
     return;
   }
 

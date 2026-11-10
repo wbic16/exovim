@@ -1,5 +1,3 @@
-local t = require('test.testutil')
-local describe, it = t.describe, t.it
 local N = 500
 local test_table_size = 100000
 

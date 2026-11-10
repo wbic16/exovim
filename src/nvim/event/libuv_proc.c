@@ -11,7 +11,6 @@
 #include "nvim/log.h"
 #include "nvim/os/os.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/path.h"
 #include "nvim/types_defs.h"
 #include "nvim/ui_client.h"
 
@@ -86,8 +85,6 @@ int libuv_proc_spawn(LibuvProc *uvproc)
   // expects a different syntax (must be prepared by the caller before now).
   if (os_shell_is_cmdexe(proc->argv[0])) {
     uvproc->uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
-    // cmd.exe compatibility: backslashes required for path.
-    TO_BACKSLASH(proc->argv[0]);
   }
   if (proc->detach) {
     uvproc->uvopts.flags |= UV_PROCESS_DETACHED;
@@ -179,7 +176,7 @@ static void close_cb(uv_handle_t *handle)
 static void exit_cb(uv_process_t *handle, int64_t status, int term_signal)
 {
   Proc *proc = handle->data;
-#ifdef MSWIN
+#if defined(MSWIN)
   // Use stored/expected signal.
   term_signal = proc->exit_signal;
 #endif

@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local clear = n.clear
 local connect = n.connect
 local get_session = n.get_session
@@ -134,17 +133,17 @@ describe('has()', function()
     eq(1, fn.has('patch-8.1.1939'))
     eq(1, fn.has('patch-8.1.2424'))
 
-    eq(1, fn.has('patch-8.2.0'))
+    eq(0, fn.has('patch-8.2.0'))
     eq(1, fn.has('patch-8.2.1'))
     eq(1, fn.has('patch-8.2.2999'))
     eq(1, fn.has('patch-8.2.5171'))
 
+    eq(0, fn.has('patch-9.0.0'))
     eq(1, fn.has('patch-9.0.1'))
     eq(1, fn.has('patch-9.0.998'))
     eq(1, fn.has('patch-9.0.2190'))
-    eq(0, fn.has('patch-9.0.9999'))
 
-    eq(1, fn.has('patch-9.1.0'))
+    eq(0, fn.has('patch-9.1.0'))
     eq(1, fn.has('patch-9.1.1'))
     eq(1, fn.has('patch-9.1.690'))
     eq(1, fn.has('patch-9.1.1934'))

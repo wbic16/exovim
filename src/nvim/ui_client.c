@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "nvim/api/keysets_defs.h"
@@ -40,7 +39,6 @@ static int tui_width = 0;
 static int tui_height = 0;
 static char *tui_term = "";
 static bool tui_rgb = false;
-static char *detached_addr = NULL;  ///< Server address from which `:detach` disconnected.
 
 // uncrustify:off
 #include "ui_client.c.generated.h"
@@ -70,7 +68,6 @@ uint64_t ui_client_start_server(const char *exepath, size_t argc, char **argv)
   if (!channel) {
     return 0;
   }
-  channel->trust = false;  // Security.
 
   // If stdin is not a pty, it is forwarded to the client.
   // Replace stdin in the TUI process with the tty fd.
@@ -155,25 +152,9 @@ void ui_client_detach(void)
   ui_client_attached = false;
 }
 
-/// Sets `addr` (nvim_chan_set) on the server: the address this client connected to, e.g. a tunnel
-/// to the server. :restart sends it back, so the UI reconnects through it.
-static void set_chan_addr(const char *addr)
-{
-  MAXSIZE_TEMP_DICT(config, 1);
-  PUT_C(config, "addr", CSTR_AS_OBJ(addr));
-  MAXSIZE_TEMP_ARRAY(args, 2);
-  ADD_C(args, INTEGER_OBJ(0));
-  ADD_C(args, DICT_OBJ(config));
-  rpc_send_event(ui_client_channel_id, "nvim_chan_set", args);
-}
-
-/// @param server_addr Address of the server (`--server`), or NULL if the client started it (stdio).
-void ui_client_run(const char *server_addr)
+void ui_client_run(void)
   FUNC_ATTR_NORETURN
 {
-  if (server_addr) {
-    set_chan_addr(server_addr);
-  }
   tui_start(&tui, &tui_width, &tui_height, &tui_term, &tui_rgb);
   ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
@@ -197,11 +178,6 @@ void ui_client_stop(void)
   ui_client_attached = false;
   if (!tui_is_stopped(tui)) {
     tui_stop(tui);
-  }
-  if (detached_addr) {
-    fprintf(stderr, "Detached from: %s\nTo reattach run :connect or nvim +\"connect <address>\"\n",
-            detached_addr);
-    XFREE_CLEAR(detached_addr);
   }
 }
 
@@ -321,20 +297,16 @@ static void channel_connect_event(void **argv)
   const char *err = "";
   bool is_tcp = socket_address_tcp_host_end(server_addr) != NULL;
   CallbackReader on_data = CALLBACK_READER_INIT;
-  uint64_t chan = channel_connect(is_tcp, server_addr, true, false, on_data, 50, &err);
+  uint64_t chan = channel_connect(is_tcp, server_addr, true, on_data, 50, &err);
 
   if (!strequal(err, "")) {
     ELOG("Cannot connect to server %s: %s", server_addr, err);
-    ui_client_stop();  // Leave the alternate screen, so the message is visible.
-    fprintf(stderr, "Cannot connect to server %s: %s\n", server_addr, err);
     xfree(server_addr);
     ui_client_exit_status = 1;
     os_exit(1);
   }
 
-  XFREE_CLEAR(detached_addr);  // Attached to the new server instead.
   ui_client_channel_id = chan;
-  set_chan_addr(server_addr);
   ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
   ILOG("Connected to server %s on channel %" PRId64, server_addr, chan);
@@ -345,10 +317,6 @@ static void channel_connect_event(void **argv)
 /// waiting for the server to exit.
 static Array restart_args = ARRAY_DICT_INIT;
 static bool restart_pending = false;
-
-// A server might indicate in advance how a new server should be restarted
-// in cases it crashes due to an unexpected error.
-static Array restart_args_after_crash_exit = ARRAY_DICT_INIT;
 
 /// Handles the "restart" ui-event.
 void ui_client_event_restart(Array args)
@@ -362,81 +330,38 @@ void ui_client_event_restart(Array args)
   restart_pending = true;
 }
 
-void ui_client_event__set_restart_on_crash_exit(Array args)
-{
-  // Save the arguments for ui_client_may_restart_server() later.
-  api_free_array(restart_args_after_crash_exit);
-  restart_args_after_crash_exit = copy_array(args, NULL);
-}
-
 /// Called during "restart" when the old server just exited.
-void ui_client_attach_to_restarted_server(bool error_restart)
+void ui_client_attach_to_restarted_server(void)
 {
-  Array args = restart_args;
-  bool start_server = false;  // Server crashed; start one ourselves (`_set_restart_on_crash_exit`).
   if (!restart_pending) {
-    if (error_restart && ui_client_error_exit == -1 && restart_args_after_crash_exit.size > 0) {
-      start_server = true;
-      args = restart_args_after_crash_exit;
-    } else {
-      return;
-    }
+    return;
   }
 
   restart_pending = false;
 
-  if (args.size < 1 || args.items[0].type != kObjectTypeString) {
+  if (restart_args.size < 1 || restart_args.items[0].type != kObjectTypeString) {
     ELOG("Error handling ui event 'restart'");
     goto cleanup;
   }
 
-  uint64_t chan_id;
-  const char *first_arg = args.items[0].data.string.data;
-  if (start_server) {  // Restart after server crash.
-    if (args.size < 2 || args.items[1].type != kObjectTypeArray) {
-      ELOG("Error handling ui event 'restart'");
-      goto cleanup;
-    }
-    Array cmdargs = args.items[1].data.array;
-    char **argv = xcalloc(cmdargs.size + 1, sizeof(char *));
-    for (size_t i = 0; i < cmdargs.size; i++) {
-      if (cmdargs.items[i].type == kObjectTypeString) {
-        argv[i] = cmdargs.items[i].data.string.data;
-      }
-      if (argv[i] == NULL) {
-        argv[i] = "";
-      }
-    }
-    chan_id = ui_client_start_server(first_arg, cmdargs.size, argv);
-    xfree(argv);
-    ui_client_error_exit = -1;
-  } else {  // "restart" UI event: connect to the new server.
-    bool is_tcp = socket_address_tcp_host_end(first_arg) != NULL;
-    const char *err = NULL;
-    chan_id = channel_connect(is_tcp, first_arg, true, false, CALLBACK_READER_INIT, 50, &err);
-    if (err != NULL) {
-      ELOG("cannot connect to server %s: %s", first_arg, err);
-      goto cleanup;
-    }
-    if (args.size > 1 && args.items[1].type == kObjectTypeDict) {
-      // Restore channel properties after restart. Before attach, so `:detach!` in user config wins.
-      MAXSIZE_TEMP_ARRAY(chan_args, 2);
-      ADD_C(chan_args, INTEGER_OBJ(0));
-      ADD_C(chan_args, args.items[1]);
-      rpc_send_event(chan_id, "nvim_chan_set", chan_args);
-    }
+  char *listen_addr = restart_args.items[0].data.string.data;
+  bool is_tcp = socket_address_tcp_host_end(listen_addr) != NULL;
+  const char *err = "";
+  uint64_t chan_id = channel_connect(is_tcp, listen_addr, true, CALLBACK_READER_INIT, 50, &err);
+
+  if (!strequal(err, "")) {
+    ELOG("cannot connect to server %s: %s", listen_addr, err);
+    goto cleanup;
   }
 
   // Client-side server re-attach.
   ui_client_channel_id = chan_id;
   ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
-  ILOG("restarted server address=%s id=%" PRId64, first_arg, chan_id);
+  ILOG("restarted server address=%s id=%" PRId64, listen_addr, chan_id);
 cleanup:
   api_free_array(restart_args);
   restart_args = (Array)ARRAY_DICT_INIT;
-  api_free_array(restart_args_after_crash_exit);
-  restart_args_after_crash_exit = (Array)ARRAY_DICT_INIT;
 }
 
 /// Handles the "error_exit" ui-event.
@@ -448,18 +373,12 @@ void ui_client_event_error_exit(Array args)
     return;
   }
   ui_client_error_exit = (int)args.items[0].data.integer;
-  XFREE_CLEAR(detached_addr);
-  if (args.size > 1 && args.items[1].type == kObjectTypeString
-      && args.items[1].data.string.size > 0) {
-    detached_addr = string_to_cstr(args.items[1].data.string);
-  }
 }
 
 #ifdef EXITFREE
 void ui_client_free_all_mem(void)
 {
   tui_free_all_mem(tui);
-  xfree(detached_addr);
   xfree(grid_line_buf_char);
   xfree(grid_line_buf_attr);
 }

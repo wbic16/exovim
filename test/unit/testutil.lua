@@ -5,7 +5,6 @@ local Preprocess = require('test.unit.preprocess')
 local t_global = require('test.testutil')
 local paths = t_global.paths
 local assert = require('test.assert')
-local harness = require('test.harness')
 
 local check_cores = t_global.check_cores
 local dedent = t_global.dedent
@@ -13,8 +12,6 @@ local neq = t_global.neq
 local map = vim.tbl_map
 local eq = t_global.eq
 local trim = vim.trim
-
-local testutil_source = debug.getinfo(1, 'S').source
 
 -- add some standard header locations
 for _, p in ipairs(paths.include_paths) do
@@ -105,6 +102,7 @@ local init = only_separate(function()
     c.func(unpack(c.args))
   end
   libnvim.event_init()
+  libnvim.early_init(nil)
   if child_calls_mod then
     for _, c in ipairs(child_calls_mod) do
       c.func(unpack(c.args))
@@ -140,9 +138,6 @@ local function filter_complex_blocks(body)
   local result = {} --- @type string[]
 
   for line in body:gmatch('[^\r\n]+') do
-    -- Enum with a fixed underlying type (macOS `OS_ENUM`): LuaJIT FFI only gets the type.
-    -- "typedef enum : uint8_t { A = 1, } foo_t;" => "typedef uint8_t foo_t;"
-    line = line:gsub('^%s*typedef enum : ([^{]-)%s*%b{}%s*([%w_]+);%s*$', 'typedef %1 %2;')
     if
       not (
         string.find(line, '(^)', 1, true) ~= nil
@@ -669,16 +664,6 @@ local debug_log = only_separate(function(...)
   return _debug_log(...)
 end)
 
-local function exception_handler(err)
-  if type(err) == 'table' and err.__harness_pending then
-    --- @cast err test.harness.ErrorPayload
-    return err
-  end
-  local traceback = harness.build_error_traceback(testutil_source) or debug.traceback('', 2)
-  local message = harness.format_error_value(err)
-  return message .. '\nchild ' .. traceback
-end
-
 local function itp_child(wr, func)
   --- @param s string
   _debug_log = function(s)
@@ -689,7 +674,7 @@ local function itp_child(wr, func)
   if status then
     collectgarbage('stop')
     child_sethook(wr)
-    status, result = xpcall(func, exception_handler)
+    status, result = pcall(func)
     debug.sethook()
   end
   sc.write(wr, trace_end_msg)

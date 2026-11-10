@@ -114,39 +114,7 @@ func Test_window_cmd_wincmd_gf()
   call assert_notequal(fname, bufname("%"))
   new | only!
 
-  au! test_window_cmd_wincmd_gf
   augroup! test_window_cmd_wincmd_gf
-  delfunc s:swap_exists
-  bw!
-endfunc
-
-func Test_abort_in_wincmd_f()
-  let fname = 'test_f.txt'
-  let swp_fname = $'.{fname}.swp'
-  call writefile([], fname, 'D')
-  call writefile([], swp_fname, 'D')
-  " Remove the catch-all that runtest.vim adds
-  au! SwapExists
-  augroup test_window_cmd_wincmd_f
-    autocmd!
-    " (A)bort
-    autocmd SwapExists test_f.txt let v:swapchoice = 'a'
-  augroup END
-
-  call setline(1, fname)
-  call assert_equal(1, winnr('$'))
-  try
-    wincmd f
-  catch /^Vim:Interrupt$/
-    " expected interrupt by abort
-  endtry
-  call assert_equal(1, winnr('$'))
-  new | only!
-
-  " See :h W19 for the background of this au!. Ideally other tests
-  " should also follow this.
-  au! test_window_cmd_wincmd_f
-  augroup! test_window_cmd_wincmd_f
   bw!
 endfunc
 
@@ -1313,7 +1281,6 @@ func Run_noroom_for_newwindow_test(dir_arg)
 endfunc
 
 func Test_split_cmds_with_no_room()
-  throw "Skipped: Nvim supports cmdwin freedom #40312"
   call Run_noroom_for_newwindow_test('h')
   call Run_noroom_for_newwindow_test('v')
 endfunc
@@ -1766,7 +1733,6 @@ endfunc
 " tabline, for each possible value of 'laststatus', 'scrolloff',
 " 'equalalways', and with the cursor at the top, middle and bottom.
 func Test_splitkeep_options()
-  throw "Skipped: Nvim supports cmdwin freedom #40312"
   " disallow window resizing
   " let save_WS = &t_WS
   " set t_WS=
@@ -1896,7 +1862,6 @@ func Test_splitkeep_options()
 endfunc
 
 func Test_splitkeep_cmdwin_cursor_position()
-  throw 'Skipped: Nvim supports cmdwin freedom #40312'
   set splitkeep=screen
   call setline(1, range(&lines))
 
@@ -1976,66 +1941,6 @@ func Test_splitkeep_screen_cursor_pos()
   close
   call assert_equal([0, 1, 20, 0], getpos('.'))
   %bwipeout!
-  set splitkeep&
-endfunc
-
-func Test_splitkeep_phantom_jump()
-  set splitbelow
-  call setline(1, range(1, 100))
-  split
-
-  " Move cursor to last visible line so it is at risk of being pushed off
-  normal! L
-  let old = getcurpos()
-
-  " No jumps, just 3 header lines
-  call assert_equal(3, execute('jumps')->split('\n')->len())
-
-  " Switching to "screen" was causing vim to not update relevant variables
-  set splitkeep=screen
-
-  " Reduce window 2's space, and so bump up the cursor
-  set cmdheight=2
-
-  " Cursor has moved up a single line in the buffer, respecting splitkeep
-  call assert_equal(4, execute('jumps')->split('\n')->len())
-
-  let old[1] = old[1] - 1
-  call assert_equal(old, getcurpos())
-
-  %bwipeout!
-  set splitbelow& splitkeep& cmdheight&
-endfunc
-
-func Test_splitkeep_cmdheight()
-  set splitkeep=screen
-  call setline(1, range(&lines))
-  norm! G
-  set cmdheight=2
-  call assert_equal(&lines - 1, line('.'))
-  %bwipeout!
-  set splitkeep& cmdheight&
-endfunc
-
-func Test_aucmd_win_scroll_multibyte()
-  " Using the autocommand window must not scroll the current window when the
-  " cursor is behind multi-byte characters.
-  set splitkeep=cursor
-  " Use a window with a fixed size, the size of the screen may change while
-  " the test is running.
-  call NewWindow(11, 40)
-  call setline(1, repeat([repeat(nr2char(0x3042), 100)], 20))
-  normal! G050l
-  redraw
-  let topline = line('w0')
-
-  for i in range(3)
-    call bufload(bufadd(''))
-  endfor
-  call assert_equal(topline, line('w0'))
-
-  %bwipeout!
-  only!
   set splitkeep&
 endfunc
 
@@ -2258,7 +2163,6 @@ func Test_autocmd_window_force_room()
 endfunc
 
 func Test_win_gotoid_splitmove_textlock_cmdwin()
-  throw 'Skipped: Nvim supports cmdwin freedom #40312'
   call setline(1, 'foo')
   new
   let curwin = win_getid()
@@ -2484,81 +2388,6 @@ func Test_winfixheight_resize_wmh_zero()
 
   cclose
   set winminheight& laststatus&
-endfunc
-
-" Splitting the only window while it has 'winfixheight' set and 'laststatus' is
-" one must not leave a screen line unused.
-func Test_winfixheight_split_only_window()
-  set laststatus=1
-  new
-  only!
-  setlocal winfixheight
-  split
-  " Two windows, both with a status line, and the command line.
-  call assert_equal(&lines - &cmdheight - 2, winheight(1) + winheight(2))
-
-  only!
-  setlocal winfixheight&
-  set laststatus&
-  bwipe!
-endfunc
-
-" Test that closing a window respects 'winfixwidth' and 'winfixheight'
-" when the freed space goes to a group of windows.
-func Test_winfixsize_close_non_leaf_frame()
-  for vertical in [v:true, v:false]
-    let opt = vertical ? 'winfixwidth' : 'winfixheight'
-    let split = vertical ? 'vertical ' : ''
-    let other = vertical ? '' : 'vertical '
-    let move = vertical ? 'l' : 'j'
-    let Size = {id -> vertical ? winwidth(win_id2win(id))
-          \                     : winheight(win_id2win(id))}
-
-    exe split .. 'split | ' .. split .. 'resize ' .. (vertical ? 30 : 5)
-    exe 'setlocal ' .. opt
-    let b = win_getid()
-    exe 'wincmd ' .. move
-    let c = win_getid()
-    exe 'botright ' .. other .. 'split'
-    exe 'topleft ' .. split .. 'split | ' .. split .. 'resize 4'
-    let a = win_getid()
-
-    let b0 = Size(b)
-    let c0 = Size(c)
-    let a0 = Size(a)
-    close
-
-    call assert_equal(b0, Size(b), opt)
-    call assert_equal(c0 + a0 + 1, Size(c), opt)
-
-    call win_execute(b, 'setlocal no' .. opt)
-    only!
-  endfor
-endfunc
-
-func Test_window_w_locked_bypass()
-  split Xfoo
-  let s:win = win_getid()
-
-  augroup TestBypass
-    " :quit fired this with w_locked set.  Shouldn't be able to unset w_locked
-    " and close s:win if we do other stuff that also sets it.
-    au WinLeave * ++once call assert_equal(s:win, win_getid())
-                      \| quit | call assert_notequal(0, win_id2win(s:win))
-                      \| args Xbar
-                      \| argadd Xbaz
-                      \| edit Xbaz-but-cooler
-                      \| quit | call assert_notequal(0, win_id2win(s:win))
-  augroup END
-  quit
-  call assert_equal(1, bufexists('Xbaz-but-cooler')) " check WinLeave ran
-
-  unlet! s:win
-  augroup TestBypass
-    au!
-  augroup END
-  %argd!
-  %bw!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

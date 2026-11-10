@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local api, clear, eq = n.api, n.clear, t.eq
 local eval, exec, feed = n.eval, n.exec, n.feed
 local exec_lua = n.exec_lua
@@ -162,7 +161,7 @@ describe('Signs', function()
       exec('set cursorline cursorlineopt=line')
       screen:expect([[
         {101:>>}a                                                  |
-        {9:>>}{21:^b                                                  }|
+        {101:>>}{21:^b                                                  }|
         {101:>>}c                                                  |
         {1:~                                                    }|*10
                                                              |
@@ -451,7 +450,7 @@ describe('Signs', function()
         {3:                                                     }|
         :sign place                                          |
         {100:--- Signs ---}                                        |
-        {18:Signs for Untitled:}                                  |
+        {18:Signs for [NULL]:}                                    |
             line=1  id=100000  name=piet  priority=10        |
         {6:Press ENTER or type command to continue}^              |
       ]])
@@ -554,10 +553,9 @@ describe('Signs', function()
     ]])
     exec('norm 2Gdd')
     exec('silent undo')
-    -- Nvim: undo restores the cursor to where "2Gdd" started (|restore-undo-cursor|).
     screen:expect([[
-      {7:  }^1                                                  |
-      {7:S1}2                                                  |
+      {7:  }1                                                  |
+      {7:S1}^2                                                  |
       {7:  }3                                                  |
       {7:  }4                                                  |
       {1:~                                                    }|*9

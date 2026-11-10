@@ -144,7 +144,7 @@ void file_open_buffer(FileDescriptor *ret_fp, char *data, size_t len)
   ret_fp->bytes_read = 0;
 }
 
-/// Close file and free its buffer. Idempotent: closing it again does nothing.
+/// Close file and free its buffer
 ///
 /// @param[in,out]  fp  File to close.
 /// @param[in]  do_fsync  If true, use fsync() to write changes to disk.
@@ -159,7 +159,6 @@ int file_close(FileDescriptor *const fp, const bool do_fsync)
 
   const int flush_error = (do_fsync ? file_fsync(fp) : file_flush(fp));
   const int close_error = os_close(fp->fd);
-  fp->fd = -1;  // No-op if called again.
   free_block(fp->buffer);
   if (close_error != 0) {
     return close_error;

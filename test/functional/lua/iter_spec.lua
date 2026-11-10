@@ -1,6 +1,5 @@
 local t = require('test.testutil')
 
-local describe, it = t.describe, t.it
 local eq = t.eq
 local matches = t.matches
 local pcall_err = t.pcall_err
@@ -185,54 +184,27 @@ describe('vim.iter', function()
     end
 
     do
-      local function skip(n, peek)
-        local it = vim.iter(vim.gsplit('a|b|c|d', '|'))
-        if peek then
-          eq('a', it:peek())
-        end
-        return it:skip(n):totable()
+      local function skip(n)
+        return vim.iter(vim.gsplit('a|b|c|d', '|')):skip(n):totable()
       end
-      for _, peek in ipairs({ false, true }) do
-        eq({ 'a', 'b', 'c', 'd' }, skip(0, peek))
-        eq({ 'b', 'c', 'd' }, skip(1, peek))
-        eq({ 'c', 'd' }, skip(2, peek))
-        eq({ 'd' }, skip(3, peek))
-        eq({}, skip(4, peek))
-        eq({}, skip(5, peek))
-      end
+      eq({ 'a', 'b', 'c', 'd' }, skip(0))
+      eq({ 'b', 'c', 'd' }, skip(1))
+      eq({ 'c', 'd' }, skip(2))
+      eq({ 'd' }, skip(3))
+      eq({}, skip(4))
+      eq({}, skip(5))
     end
   end)
 
   it('skip(predicate) preserves first non-matching element', function()
-    local it = vim.iter(vim.gsplit('1|2|3|1|4', '|'))
-    local calls = 0
+    local it = vim.iter(vim.gsplit('1|2|3|4', '|'))
 
     it:skip(function(x)
-      calls = calls + 1
       return tonumber(x) < 3
     end)
 
     eq('3', it:next())
-    eq('1', it:next())
     eq('4', it:next())
-    eq(nil, it:next())
-    eq(3, calls)
-
-    for _, peek in ipairs({ false, true }) do
-      for _, skip_false in ipairs({ false, true }) do
-        local values = { false, true, false }
-        local it = vim.iter(function()
-          return table.remove(values, 1)
-        end)
-        if peek then
-          eq(false, it:peek())
-        end
-        it:skip(function(v)
-          return skip_false and v == false
-        end)
-        eq(skip_false and { true, false } or { false, true, false }, it:totable())
-      end
-    end
   end)
 
   it('skip() followed by peek() works correctly', function()
@@ -268,8 +240,6 @@ describe('vim.iter', function()
     eq({ 1, 2 }, vim.iter(q):slice(1, 2):totable())
     eq({ 10 }, vim.iter(q):slice(10, 10):totable())
     eq({ 8, 9, 10 }, vim.iter(q):slice(8, 11):totable())
-    eq({ 3, 4 }, vim.iter(q):skip(2):slice(1, 2):totable())
-    eq({ 10, 9 }, vim.iter(q):rev():slice(1, 2):totable())
 
     local it = vim.iter(vim.gsplit('a|b|c|d', '|'))
     matches('slice%(%) requires an array%-like table', pcall_err(it.slice, it, 1, 3))
@@ -287,21 +257,15 @@ describe('vim.iter', function()
     end
 
     do
-      local function nth(n, peek)
-        local it = vim.iter(vim.gsplit('a|b|c|d', '|'))
-        if peek then
-          eq('a', it:peek())
-        end
-        return it:nth(n)
+      local function nth(n)
+        return vim.iter(vim.gsplit('a|b|c|d', '|')):nth(n)
       end
-      for _, peek in ipairs({ false, true }) do
-        eq(nil, nth(0, peek))
-        eq('a', nth(1, peek))
-        eq('b', nth(2, peek))
-        eq('c', nth(3, peek))
-        eq('d', nth(4, peek))
-        eq(nil, nth(5, peek))
-      end
+      eq(nil, nth(0))
+      eq('a', nth(1))
+      eq('b', nth(2))
+      eq('c', nth(3))
+      eq('d', nth(4))
+      eq(nil, nth(5))
     end
   end)
 
@@ -353,16 +317,6 @@ describe('vim.iter', function()
           :totable()
       )
       eq({ 4, 3, 2, 1 }, vim.iter(q):take(correct):totable())
-    end
-
-    do
-      local q = { 4, 3, 2, 1 }
-      local function positive(x)
-        return x > 0
-      end
-
-      eq({ 4, 3, 2, 1 }, vim.iter(q):take(positive):totable())
-      eq({ 1, 2, 3, 4 }, vim.iter(q):rev():take(positive):totable())
     end
 
     do
@@ -480,42 +434,6 @@ describe('vim.iter', function()
         end)
         :last()
     )
-
-    for _, values in ipairs({
-      {},
-      { false },
-      { true, false },
-      { true, false, true },
-      { 1, false, 3, 4 },
-    }) do
-      local expected = values[#values]
-      local it = vim.iter(function()
-        return table.remove(values, 1)
-      end)
-      eq(expected, it:last())
-      eq(nil, it:next())
-    end
-
-    do
-      local it = vim.iter(ipairs({ 'a', 'b' })):map(function(i, v)
-        return i, v, nil
-      end)
-      local function check_last(n, expected, ...)
-        eq(n, select('#', ...))
-        eq(expected, { ... })
-      end
-      check_last(3, { 2, 'b' }, it:last())
-      eq(nil, it:next())
-
-      it = vim.iter(ipairs({ 'a', 'b' })):map(function(i, v)
-        if i == 1 then
-          return i, v, nil
-        end
-        return false
-      end)
-      check_last(1, { false }, it:last())
-      eq(nil, it:next())
-    end
   end)
 
   it('enumerate()', function()
@@ -541,20 +459,6 @@ describe('vim.iter', function()
       eq('h', it:next())
       eq('i', it:peek())
       eq('i', it:next())
-    end
-
-    do
-      local values = { false, true, false }
-      local it = vim.iter(function()
-        return table.remove(values, 1)
-      end)
-      eq(false, it:peek())
-      eq(false, it:peek())
-      eq(false, it:next())
-      eq(true, it:next())
-      eq(false, it:peek())
-      eq(false, it:next())
-      eq(nil, it:peek())
     end
   end)
 
@@ -790,47 +694,6 @@ describe('vim.iter', function()
         end)
         :totable()
     )
-  end)
-
-  it('count()', function()
-    local odd = function(v)
-      return v % 2 ~= 0
-    end
-
-    eq(0, vim.iter({}):count())
-
-    local q = { 1, 2, 3, 4, 5 }
-    eq(5, vim.iter(q):count())
-    eq(5, vim.iter(q):rev():count())
-    eq(3, vim.iter(q):filter(odd):count())
-
-    do
-      local it = vim.iter(q)
-      eq(5, it:count())
-      eq(0, it:count())
-      eq(nil, it:next())
-    end
-
-    local m = { a = 1, b = 2, c = 3 }
-    eq(3, vim.iter(m):count())
-    eq(
-      2,
-      vim
-        .iter(m)
-        :filter(function(_, v)
-          return odd(v)
-        end)
-        :count()
-    )
-
-    do
-      local it = vim.iter(m)
-      eq(3, it:count())
-      eq(0, it:count())
-      eq(nil, it:next())
-    end
-
-    eq(6, vim.iter(vim.split('123abc', '')):count())
   end)
 
   it('handles map-like tables', function()

@@ -24,7 +24,6 @@
 "			      set undo_ftplugin
 "			      mark as unmaintained
 "			      use buffer-local abbreviation
-"		27.06.2026    add recommended style guard
 "    Help Page: ft-ada-plugin
 "------------------------------------------------------------------------------
 " Provides mapping overrides for tag jumping that figure out the current
@@ -145,12 +144,9 @@ if exists("g:ada_folding")
    elseif g:ada_folding[0] == 's'
       setlocal foldmethod=syntax
    endif
-   if get(g:, 'ada_recommended_style',
-   \ get(g:, 'filetype_recommended_style', 1))
-      setlocal tabstop=8
-      setlocal softtabstop=3
-      setlocal shiftwidth=3
-   endif
+   setlocal tabstop=8
+   setlocal softtabstop=3
+   setlocal shiftwidth=3
 endif
 
 " Section: Abbrev {{{1

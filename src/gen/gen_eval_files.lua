@@ -26,7 +26,6 @@ local TEXT_WIDTH = 78
 --- @field since integer
 
 local LUA_API_RETURN_OVERRIDES = {
-  nvim_parse_cmd = 'vim.api.keyset.cmd_ret',
   nvim_win_get_config = 'vim.api.keyset.win_config_ret',
 }
 
@@ -99,7 +98,7 @@ local function split(x, sep)
 end
 
 --- @param f string
---- @param params [string,string,string?][]|true
+--- @param params [string,string][]|true
 --- @return string
 local function render_fun_sig(f, params)
   local param_str --- @type string
@@ -108,7 +107,7 @@ local function render_fun_sig(f, params)
   else
     param_str = table.concat(
       vim.tbl_map(
-        --- @param v [string,string,string?]
+        --- @param v [string,string]
         --- @return string
         function(v)
           return luaescape(v[1])
@@ -127,8 +126,8 @@ local function render_fun_sig(f, params)
 end
 
 --- Uniquify names
---- @param params [string,string,string?][]
---- @return [string,string,string?][]
+--- @param params [string,string,string][]
+--- @return [string,string,string][]
 local function process_params(params)
   local seen = {} --- @type table<string,true>
   local sfx = 1
@@ -193,7 +192,7 @@ local function get_api_meta()
       sees[#sees + 1] = see.desc
     end
 
-    local params = {} --- @type [string,string,string?][]
+    local params = {} --- @type [string,string][]
     for _, p in ipairs(fun.params) do
       params[#params + 1] = {
         p.name,
@@ -250,76 +249,6 @@ local function norm_text(x, special)
       :gsub('%s+>\n+', '\n```\n')
       :gsub('\n+<%s+\n?', '\n```\n')
   )
-end
-
---- @param items string[]
---- @param conjunction string
---- @return string
---- Example: "foo, bar, or baz"
-local function join_with_conjunction(items, conjunction)
-  if #items == 0 then
-    return ''
-  elseif #items == 1 then
-    return items[1]
-  elseif #items == 2 then
-    return items[1] .. ' ' .. conjunction .. ' ' .. items[2]
-  end
-
-  local parts = {} --- @type string[]
-  for i = 1, #items - 1 do
-    parts[#parts + 1] = items[i]
-  end
-  return table.concat(parts, ', ') .. ', ' .. conjunction .. ' ' .. items[#items]
-end
-
---- @param fun vim.EvalFn
---- @return string?
---- Example: "Lua: Prefer |math.abs()|."
-local function see_lua_text(fun)
-  if not fun.see_lua or fun.see_lua == false then
-    return
-  end
-
-  return 'Lua: Prefer ' .. join_with_conjunction(fun.see_lua, 'or') .. '.'
-end
-
-local VIMDOC_PARAGRAPH_PREFIX = '\t\t'
-local VIMDOC_PARAGRAPH_INDENT = 16 -- Two tabs in rendered vimdoc.
-
---- @param text string
---- @return string
---- Example: "\t\tLua: Prefer |math.abs()|."
-local function tab_indent_vimdoc(text)
-  return VIMDOC_PARAGRAPH_PREFIX
-    .. util
-      .md_to_vimdoc(text, 0, 0, TEXT_WIDTH - VIMDOC_PARAGRAPH_INDENT)
-      :gsub('\n', '\n' .. VIMDOC_PARAGRAPH_PREFIX)
-end
-
---- @param fun vim.EvalFn
---- @param write fun(line: string)
---- Example first line: "--- Lua: Prefer |math.abs()|."
-local function render_eval_see_lua_meta(fun, write)
-  local text = see_lua_text(fun)
-  if not text then
-    return
-  end
-
-  write('--- ' .. text)
-  write('---')
-end
-
---- @param fun vim.EvalFn
---- @param write fun(line: string)
---- Example first line: "\t\tLua: Prefer |math.abs()|."
-local function render_eval_see_lua_doc(fun, write)
-  local text = see_lua_text(fun)
-  if not text then
-    return
-  end
-
-  write(tab_indent_vimdoc(text))
-  write('')
 end
 
 --- Generates LuaLS docstring for an API function.
@@ -448,27 +377,14 @@ local function get_eval_meta()
   return require('nvim.eval').funcs
 end
 
---- Group suffix variants for Lua metadata; Vimdoc keeps separate entries.
---- @return table<string, vim.EvalFn[]>
-local function get_eval_lua_meta()
-  local ret = {} --- @type table<string, vim.EvalFn[]>
-  -- Sorting puts the base declaration before its __N variants.
-  for name, fun in vim.spairs(get_eval_meta()) do
-    if fun.lua ~= false then
-      local base = name:match('^(.-)__%d+$') or name
-      ret[base] = ret[base] or {}
-      table.insert(ret[base], fun)
-    end
-  end
-  return ret
-end
-
 --- Generates LuaLS docstring for a Vimscript "eval" function.
 --- @param f string
---- @param funs vim.EvalFn[]
+--- @param fun vim.EvalFn
 --- @param write fun(line: string)
-local function render_eval_meta(f, funs, write)
-  local fun = assert(funs[1])
+local function render_eval_meta(f, fun, write)
+  if fun.lua == false then
+    return
+  end
 
   local funname = fun.name or f
   local params = process_params(fun.params)
@@ -478,18 +394,14 @@ local function render_eval_meta(f, funs, write)
     write('--- @deprecated')
   end
 
-  -- Combine descriptions into one docstring: the base first, then its __N variants.
-  for _, variant in ipairs(funs) do
-    render_eval_see_lua_meta(variant, write)
+  local desc = fun.desc --[[@as string?]]
 
-    local desc = variant.desc --[[@as string?]]
-
-    if desc then
-      desc = desc:gsub('\n%s*\n%s*$', '\n')
-      for _, l in ipairs(split(desc)) do
-        l = l:gsub('^      ', ''):gsub('\t', '  '):gsub('@', '\\@')
-        write('--- ' .. l)
-      end
+  if desc then
+    --- @type string
+    desc = desc:gsub('\n%s*\n%s*$', '\n')
+    for _, l in ipairs(split(desc)) do
+      l = l:gsub('^      ', ''):gsub('\t', '  '):gsub('@', '\\@')
+      write('--- ' .. l)
     end
   end
 
@@ -497,24 +409,6 @@ local function render_eval_meta(f, funs, write)
     ipairs(vim.fn.reverse(fun.generics or {} --[[@as string[] ]]))
   do
     write(fmt('--- @generic %s', text))
-  end
-
-  -- E.g. sign_undefine__1 becomes @overload fun(list?: string[]): (integer[]).
-  for i, overload in ipairs(funs) do
-    if i > 1 then
-      local overload_params = {} --- @type string[]
-      local req_args = type(overload.args) == 'table' and overload.args[1] or overload.args or 0
-      for j, param in ipairs(process_params(overload.params)) do
-        local pname, ptype = luaescape(param[1]), param[2]
-        local optional = (pname ~= '...' and j > req_args) and '?' or ''
-        overload_params[#overload_params + 1] = fmt('%s%s: %s', pname, optional, ptype)
-      end
-      local generics = overload.generics and ('<' .. table.concat(overload.generics, ', ') .. '>')
-        or ''
-      -- Group the return list so a type like (0|-1)[] remains one array return.
-      local ret = overload.returns == false and '' or ': (' .. (overload.returns or 'any') .. ')'
-      write(fmt('--- @overload fun%s(%s)%s', generics, table.concat(overload_params, ', '), ret))
-    end
   end
 
   local req_args = type(fun.args) == 'table' and fun.args[1] or fun.args or 0
@@ -531,17 +425,6 @@ local function render_eval_meta(f, funs, write)
   end
 
   write(render_fun_sig(funname, params))
-end
-
---- Appends `tags` to `line`, right-aligned (min 2 preceding spaces). |help-tag-heading|
---- @param line string
---- @param tags string[] E.g. `{ '*foo*', '*bar*' }`.
---- @return string
-local function with_tags(line, tags)
-  local tag = table.concat(tags, ' ')
-  local conceal_offset = 2 * (#tags - 1)
-  local pad = 80 - vim.fn.strdisplaywidth(line) - #tag + conceal_offset
-  return fmt('%s%s%s', line, (' '):rep(math.max(2, pad)), tag)
 end
 
 --- Generates vimdoc heading for a Vimscript "eval" function signature.
@@ -562,7 +445,22 @@ local function render_sig_and_tag(name, name_tag, fun, write)
     end
   end
 
-  write(#tags == 0 and fun.signature or with_tags(fun.signature, tags))
+  if #tags == 0 then
+    write(fun.signature)
+    return
+  end
+
+  local tag = table.concat(tags, ' ')
+  local siglen = #fun.signature
+  local conceal_offset = 2 * (#tags - 1)
+  local tag_pad_len = math.max(1, 80 - #tag + conceal_offset)
+
+  if siglen + #tag > 80 then
+    write(string.rep(' ', tag_pad_len) .. tag)
+    write(fun.signature)
+  else
+    write(fmt('%s%s%s', fun.signature, string.rep(' ', tag_pad_len - siglen), tag))
+  end
 end
 
 --- Generates vimdoc for a Vimscript "eval" function.
@@ -575,8 +473,6 @@ local function render_eval_doc(f, fun, write)
   end
 
   render_sig_and_tag(fun.name or f, not f:find('__%d+$'), fun, write)
-
-  render_eval_see_lua_doc(fun, write)
 
   if not fun.desc then
     return
@@ -598,12 +494,6 @@ local function render_eval_doc(f, fun, write)
   end
 
   if #desc_l > 0 and not desc_l[#desc_l]:match('^<?$') then
-    write('')
-  end
-
-  if fun.fast then
-    write(util.md_to_vimdoc('Attributes: ~', 16, 16, TEXT_WIDTH))
-    write(util.md_to_vimdoc('|api-fast|', 18, 18, TEXT_WIDTH))
     write('')
   end
 
@@ -687,18 +577,11 @@ local function render_option_meta(_f, opt, write)
     write('--- ' .. l)
   end
 
-  -- A non-list string option with a fixed value set (e.g. 'ambiwidth', 'tagcase') documents its
-  -- exact value union; everything else uses its Lua type.
-  local values = {} --- @type string[]
-  if opt.type == 'string' and not opt.list and opt.schema then
-    for _, v in ipairs(require('nvim.options').schema_values(opt.schema)) do
-      values[#values + 1] = fmt("'%s'", v)
+  if opt.type == 'string' and not opt.list and opt.values then
+    local values = {} --- @type string[]
+    for _, e in ipairs(opt.values) do
+      values[#values + 1] = fmt("'%s'", e)
     end
-  end
-  if opt.type == 'func' or opt.type == 'expr' then
-    -- "Callback" option ('operatorfunc', 'foldexpr', …).
-    write('--- @type string|function')
-  elseif #values > 0 then
     write('--- @type ' .. table.concat(values, '|'))
   else
     write('--- @type ' .. OPTION_TYPES[opt.type])
@@ -785,7 +668,6 @@ local function option_scope_doc(o)
       'syntax',
       'winfixheight',
       'winfixwidth',
-      'winpinned',
     }, o.full_name)
   then
     r = r .. '  |local-noglobal|'
@@ -901,7 +783,7 @@ local function render_option_doc(_f, opt, write)
   local tags = build_option_tags(opt)
   local tag_str = table.concat(tags, ' ')
   local conceal_offset = 2 * (#tags - 1)
-  local tag_pad = string.rep('\t', math.max(1, math.ceil((64 - #tag_str + conceal_offset) / 8)))
+  local tag_pad = string.rep('\t', math.ceil((64 - #tag_str + conceal_offset) / 8))
   -- local pad = string.rep(' ', 80 - #tag_str + conceal_offset)
   write(tag_pad .. tag_str)
 
@@ -912,8 +794,7 @@ local function render_option_doc(_f, opt, write)
     name_str = fmt("'%s'", opt.full_name)
   end
 
-  -- Callback (func/expr) options are labeled "string" in the help, their ":set" form.
-  local otype = (opt.type == 'func' or opt.type == 'expr') and 'string' or opt.type
+  local otype = opt.type == 'boolean' and 'boolean' or opt.type
   if opt.defaults.doc or opt.defaults.if_true ~= nil or opt.defaults.meta ~= nil then
     local v = render_option_default(opt.defaults --[[@as vim.option_defaults]], true)
     local pad = string.rep('\t', math.max(1, math.ceil((24 - #name_str) / 8)))
@@ -956,17 +837,27 @@ local function render_vvar_doc(_f, vvar, write)
     tags[i] = '*' .. t .. '*'
   end
 
-  write(with_tags('v:' .. name, tags))
+  local tag_str = table.concat(tags, ' ')
+  local conceal_offset = 2 * (#tags - 1)
+
+  local tag_pad = string.rep('\t', math.ceil((64 - #tag_str + conceal_offset) / 8))
+  write(tag_pad .. tag_str)
+
   local desc = split(vvar.desc)
-  for _, l in ipairs(desc) do
-    if l == '<' or l:match('^<%s') then
-      write(l)
-    else
-      write('\t\t' .. l:gsub('\\<', '<'))
-    end
-  end
-  if not desc[#desc]:match('^%s*$') then
+
+  if (#desc == 1 or #desc == 2 and desc[2]:match('^%s*$')) and #name < 10 then
+    -- single line
+    write('v:' .. name .. '\t' .. desc[1]:gsub('^%s*', ''))
     write('')
+  else
+    write('v:' .. name)
+    for _, l in ipairs(desc) do
+      if l == '<' or l:match('^<%s') then
+        write(l)
+      else
+        write('\t\t' .. l:gsub('\\<', '<'))
+      end
+    end
   end
 end
 
@@ -983,7 +874,7 @@ local CONFIG = {
   {
     path = 'runtime/lua/vim/_meta/vimfn.gen.lua',
     header = LUA_META_HEADER,
-    funcs = get_eval_lua_meta,
+    funcs = get_eval_meta,
     render = render_eval_meta,
   },
   {
@@ -1009,13 +900,11 @@ local CONFIG = {
       '\t\t  NVIM REFERENCE MANUAL',
       '',
       '',
-      '==============================================================================',
       'Vimscript functions\t\t\t*vimscript-functions* *builtin.txt*',
       '',
       'For functions grouped by what they are used for see |function-list|.',
       '',
       '\t\t\t\t      Type |gO| to see the table of contents.',
-      '',
       '==============================================================================',
       '1. Details					*vimscript-functions-details*',
       '',

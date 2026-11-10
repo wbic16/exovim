@@ -28,7 +28,12 @@
 #include "keycodes.c.generated.h"
 
 // Some useful tables.
-const struct modmasktable mod_mask_table[] = {
+
+static const struct modmasktable {
+  uint16_t mod_mask;  ///< Bit-mask for particular key modifier.
+  uint16_t mod_flag;  ///< Bit(s) for particular key modifier.
+  char name;  ///< Single letter name of modifier.
+} mod_mask_table[] = {
   { MOD_MASK_ALT,              MOD_MASK_ALT,           'M' },
   { MOD_MASK_META,             MOD_MASK_META,          'T' },
   { MOD_MASK_CTRL,             MOD_MASK_CTRL,          'C' },
@@ -273,11 +278,10 @@ int handle_x_keys(const int key)
   return key;
 }
 
-/// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`.
-char *get_special_key(int c, int modifiers, struct keychord *data)
+/// @return  a string which contains the name of the given key when the given modifiers are down.
+char *get_special_key_name(int c, int modifiers)
 {
   static char string[MAX_KEY_NAME_LEN + 1];
-  bool is_ascii_ctrl = false;
 
   string[0] = '<';
   int idx = 1;
@@ -298,16 +302,18 @@ char *get_special_key(int c, int modifiers, struct keychord *data)
   // extract modifiers.
   if (c > 0
       && utf_char2len(c) == 1) {
+    if (table_idx < 0
+        && (!vim_isprintc(c) || (c & 0x7f) == ' ')
+        && (c & 0x80)) {
+      c &= 0x7f;
+      modifiers |= MOD_MASK_ALT;
+      // try again, to find the un-alted key in the special key table
+      table_idx = find_special_key_in_table(c);
+    }
     if (table_idx < 0 && !vim_isprintc(c) && c < ' ') {
       c += '@';
       modifiers |= MOD_MASK_CTRL;
-
-      is_ascii_ctrl = true;
     }
-  }
-
-  if (data) {
-    data->mods = 0;
   }
 
   // translate the modifier into a string
@@ -316,20 +322,11 @@ char *get_special_key(int c, int modifiers, struct keychord *data)
         == mod_mask_table[i].mod_flag) {
       string[idx++] = mod_mask_table[i].name;
       string[idx++] = '-';
-
-      if (data) {
-        data->mods |= mod_mask_table[i].mod_flag;
-      }
     }
   }
 
   if (table_idx < 0) {          // unknown special key, may output t_xx
     if (IS_SPECIAL(c)) {
-      if (data) {
-        data->key_alt = (String){ NULL, 0 };
-        data->key = (String){ &string[idx], 4 };
-      }
-
       string[idx++] = 't';
       string[idx++] = '_';
       string[idx++] = (char)(uint8_t)KEY2TERMCAP0(c);
@@ -338,37 +335,11 @@ char *get_special_key(int c, int modifiers, struct keychord *data)
       // Not a special key, only modifiers, output directly.
       int len = utf_char2len(c);
       if (len == 1 && vim_isprintc(c)) {
-        if (data) {
-          if ('A' <= c && c <= 'Z') {
-            data->key_mem = (char)c + 32;
-            data->key = (String){ &data->key_mem, 1 };
-            if (!is_ascii_ctrl) {
-              data->mods |= MOD_MASK_SHIFT;
-            }
-            data->key_alt = (String){ &string[idx], (size_t)len };
-          } else {
-            data->key_alt = (String){ NULL, 0 };
-            data->key = (String){ &string[idx], (size_t)len };
-          }
-        }
-
         string[idx++] = (char)(uint8_t)c;
       } else if (len > 1) {
-        if (data) {
-          data->key = (String){ &string[idx], (size_t)len };
-          data->key_alt = (String){ NULL, 0 };
-        }
-
         idx += utf_char2bytes(c, string + idx);
       } else {
         char *s = transchar(c);
-
-        if (data) {
-          data->key_mem = (char)c;
-          data->key = (String){ &data->key_mem, 1 };
-          data->key_alt = (String){ &string[idx], strlen(s) };
-        }
-
         while (*s) {
           string[idx++] = *s++;
         }
@@ -376,20 +347,8 @@ char *get_special_key(int c, int modifiers, struct keychord *data)
     }
   } else {            // use name of special key
     const String *s = &key_names_table[table_idx].name;
-
-    if (data) {
-      if (0 <= c && c <= 0x7f) {
-        data->key_mem = (char)c;
-        data->key = (String){ &data->key_mem, 1 };
-        data->key_alt = *s;
-      } else {
-        data->key = *s;
-        data->key_alt = (String){ NULL, 0 };
-      }
-    }
-
     if ((int)s->size + idx + 2 <= MAX_KEY_NAME_LEN) {
-      memcpy(string + idx, s->data, s->size);
+      STRCPY(string + idx, s->data);
       idx += (int)s->size;
     }
   }
@@ -397,12 +356,6 @@ char *get_special_key(int c, int modifiers, struct keychord *data)
   string[idx] = NUL;
 
   return string;
-}
-
-/// @return  String representing the key "chord" (key + modifiers).
-char *get_special_key_name(int c, int modifiers)
-{
-  return get_special_key(c, modifiers, NULL);
 }
 
 /// Try translating a <> name ("keycode").
@@ -703,7 +656,7 @@ int get_mouse_button(int code, bool *is_click, bool *is_drag)
 /// `<C-H>` => 0x08.
 ///
 /// When "flags" has REPTERM_FROM_PART, trailing <C-v> is included, otherwise it is removed (to make
-/// ":map xx ^V" map xx to nothing). When cpo_val contains kCpoBslash, a backslash can be used in
+/// ":map xx ^V" map xx to nothing). When cpo_val contains CPO_BSLASH, a backslash can be used in
 /// place of <C-v>. All other <C-v> characters are removed.
 ///
 /// @param[in]  from  What characters to replace.
@@ -718,7 +671,7 @@ int get_mouse_button(int code, bool *is_click, bool *is_drag)
 ///                    REPTERM_NO_SPECIAL   do not accept <key> notation
 ///                    REPTERM_NO_SIMPLIFY  do not simplify <C-H> into 0x08, etc.
 /// @param[out]  did_simplify  set when some <C-H> code was simplified, unless it is NULL.
-/// @param[in]  cpo_val  The value of 'cpoptions' to use. Only kCpoBslash matters.
+/// @param[in]  cpo_val  The value of 'cpoptions' to use. Only CPO_BSLASH matters.
 ///
 /// @return  The same as what `*bufp` is set to.
 char *replace_termcodes(const char *const from, const size_t from_len, char **const bufp,
@@ -730,7 +683,7 @@ char *replace_termcodes(const char *const from, const size_t from_len, char **co
   const char *const end = from + from_len - 1;
 
   // backslash is a special character
-  const bool do_backslash = (vim_strchr(cpo_val, kCpoBslash) == NULL);
+  const bool do_backslash = (vim_strchr(cpo_val, CPO_BSLASH) == NULL);
   const bool do_special = !(flags & REPTERM_NO_SPECIAL);
 
   bool allocated = (*bufp == NULL);
@@ -906,8 +859,7 @@ char *vim_strsave_escape_ks(char *p)
 
 /// Remove escaping from K_SPECIAL characters.  Reverse of
 /// vim_strsave_escape_ks().  Works in-place.
-/// Returns the number of bytes in the unescaped string.
-size_t vim_unescape_ks(char *p)
+void vim_unescape_ks(char *p)
 {
   uint8_t *s = (uint8_t *)p;
   uint8_t *d = (uint8_t *)p;
@@ -921,5 +873,4 @@ size_t vim_unescape_ks(char *p)
     }
   }
   *d = NUL;
-  return (size_t)((char *)d - p);
 }

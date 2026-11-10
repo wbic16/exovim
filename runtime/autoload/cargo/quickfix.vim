@@ -1,5 +1,4 @@
 " Last Modified: 2023-09-11
-" 2026 Oct 15 by Vim project: Fix code injection via crafted directory names
 
 function! cargo#quickfix#CmdPre() abort
     if &filetype ==# 'rust' && get(b:, 'current_compiler', '') ==# 'cargo' &&
@@ -8,8 +7,8 @@ function! cargo#quickfix#CmdPre() abort
         let b:rust_compiler_cargo_qf_has_lcd = haslocaldir()
         let b:rust_compiler_cargo_qf_prev_cd = getcwd()
         let b:rust_compiler_cargo_qf_prev_cd_saved = 1
-        let nearest = fnamemodify(cargo#nearestRootCargo(0), ':h')
-        call chdir(nearest, 'window')
+        let l:nearest = fnamemodify(cargo#nearestRootCargo(0), ':h')
+        execute 'lchdir! '.l:nearest
     else
         let b:rust_compiler_cargo_qf_prev_cd_saved = 0
     endif
@@ -18,8 +17,11 @@ endfunction
 function! cargo#quickfix#CmdPost() abort
     if exists("b:rust_compiler_cargo_qf_prev_cd_saved") && b:rust_compiler_cargo_qf_prev_cd_saved
         " Restore the current directory.
-        let scope = ['global', 'window', 'tabpage']
-        call chdir(b:rust_compiler_cargo_qf_prev_cd, scope[b:rust_compiler_cargo_qf_has_lcd])
+        if b:rust_compiler_cargo_qf_has_lcd
+            execute 'lchdir! '.b:rust_compiler_cargo_qf_prev_cd
+        else
+            execute 'chdir! '.b:rust_compiler_cargo_qf_prev_cd
+        endif
         let b:rust_compiler_cargo_qf_prev_cd_saved = 0
     endif
 endfunction

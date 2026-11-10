@@ -4,9 +4,7 @@
 -- This test contains both "test44" and "test99" from the old test suite.
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local feed, insert = n.feed, n.insert
 local clear, feed_command, expect = n.clear, n.feed_command, n.expect
 

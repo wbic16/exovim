@@ -1,8 +1,6 @@
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local exec = n.exec
 local feed = n.feed
@@ -30,17 +28,17 @@ describe(':global', function()
       {9:Interrupted}                                                                |
     ]])
 
-    -- Also test in Ex mode (keep-open cmdwin REPL)
-    feed('1q:g/foo/norm :<C-V>;<CR>')
+    -- Also test in Ex mode
+    feed('gQg/foo/norm :<C-V>;<CR>')
     poke_eventloop() -- Wait for :sleep to start
     feed('<C-C>')
     screen:expect([[
-      foo                                                                        |
-      {2:[No Name] [+]                                                              }|
-      {1::}" Keyboard interrupt                                                      |
-      {1::}^                                                                          |
-      {3:[Ex mode]                                                                  }|
-      {5:-- INSERT --}                                                               |
+      {3:                                                                           }|
+      Entering Ex mode.  Type "visual" to go to Normal mode.                     |
+      :g/foo/norm :;                                                             |
+                                                                                 |
+      {9:Interrupted}                                                                |
+      :^                                                                          |
     ]])
   end)
 end)

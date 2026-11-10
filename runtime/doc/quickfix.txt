@@ -4,9 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
-Quickfix
-
 This subject is introduced in section |30.1| of the user manual.
 
                                       Type |gO| to see the table of contents.
@@ -32,28 +29,24 @@ From inside Vim an easy way to run a command and handle the output is with the
 |:make| command (see below).
 
 The 'errorformat' option should be set to match the error messages from your
-compiler (see |errorformat| below).  Vim uses it to extract information such
-as the file name, line number and message from each line of compiler output.
-Lines that do not match are kept as invalid entries and are skipped by
-commands such as |:cnext|.  Use |:clist|! to display them as well.
+compiler (see |errorformat| below).
 
 					*quickfix-stack* *quickfix-ID*
 Each quickfix list has a unique identifier called the quickfix ID and this
 number will not change within a Vim session.  The |getqflist()| function can be
 used to get the identifier assigned to a list.  There is also a quickfix list
-number, which is its position in the quickfix stack.  This number may change
-when lists are added or removed, or when more than 'chistory' lists are kept.
-Use the ID when a script needs to refer to the same list reliably; use the
-list number when referring to its current position in the stack.
+number which may change whenever more than 'chistory' lists are added to a
+quickfix stack.
 
 						*location-list* *E776*
-A location list is a quickfix list tied to one window.  Each window can have a
-separate location list, and commands such as `:lvimgrep`, `:lgrep`,
-`:lhelpgrep` and `:lmake` use it instead of the global quickfix list.  The
-corresponding commands without the "l" prefix use the quickfix list.
+A location list is a window-local quickfix list.  You get one after commands
+like `:lvimgrep`, `:lgrep`, `:lhelpgrep`, `:lmake`, etc., which create a
+location list instead of a quickfix list as the corresponding `:vimgrep`,
+`:grep`, `:helpgrep`, `:make` do.
 						*location-list-file-window*
-The location list is independent of the quickfix list.  A location list can
-be associated with only one window.
+A location list is associated with a window and each window can have a
+separate location list.  A location list can be associated with only one
+window.  The location list is independent of the quickfix list.
 
 When a window with a location list is split, the new window gets a copy of the
 location list.  When there are no longer any references to a location list,
@@ -79,11 +72,9 @@ location list command, it will be aborted.
 If the current quickfix or location list was changed by an |autocommand| while
 processing a quickfix or location list command, it will be aborted.
 
-:cc[!] [nr]						*:cc*
-:[nr]cc[!]
-
-			Display error [nr].  If [nr] is omitted, the same
-			error is displayed again.  Without [!] this doesn't
+							*:cc*
+:cc[!] [nr]		Display error [nr].  If [nr] is omitted, the same
+:[nr]cc[!]		error is displayed again.  Without [!] this doesn't
 			work when jumping to another buffer, the current
 			buffer has been changed, there is the only window for
 			the buffer and both 'hidden' and 'autowrite' are off.
@@ -96,53 +87,46 @@ processing a quickfix or location list command, it will be aborted.
 			be used, including "." for the current line and "$"
 			for the last line.
 
-:ll[!] [nr]						*:ll*
-:[nr]ll[!]
+							*:ll*
+:ll[!] [nr]		Same as ":cc", except the location list for the
+:[nr]ll[!]		current window is used instead of the quickfix list.
 
-			Same as ":cc", except the location list for the
+						*:cn* *:cne* *:cnext* *E553*
+:[count]cn[ext][!]	Display the [count] next error in the list that
+			includes a file name.  If there are no file names at
+			all, go to the [count] next error.  See |:cc| for
+			[!] and 'switchbuf'.
+
+								*]q*
+]q			Mapped to |:cnext|. |default-mappings|
+
+							*:lne* *:lnext*
+:[count]lne[xt][!]	Same as ":cnext", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[count]cn[ext][!]				*:cn* *:cne* *:cnext* *E553*
-			Display the [count] next error in the list that
-			includes a file name.  Entries without a file name are
-			skipped, since Vim cannot use them to jump to a file.
-			If there are no file names at all, go to the [count]
-			next error.  See |:cc| for [!] and 'switchbuf'.
+								*]l*
+]l			Mapped to |:lnext|. |default-mappings|
 
-]q							*]q*
-			Mapped to |:cnext|. |default-mappings|
+:[count]cN[ext][!]		*:cp* *:cprevious*  *:cprev* *:cN* *:cNext*
+:[count]cp[revious][!]	Display the [count] previous error in the list that
+			includes a file name.  If there are no file names at
+			all, go to the [count] previous error.  See |:cc| for
+			[!] and 'switchbuf'.
 
-:[count]cN[ext][!]					*:cN* *:cNext*
-:[count]cp[revious][!]					*:cp* *:cprevious* *:cprev*
-
-			Display the [count] previous error in the list that
-			includes a file name.  Entries without a file name are
-			skipped, since Vim cannot use them to jump to a file.
-			If there are no file names at all, go to the [count]
-			previous error.  See |:cc| for [!] and 'switchbuf'.
-
-[q							*[q*
-			Mapped to |:cprevious|. |default-mappings|
-
-:[count]lne[xt][!]					*:lne* *:lnext*
-			Same as ":cnext", except the location list for the
-			current window is used instead of the quickfix list.
-
-]l							*]l*
-			Mapped to |:lnext|. |default-mappings|
+								*[q*
+[q			Mapped to |:cprevious|. |default-mappings|
 
 
-:[count]lN[ext][!]					*:lN* *:lNext*
-:[count]lp[revious][!]					*:lp* *:lprevious* *:lprev*
-			Same as ":cNext" and ":cprevious", except the location
+:[count]lN[ext][!]		*:lp* *:lprevious* *:lprev* *:lN* *:lNext*
+:[count]lp[revious][!]	Same as ":cNext" and ":cprevious", except the location
 			list for the current window is used instead of the
 			quickfix list.
 
-[l							*[l*
-			Mapped to |:lprevious|. |default-mappings|
+								*[l*
+[l			Mapped to |:lprevious|. |default-mappings|
 
-:[count]cabo[ve]					*:cabo* *:cabove*
-			Go to the [count] error above the current line in the
+							*:cabo* *:cabove*
+:[count]cabo[ve]	Go to the [count] error above the current line in the
 			current buffer.  If [count] is omitted, then 1 is
 			used.  If there are no errors, then an error message
 			is displayed.  Assumes that the entries in a quickfix
@@ -152,12 +136,12 @@ processing a quickfix or location list command, it will be aborted.
 			exceeds the number of entries above the current line,
 			then the first error in the file is selected.
 
-:[count]lab[ove]					*:lab* *:labove*
-			Same as ":cabove", except the location list for the
+							*:lab* *:labove*
+:[count]lab[ove]	Same as ":cabove", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[count]cbel[ow]					*:cbel* *:cbelow*
-			Go to the [count] error below the current line in the
+							*:cbel* *:cbelow*
+:[count]cbel[ow]	Go to the [count] error below the current line in the
 			current buffer.  If [count] is omitted, then 1 is
 			used.  If there are no errors, then an error message
 			is displayed.  Assumes that the entries in a quickfix
@@ -167,12 +151,12 @@ processing a quickfix or location list command, it will be aborted.
 			exceeds the number of entries below the current line,
 			then the last error in the file is selected.
 
-:[count]lbel[ow]					*:lbel* *:lbelow*
-			Same as ":cbelow", except the location list for the
+							*:lbel* *:lbelow*
+:[count]lbel[ow]	Same as ":cbelow", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[count]cbe[fore]					*:cbe* *:cbefore*
-			Go to the [count] error before the current cursor
+							*:cbe* *:cbefore*
+:[count]cbe[fore]	Go to the [count] error before the current cursor
 			position in the current buffer.  If [count] is
 			omitted, then 1 is used.  If there are no errors, then
 			an error message is displayed.  Assumes that the
@@ -181,12 +165,12 @@ processing a quickfix or location list command, it will be aborted.
 			number of entries before the current position, then
 			the first error in the file is selected.
 
-:[count]lbe[fore]					*:lbe* *:lbefore*
-			Same as ":cbefore", except the location list for the
+							*:lbe* *:lbefore*
+:[count]lbe[fore]	Same as ":cbefore", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[count]caf[ter]					*:caf* *:cafter*
-			Go to the [count] error after the current cursor
+							*:caf* *:cafter*
+:[count]caf[ter]	Go to the [count] error after the current cursor
 			position in the current buffer.  If [count] is
 			omitted, then 1 is used.  If there are no errors, then
 			an error message is displayed.  Assumes that the
@@ -195,86 +179,84 @@ processing a quickfix or location list command, it will be aborted.
 			number of entries after the current position, then
 			the last error in the file is selected.
 
-:[count]laf[ter]					*:laf* *:lafter*
-			Same as ":cafter", except the location list for the
+							*:laf* *:lafter*
+:[count]laf[ter]	Same as ":cafter", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[count]cnf[ile][!]					*:cnf* *:cnfile*
-			Display the first error in the [count] next file in
+							*:cnf* *:cnfile*
+:[count]cnf[ile][!]	Display the first error in the [count] next file in
 			the list that includes a file name.  If there are no
 			file names at all or if there is no next file, go to
 			the [count] next error.  See |:cc| for [!] and
 			'switchbuf'.
 
-]_CTRL-Q						*]_CTRL-Q*
-			Mapped to |:cnfile|. |default-mappings|
+							*]_CTRL-Q*
+]_CTRL-Q		Mapped to |:cnfile|. |default-mappings|
 
-:[count]lnf[ile][!]					*:lnf* *:lnfile*
-			Same as ":cnfile", except the location list for the
+							*:lnf* *:lnfile*
+:[count]lnf[ile][!]	Same as ":cnfile", except the location list for the
 			current window is used instead of the quickfix list.
 
-]_CTRL-L						*]_CTRL-L*
-				Mapped to |:lnfile|. |default-mappings|
+							*]_CTRL-L*
+]_CTRL-L			Mapped to |:lnfile|. |default-mappings|
 
-:[count]cNf[ile][!]					*:cNf* *:cNfile*
-:[count]cpf[ile][!]					*:cpf* *:cpfile*
-			Display the last error in the [count] previous file in
+:[count]cNf[ile][!]			*:cpf* *:cpfile* *:cNf* *:cNfile*
+:[count]cpf[ile][!]	Display the last error in the [count] previous file in
 			the list that includes a file name.  If there are no
 			file names at all or if there is no next file, go to
 			the [count] previous error.  See |:cc| for [!] and
 			'switchbuf'.
 
-[_CTRL-Q						*[_CTRL-Q*
-			Mapped to |:cpfile|. |default-mappings|
+								*[_CTRL-Q*
+[_CTRL-Q		Mapped to |:cpfile|. |default-mappings|
 
 
-:[count]lNf[ile][!]					*:lNf* *:lNfile*
-:[count]lpf[ile][!]					*:lpf* *:lpfile*
-			Same as ":cNfile" and ":cpfile", except the location
+:[count]lNf[ile][!]			*:lpf* *:lpfile* *:lNf* *:lNfile*
+:[count]lpf[ile][!]	Same as ":cNfile" and ":cpfile", except the location
 			list for the current window is used instead of the
 			quickfix list.
 
-[_CTRL-L						*[_CTRL-L*
-			Mapped to |:lpfile|. |default-mappings|
+							*[_CTRL-L*
+[_CTRL-L		Mapped to |:lpfile|. |default-mappings|
 
-:cr[ewind][!] [nr]					*:crewind* *:cr*
-			Display error [nr].  If [nr] is omitted, the FIRST
+							*:crewind* *:cr*
+:cr[ewind][!] [nr]	Display error [nr].  If [nr] is omitted, the FIRST
 			error is displayed.  See |:cc|.
 
-[Q							*[Q*
-			Mapped to |:crewind|. |default-mappings|
+							*[Q*
+[Q			Mapped to |:crewind|. |default-mappings|
 
-:lr[ewind][!] [nr]					*:lrewind* *:lr*
-			Same as ":crewind", except the location list for the
+							*:lrewind* *:lr*
+:lr[ewind][!] [nr]	Same as ":crewind", except the location list for the
 			current window is used instead of the quickfix list.
 
-[L							*[L*
-			Mapped to |:lrewind|. |default-mappings|
+							*[L*
+[L			Mapped to |:lrewind|. |default-mappings|
 
-:cfir[st][!] [nr]					*:cfirst* *:cfir*
-			Same as ":crewind".
+							*:cfirst* *:cfir*
+:cfir[st][!] [nr]	Same as ":crewind".
 
-:lfir[st][!] [nr]					*:lfirst* *:lfir*
-			Same as ":lrewind".
+							*:lfirst* *:lfir*
+:lfir[st][!] [nr]	Same as ":lrewind".
 
-:cla[st][!] [nr]					*:clast* *:cla*
-			Display error [nr].  If [nr] is omitted, the LAST
+							*:clast* *:cla*
+:cla[st][!] [nr]	Display error [nr].  If [nr] is omitted, the LAST
 			error is displayed.  See |:cc|.
 
-]Q							*]Q*
-			Mapped to |:clast|.
+							*]Q*
+]Q			Mapped to |:clast|.
 
-:lla[st][!] [nr]					*:llast* *:lla*
-			Same as ":clast", except the location list for the
+							*:llast* *:lla*
+:lla[st][!] [nr]	Same as ":clast", except the location list for the
 			current window is used instead of the quickfix list.
 
-]L							*]L*
-			Mapped to |:llast|.
+							*]L*
+]L			Mapped to |:llast|.
 
-:cq[uit][!]						*:cq* *:cquit*
+							*:cq* *:cquit*
+:cq[uit][!]
 :{N}cq[uit][!]
-:cq[uit][!] {N}
-			Quit Vim with error code {N}.  {N} defaults to one.
+:cq[uit][!] {N}		Quit Vim with error code {N}.  {N} defaults to one.
 			Useful when Vim is called from another program:
 			e.g., a compiler will not compile the same file again,
 			`git commit` will abort the committing process, `fc`
@@ -282,13 +264,12 @@ processing a quickfix or location list command, it will be aborted.
 			execute the command, etc.
 			{N} can also be zero, in which case Vim exits
 			normally.
-			WARNING: This abandons changes in all files, like
-			|:qall|!.
-			The [!] does not change this.  Vim returns a non-zero
-			exit code, unless {N} is zero.
+			WARNING: All changes in files are lost.  It works like
+			":qall!" |:qall|, except that Nvim exits non-zero or
+			[count].
 
-:cf[ile][!] [errorfile]					*:cf* *:cfi* *:cfile*
-			Read the error file and jump to the first error.
+							*:cf* *:cfi* *:cfile*
+:cf[ile][!] [errorfile]	Read the error file and jump to the first error.
 			This is done automatically when Vim is started with
 			the -q option.  You can use this command when you
 			keep Vim running while compiling.  If you give the
@@ -298,8 +279,8 @@ processing a quickfix or location list command, it will be aborted.
 			'encoding' option, you can use the 'makeencoding'
 			option to specify the encoding.
 
-:lf[ile][!] [errorfile]					*:lf* *:lfi* *:lfile*
-			Same as ":cfile", except the location list for the
+							*:lf* *:lfi* *:lfile*
+:lf[ile][!] [errorfile]	Same as ":cfile", except the location list for the
 			current window is used instead of the quickfix list.
 			You can not use the -q command-line option to set
 			the location list.
@@ -317,66 +298,59 @@ processing a quickfix or location list command, it will be aborted.
 			Same as ":cgetfile", except the location list for the
 			current window is used instead of the quickfix list.
 
-:caddf[ile] [errorfile]					*:caddf* *:caddfile*
-			Read the error file and add the errors from the
+							*:caddf* *:caddfile*
+:caddf[ile] [errorfile]	Read the error file and add the errors from the
 			errorfile to the current quickfix list.  If a quickfix
 			list is not present, then a new list is created.
 			If the encoding of the error file differs from the
 			'encoding' option, you can use the 'makeencoding'
 			option to specify the encoding.
 
-:laddf[ile] [errorfile]					*:laddf* *:laddfile*
-			Same as ":caddfile", except the location list for the
+							*:laddf* *:laddfile*
+:laddf[ile] [errorfile]	Same as ":caddfile", except the location list for the
 			current window is used instead of the quickfix list.
 
-The following commands read error messages from a buffer:
-`:cbuffer` creates a list and jumps to its first error, `:cgetbuffer` creates
-a list without jumping, and `:caddbuffer` adds entries to the current list
-without changing the cursor position.  The corresponding commands with an "l"
-prefix use the location list.
-
-:[range]cb[uffer][!] [bufnr]				*:cb* *:cbuffer* *E681*
+						*:cb* *:cbuffer* *E681*
+:[range]cb[uffer][!] [bufnr]
 			Read the error list from the current buffer.
 			When [bufnr] is given it must be the number of a
 			loaded buffer.  That buffer will then be used instead
 			of the current buffer.
-			A range can be specified for the lines to be used, for
-			example `:10,20cbuffer`.  Otherwise all lines in the
-			buffer are used.
+			A range can be specified for the lines to be used.
+			Otherwise all lines in the buffer are used.
 			See |:cc| for [!].
 
-:[range]lb[uffer][!] [bufnr]				*:lb* *:lbuffer*
+						*:lb* *:lbuffer*
+:[range]lb[uffer][!] [bufnr]
 			Same as ":cbuffer", except the location list for the
 			current window is used instead of the quickfix list.
 
-:[range]cgetb[uffer] [bufnr]				*:cgetb* *:cgetbuffer*
+						*:cgetb* *:cgetbuffer*
+:[range]cgetb[uffer] [bufnr]
 			Read the error list from the current buffer.  Just
 			like ":cbuffer" but don't jump to the first error.
 
-:[range]lgetb[uffer] [bufnr]				*:lgetb* *:lgetbuffer*
+						*:lgetb* *:lgetbuffer*
+:[range]lgetb[uffer] [bufnr]
 			Same as ":cgetbuffer", except the location list for
 			the current window is used instead of the quickfix
 			list.
 
-:[range]cad[dbuffer] [bufnr]				*:cad* *:cadd* *:caddbuffer*
+						*:cad* *:cadd* *:caddbuffer*
+:[range]cad[dbuffer] [bufnr]
 			Read the error list from the current buffer and add
 			the errors to the current quickfix list.  If a
 			quickfix list is not present, then a new list is
 			created.  Otherwise, same as ":cbuffer".
 
-:[range]laddb[uffer] [bufnr]				*:laddb* *:laddbuffer*
+							*:laddb* *:laddbuffer*
+:[range]laddb[uffer] [bufnr]
 			Same as ":caddbuffer", except the location list for
 			the current window is used instead of the quickfix
 			list.
 
-The following commands create or update a quickfix list from an expression:
-`:cexpr` creates a list and jumps to its first error, `:cgetexpr` creates a
-list without jumping, and `:caddexpr` adds entries to the current list without
-changing the cursor position.  The corresponding commands with an "l" prefix
-use the location list.
-
-:cex[pr][!] {expr}					*:cex* *:cexpr* *E777*
-			Create a quickfix list using the result of {expr} and
+							*:cex* *:cexpr* *E777*
+:cex[pr][!] {expr}	Create a quickfix list using the result of {expr} and
 			jump to the first error.
 			If {expr} is a String, then each newline terminated
 			line in the String is processed using the global value
@@ -390,20 +364,20 @@ use the location list.
 				:cexpr system('grep -n xyz *')
 				:cexpr getline(1, '$')
 <
-:lex[pr][!] {expr}					*:lex* *:lexpr*
-			Same as |:cexpr|, except the location list for the
+							*:lex* *:lexpr*
+:lex[pr][!] {expr}	Same as |:cexpr|, except the location list for the
 			current window is used instead of the quickfix list.
 
-:cgete[xpr] {expr}					*:cgete* *:cgetexpr*
-			Create a quickfix list using the result of {expr}.
+							*:cgete* *:cgetexpr*
+:cgete[xpr] {expr}	Create a quickfix list using the result of {expr}.
 			Just like |:cexpr|, but don't jump to the first error.
 
-:lgete[xpr] {expr}					*:lgete* *:lgetexpr*
-			Same as |:cgetexpr|, except the location list for the
+							*:lgete* *:lgetexpr*
+:lgete[xpr] {expr}	Same as |:cgetexpr|, except the location list for the
 			current window is used instead of the quickfix list.
 
-:cadde[xpr] {expr}					*:cadde* *:caddexpr*
-			Evaluate {expr} and add the resulting lines to the
+							*:cadde* *:caddexpr*
+:cadde[xpr] {expr}	Evaluate {expr} and add the resulting lines to the
 			current quickfix list.  If a quickfix list is not
 			present, then a new list is created.  The current
 			cursor position will not be changed.  See |:cexpr| for
@@ -411,11 +385,12 @@ use the location list.
 			Example: >
     :g/mypattern/caddexpr expand("%") .. ":" .. line(".") ..  ":" .. getline(".")
 <
-:lad[dexpr] {expr}				*:lad* *:ladd* *:laddexpr*
-			Same as ":caddexpr", except the location list for the
+						*:lad* *:ladd* *:laddexpr*
+:lad[dexpr] {expr}	Same as ":caddexpr", except the location list for the
 			current window is used instead of the quickfix list.
 
-:cl[ist] [from] [, [to]]				*:cl* *:clist*
+							*:cl* *:clist*
+:cl[ist] [from] [, [to]]
 			List all errors that are valid |quickfix-valid|.
 			If numbers [from] and/or [to] are given, the
 			respective range of errors is listed.  A negative
@@ -425,8 +400,6 @@ use the location list.
 			quickfix entries matching a supplied pattern.  The
 			pattern is matched against the filename, module name,
 			pattern and text of the entry.
-			For example, `:filter /\.c:/clist` lists only entries
-			whose displayed text contains `.c:`.  See |:filter|.
 
 :cl[ist] +{count}	List the current and next {count} valid errors.  This
 			is similar to ":clist from from+count", where "from"
@@ -436,16 +409,15 @@ use the location list.
 			List all errors.
 
 :cl[ist]! +{count}	List the current and next {count} error lines.  This
->
 			is useful to see unrecognized lines after the current
 			one.  For example, if ":clist" shows:
-	8384 testje.java:252: error: cannot find symbol
+	8384 testje.java:252: error: cannot find symbol ~
 			Then using ":cl! +3" shows the reason:
-	8384 testje.java:252: error: cannot find symbol
-	8385:   ZexitCode = Fmainx();
-	8386:               ^
-	8387:   symbol:   method Fmainx()
-<
+	8384 testje.java:252: error: cannot find symbol ~
+	8385:   ZexitCode = Fmainx(); ~
+	8386:               ^ ~
+	8387:   symbol:   method Fmainx() ~
+
 :lli[st] [from] [, [to]]				*:lli* *:llist*
 			Same as ":clist", except the location list for the
 			current window is used instead of the quickfix list.
@@ -476,7 +448,7 @@ use this code: >
 	   call setqflist(qflist)
 	endfunction
 
-	au QuickFixCmdPost make call QfMakeConv()
+	au QuickfixCmdPost make call QfMakeConv()
 Another option is using 'makeencoding'.
 
 							*quickfix-title*
@@ -541,19 +513,6 @@ entries parsed from lines.  The following shows how to use a custom
 	echo getqflist({'efm' : '%f#%l#%m', 'lines' : ['F1#10#Line']})
 <
 
-To execute a command for entries or files in a list, use:
-
-				 Quickfix list  Location list
-	Each entry		 :cdo		 :ldo
-	Each file		 :cfdo		 :lfdo
-
-Use `:cdo` when a command should run for every valid entry, for example
-`:cdo s/old/new/g` to change each matching line.  Use `:cfdo` when it should
-run once for each file, for example `:cfdo update` to write each affected file
-once.  Add the "l" prefix to use the location list instead.
-
-The commands below describe these differences in more detail.
-
 EXECUTE A COMMAND IN ALL THE BUFFERS IN QUICKFIX OR LOCATION LIST:
 							*:cdo*
 :cdo[!] {cmd}		Execute {cmd} in each valid entry in the quickfix
@@ -582,8 +541,8 @@ EXECUTE A COMMAND IN ALL THE BUFFERS IN QUICKFIX OR LOCATION LIST:
 			Also see |:bufdo|, |:tabdo|, |:argdo|, |:windo|,
 			|:ldo|, |:cfdo| and |:lfdo|.
 
-:cfd[o][!] {cmd}					*:cfd* *:cfdo*
-			Execute {cmd} in each file in the quickfix list.
+							*:cfd* *:cfdo*
+:cfd[o][!] {cmd}	Execute {cmd} in each file in the quickfix list.
 			It works like doing this: >
 				:cfirst
 				:{cmd}
@@ -592,8 +551,8 @@ EXECUTE A COMMAND IN ALL THE BUFFERS IN QUICKFIX OR LOCATION LIST:
 				etc.
 <			Otherwise it works the same as `:cdo`.
 
-:ld[o][!] {cmd}						*:ld* *:ldo*
-			Execute {cmd} in each valid entry in the location list
+							*:ld* *:ldo*
+:ld[o][!] {cmd}		Execute {cmd} in each valid entry in the location list
 			for the current window.
 			It works like doing this: >
 				:lfirst
@@ -604,8 +563,8 @@ EXECUTE A COMMAND IN ALL THE BUFFERS IN QUICKFIX OR LOCATION LIST:
 <			Only valid entries in the location list are used.
 			Otherwise it works the same as `:cdo`.
 
-:lfd[o][!] {cmd}					*:lfd* *:lfdo*
-			Execute {cmd} in each file in the location list for
+							*:lfd* *:lfdo*
+:lfd[o][!] {cmd}	Execute {cmd} in each file in the location list for
 			the current window.
 			It works like doing this: >
 				:lfirst
@@ -644,8 +603,8 @@ can go back to the unfiltered list using the |:colder|/|:lolder| command.
 =============================================================================
 2. The error window					*quickfix-window*
 
-:cope[n] [height]			*:cope* *:copen* *w:quickfix_title*
-			Open a window to show the current list of errors.
+					    *:cope* *:copen* *w:quickfix_title*
+:cope[n] [height]	Open a window to show the current list of errors.
 
 			When [height] is given, the window becomes that high
 			(if there is room).  When [height] is omitted the
@@ -671,22 +630,22 @@ can go back to the unfiltered list using the |:colder|/|:lolder| command.
 			location list, this buffer is wiped out when the
 			location list is removed.
 
-:lop[en] [height]					*:lop* *:lopen*
-			Open a window to show the location list for the
+							*:lop* *:lopen*
+:lop[en] [height]	Open a window to show the location list for the
 			current window.  Works only when the location list for
 			the current window is present.  You can have more than
 			one location window opened at a time.  Otherwise, it
 			acts the same as ":copen".
 
-:ccl[ose]						*:ccl* *:cclose*
-			Close the quickfix window.
+							*:ccl* *:cclose*
+:ccl[ose]		Close the quickfix window.
 
-:lcl[ose]						*:lcl* *:lclose*
-			Close the window showing the location list for the
+							*:lcl* *:lclose*
+:lcl[ose]		Close the window showing the location list for the
 			current window.
 
-:cw[indow] [height]					*:cw* *:cwindow*
-			Open the quickfix window when there are recognized
+							*:cw* *:cwindow*
+:cw[indow] [height]	Open the quickfix window when there are recognized
 			errors.  If the window is already open and there are
 			no recognized errors, close the window.
 
@@ -694,19 +653,19 @@ can go back to the unfiltered list using the |:colder|/|:lolder| command.
 			window becomes that high (if there is room).  When
 			[height] is omitted the window is made ten lines high.
 
-:lw[indow] [height]					*:lw* *:lwindow*
-			Same as ":cwindow", except use the window showing the
+							*:lw* *:lwindow*
+:lw[indow] [height]	Same as ":cwindow", except use the window showing the
 			location list for the current window.
 
-:cbo[ttom]						*:cbo* *:cbottom*
-			Put the cursor in the last line of the quickfix window
+							*:cbo* *:cbottom*
+:cbo[ttom]		Put the cursor in the last line of the quickfix window
 			and scroll to make it visible.  This is useful for
 			when errors are added by an asynchronous callback.
 			Only call it once in a while if there are many
 			updates to avoid a lot of redrawing.
 
-:lbo[ttom]						*:lbo* *:lbottom*
-			Same as ":cbottom", except use the window showing the
+							*:lbo* *:lbottom*
+:lbo[ttom]		Same as ":cbottom", except use the window showing the
 			location list for the current window.
 
 Normally the quickfix window is at the bottom of the screen.
@@ -729,9 +688,8 @@ instead.  If the buffer in the used window has changed, and the error is in
 another file, jumping to the error will fail.  You will first have to make
 sure the window contains a buffer which can be abandoned.
 
-When you select a file from the quickfix window, Vim first reuses a window
-that already displays the file.  Otherwise it uses a suitable window in the
-current tab page, or opens a new one.  The detailed selection rules are:
+When you select a file from the quickfix window, the following steps are used
+to find a window to edit the file:
 
 1. If a window displaying the selected file is present in the current tabpage
    (starting with the window before the quickfix window), then that window is
@@ -749,15 +707,6 @@ current tab page, or opens a new one.  The detailed selection rules are:
    is used.
 6. If the above step fails, then a new horizontally split window above the
    quickfix window is used.
-
-						*quickfix-winfixbuf*
-When 'winfixbuf' is set for the window that would be used to display the
-error, jumping to an error in another buffer is not possible in that window.
-For a quickfix list Vim then looks for another suitable window, using the
-previously accessed window if it does not have 'winfixbuf' set, and otherwise
-splits a new window.  For a location list this fails with |E1513|, because a
-location list is tied to its window and cannot move to or split off another
-one.  Using [!] skips these checks.
 
 					*CTRL-W_<Enter>* *CTRL-W_<CR>*
 You can use CTRL-W <Enter> to open a new window and jump to the error there.
@@ -794,10 +743,8 @@ is similar to the quickfix window, except that you can have more than one
 location list window open at a time.  When you use a location list command in
 this window, the displayed location list is used.
 
-When you select a file from the location list window, Vim first uses the
-window associated with that location list, when possible.  Otherwise it
-reuses a suitable window or opens a new one.  The detailed selection rules
-are:
+When you select a file from the location list window, the following steps are
+used to find a window to edit the file:
 
 1. If a non-quickfix window associated with the location list is present in
    the current tabpage, then that window is used.
@@ -946,26 +893,26 @@ When starting a new list, the previous ones are automatically kept.  Two
 commands can be used to access older error lists.  They set one of the
 existing error lists as the current one.
 
-:col[der] [count]				*:colder* *:col* *E380*
-			Go to older error list.  When [count] is given, do
+						*:colder* *:col* *E380*
+:col[der] [count]	Go to older error list.  When [count] is given, do
 			this [count] times.  When already at the oldest error
 			list, an error message is given.
 
-:lol[der] [count]					*:lolder* *:lol*
-			Same as `:colder`, except use the location list for
+						*:lolder* *:lol*
+:lol[der] [count]	Same as `:colder`, except use the location list for
 			the current window instead of the quickfix list.
 
-:cnew[er] [count]				*:cnewer* *:cnew* *E381*
-			Go to newer error list.  When [count] is given, do
+						*:cnewer* *:cnew* *E381*
+:cnew[er] [count]	Go to newer error list.  When [count] is given, do
 			this [count] times.  When already at the newest error
 			list, an error message is given.
 
-:lnew[er] [count]					*:lnewer* *:lnew*
-			Same as `:cnewer`, except use the location list for
+						*:lnewer* *:lnew*
+:lnew[er] [count]	Same as `:cnewer`, except use the location list for
 			the current window instead of the quickfix list.
 
-:[count]chi[story]					*:chistory* *:chi*
-			Show the list of error lists.  The current list is
+						*:chistory* *:chi*
+:[count]chi[story]	Show the list of error lists.  The current list is
 			marked with ">".  The output looks like: >
 			  error list 1 of 3; 43 errors   :make
 			> error list 2 of 3; 0 errors    :helpgrep tag
@@ -976,8 +923,8 @@ existing error lists as the current one.
 				" Make the 4th quickfix list current
 				:4chistory
 <
-:[count]lhi[story]					*:lhistory* *:lhi*
-			Show the list of location lists, otherwise like
+						*:lhistory* *:lhi*
+:[count]lhi[story]	Show the list of location lists, otherwise like
 			`:chistory`.
 
 When adding a new error list, it becomes the current list.
@@ -998,8 +945,8 @@ To get the number of the current list in the stack: >
 =============================================================================
 4. Using :make						*:make_makeprg*
 
-:mak[e][!] [arguments]					*:mak* *:make*
-			1. All relevant |QuickFixCmdPre| autocommands are
+							*:mak* *:make*
+:mak[e][!] [arguments]	1. All relevant |QuickFixCmdPre| autocommands are
 			   executed.
 			2. If the 'autowrite' option is on, write any changed
 			   buffers
@@ -1024,16 +971,10 @@ To get the number of the current list in the stack: >
 			'encoding' option, you can use the 'makeencoding'
 			option to specify the encoding.
 
-:lmak[e][!] [arguments]					*:lmak* *:lmake*
+							*:lmak* *:lmake*
+:lmak[e][!] [arguments]
 			Same as ":make", except the location list for the
 			current window is used instead of the quickfix list.
-
-In short, `:make` runs 'makeprg', reads its output using 'errorformat',
-optionally jumps to the first recognized error, and then removes the temporary
-error file used by the normal `:make` workflow.  If 'shellpipe' is empty, or
-if the program manages its own output file, this cleanup does not apply to
-that program's file.  Use |:cnext| and related commands to move through the
-resulting list.
 
 The ":make" command executes the command given with the 'makeprg' option.
 This is done by passing the command to the shell given with the 'shell'
@@ -1085,7 +1026,7 @@ read the error messages: >
 	   call setqflist(qflist)
 	endfunction
 
-	au QuickFixCmdPost make call QfMakeConv()
+	au QuickfixCmdPost make call QfMakeConv()
 
 (Example by Faque Cheng)
 Another option is using 'makeencoding'.
@@ -1098,9 +1039,8 @@ advantage of the internal grep is that it works on all systems and uses the
 powerful Vim search patterns.  An external grep program can be used when the
 Vim grep does not do what you want.
 
-The internal method will be slower, because files are read into memory.  For
-large projects, consider using |:grep| with an external search program.  The
-advantages of the internal method are:
+The internal method will be slower, because files are read into memory.  The
+advantages are:
 - Line separators and encoding are automatically recognized, as if a file is
   being edited.
 - Uses Vim search patterns.  Multi-line patterns can be used.
@@ -1125,7 +1065,8 @@ commands can be combined to create a NewGrep command: >
 
 5.1 Using Vim's internal grep
 
-:vim[grep][!] /{pattern}/[g][j][f] {file} ...  *:vim* *:vimgrep* *E682* *E683*
+					*:vim* *:vimgrep* *E682* *E683*
+:vim[grep][!] /{pattern}/[g][j][f] {file} ...
 			Search for {pattern} in the files {file} ... and set
 			the error list to the matches.  Files matching
 			'wildignore' are ignored; files in 'suffixes' are
@@ -1151,13 +1092,11 @@ commands can be combined to create a NewGrep command: >
 			     buffer are abandoned.
 
 			'f'  When the 'f' flag is specified, fuzzy string
-			     matching is used to find matching lines.  The
-			     characters in {pattern} must appear in order, but
-			     need not be next to each other.  In this case,
-			     {pattern} is treated as a literal string instead
-			     of a regular expression.  See |fuzzy-matching|
-			     for more information about fuzzy matching
-			     strings.
+			     matching is used to find matching lines.  In this
+			     case, {pattern} is treated as a literal string
+			     instead of a regular expression.  See
+			     |fuzzy-matching| for more information about fuzzy
+			     matching strings.
 
 			|QuickFixCmdPre| and |QuickFixCmdPost| are triggered.
 			A file that is opened for matching may use a buffer
@@ -1186,18 +1125,21 @@ commands can be combined to create a NewGrep command: >
 			Example: >
 				:vimgrep Error *.c
 <
-:lv[imgrep][!] /{pattern}/[g][j][f] {file} ...		*:lv* *:lvimgrep*
+							*:lv* *:lvimgrep*
+:lv[imgrep][!] /{pattern}/[g][j][f] {file} ...
 :lv[imgrep][!] {pattern} {file} ...
 			Same as ":vimgrep", except the location list for the
 			current window is used instead of the quickfix list.
 
-:vimgrepa[dd][!] /{pattern}/[g][j][f] {file} ...  *:vimgrepa* *:vimgrepadd*
+						*:vimgrepa* *:vimgrepadd*
+:vimgrepa[dd][!] /{pattern}/[g][j][f] {file} ...
 :vimgrepa[dd][!] {pattern} {file} ...
 			Just like ":vimgrep", but instead of making a new list
 			of errors the matches are appended to the current
 			list.
 
-:lvimgrepa[dd][!] /{pattern}/[g][j][f] {file} ...  *:lvimgrepa* *:lvimgrepadd*
+						*:lvimgrepa* *:lvimgrepadd*
+:lvimgrepa[dd][!] /{pattern}/[g][j][f] {file} ...
 :lvimgrepa[dd][!] {pattern} {file} ...
 			Same as ":vimgrepadd", except the location list for
 			the current window is used instead of the quickfix
@@ -1211,8 +1153,8 @@ id-utils) in a similar way to its compiler integration (see |:make| above).
 [Unix trivia: The name for the Unix "grep" command comes from ":g/re/p", where
 "re" stands for Regular Expression.]
 
-:gr[ep][!] [arguments]					*:gr* *:grep*
-			Just like ":make", but use 'grepprg' instead of
+							    *:gr* *:grep*
+:gr[ep][!] [arguments]	Just like ":make", but use 'grepprg' instead of
 			'makeprg' and 'grepformat' instead of 'errorformat'.
 			When 'grepprg' is "internal" this works like
 			|:vimgrep|.  Note that the pattern needs to be
@@ -1221,11 +1163,12 @@ id-utils) in a similar way to its compiler integration (see |:make| above).
 			'encoding' option, you can use the 'makeencoding'
 			option to specify the encoding.
 
-:lgr[ep][!] [arguments]					*:lgr* *:lgrep*
-			Same as ":grep", except the location list for the
+							    *:lgr* *:lgrep*
+:lgr[ep][!] [arguments]	Same as ":grep", except the location list for the
 			current window is used instead of the quickfix list.
 
-:grepa[dd][!] [arguments]				*:grepa* *:grepadd*
+							*:grepa* *:grepadd*
+:grepa[dd][!] [arguments]
 			Just like ":grep", but instead of making a new list of
 			errors the matches are appended to the current list.
 			Example: >
@@ -1247,7 +1190,8 @@ id-utils) in a similar way to its compiler integration (see |:make| above).
 			'encoding' option, you can use the 'makeencoding'
 			option to specify the encoding.
 
-:lgrepa[dd][!] [arguments]				*:lgrepa* *:lgrepadd*
+							*:lgrepa* *:lgrepadd*
+:lgrepa[dd][!] [arguments]
 			Same as ":grepadd", except the location list for the
 			current window is used instead of the quickfix list.
 
@@ -1328,8 +1272,8 @@ need to write down a "todo" list.
 =============================================================================
 6. Selecting a compiler					*compiler-select*
 
-:comp[iler][!] {name}				*:comp* *:compiler* *E666*
-				Set options to work with compiler {name}.
+						*:comp* *:compiler* *E666*
+:comp[iler][!] {name}		Set options to work with compiler {name}.
 				Without the "!" options are set for the
 				current buffer.  With "!" global options are
 				set.
@@ -1341,17 +1285,6 @@ need to write down a "todo" list.
 The Vim plugins in the "compiler" directory will set options to use the
 selected compiler.  For `:compiler` local options are set, for `:compiler!`
 global options.
-
-In normal use, select a compiler with `:compiler {name}` and then run |:make|.
-The compiler plugin usually sets 'makeprg' and 'errorformat' so Vim can run
-the compiler and read its messages.  The descriptions below document options
-for particular compiler plugins.
-
-The values set by a compiler plugin can be changed afterwards with |:set| or
-|:setlocal|.  `:compiler {name}` sets options for the current buffer, while
-`:compiler! {name}` sets global options; a buffer-local value takes precedence
-over a global value.
-
 							*current_compiler*
 To support older Vim versions, the plugins always use "current_compiler" and
 not "b:current_compiler".  What the command actually does is the following:
@@ -1849,20 +1782,15 @@ This can be changed by setting the |g:typst_cmd| variable: >
 
 					*errorformat* *E372* *E373* *E374*
 						*E375* *E376* *E377* *E378*
-The 'errorformat' option specifies patterns that Vim uses to read compiler
-output.  A pattern can extract the file name, line number, column and message
-from each line.  The first format that matches with an error message is used.
-You can add several formats for different messages your compiler produces, or
-even entries for multiple compilers.  See |efm-entries|.
+The 'errorformat' option specifies a list of formats that are recognized.  The
+first format that matches with an error message is used.  You can add several
+formats for different messages your compiler produces, or even entries for
+multiple compilers.  See |efm-entries|.
 
 Each entry in 'errorformat' is a scanf-like string that describes the format.
 First, you need to know how scanf works.  Look in the documentation of your
 C compiler.  Below you find the % items that Vim understands.  Others are
 invalid.
-
-Quick start: Vim already includes formats for many common compilers.  Check
-|errorformats| for an example before writing your own.  If no example matches,
-start with the basic items below and adapt one of the examples as needed.
 
 Special characters in 'errorformat' are comma and backslash.  See
 |efm-entries| for how to deal with them.  Note that a literal "%" is matched
@@ -1887,9 +1815,9 @@ Basic items
 	%c		column number (finds a number representing character
 			column of the error, byte index, a <tab> is 1
 			character column)
-	%v		virtual column number (finds a number representing the
-			screen column of the error, where a <tab> is always 8
-			screen columns regardless of 'tabstop')
+	%v		virtual column number (finds a number representing
+			screen column of the error (1 <tab> == 8 screen
+			columns))
 	%k		end column number (finds a number representing
 			the character column of the error, byte index, or a
 			number representing screen end column of the error if
@@ -1899,8 +1827,6 @@ Basic items
 			    w - warning message
 			    i - info message
 			    n - note message
-			The uppercase letters E, W, I and N are also
-			recognized and have the same meaning.
 	%n		error number (finds a number)
 	%m		error message (finds a string)
 	%r		matches the "rest" of a single-line file message %O/P/Q
@@ -1986,12 +1912,13 @@ These can be used with '+' and '-', see |efm-ignore| below.
 Using "\n" in the pattern won't work to match multi-line messages.
 
 Example: Your compiler happens to write out errors in the following format
-(leading line numbers not being part of the actual output): >
-     1	Error 275
-     2	line 42
-     3	column 3
-     4	' ' expected after '--'
-<
+(leading line numbers not being part of the actual output):
+
+     1	Error 275 ~
+     2	line 42 ~
+     3	column 3 ~
+     4	' ' expected after '--' ~
+
 The appropriate error format string has to look like this: >
    :set efm=%EError\ %n,%Cline\ %l,%Ccolumn\ %c,%Z%m
 
@@ -2032,10 +1959,11 @@ match occurs.
 							*efm-%>*
 The %> item can be used to avoid trying patterns that appear earlier in
 'errorformat'.  This is useful for patterns that match just about anything.
-For example, if the error looks like this: >
-	Error in line 123 of foo.c:
-	unknown variable "i"
-<
+For example, if the error looks like this:
+
+	Error in line 123 of foo.c: ~
+	unknown variable "i" ~
+
 This can be found with: >
 	:set efm=xxx,%E%>Error in line %l of %f:,%Z%m
 Where "xxx" has a pattern that would also match the second line.
@@ -2099,8 +2027,6 @@ Ignoring and using whole messages			*efm-ignore*
 
 The codes '+' or '-' can be combined with the uppercase codes above; in that
 case they have to precede the letter, e.g. '%+A' or '%-G':
-
-	Prefix		Meaning ~
 	%-		do not include the matching multi-line in any output
 	%+		include the whole matching line in the %m error string
 
@@ -2168,7 +2094,6 @@ For example, the format of the output from the Amiga Aztec compiler is:
 
 	filename>linenumber:columnnumber:errortype:errornumber:errormessage
 
-	Field		Meaning ~
 	filename	name of the file in which the error was detected
 	linenumber	line number where the error was detected
 	columnnumber	column number where the error was detected
@@ -2179,19 +2104,19 @@ For example, the format of the output from the Amiga Aztec compiler is:
 This can be matched with this 'errorformat' entry:
 	%f>%l:%c:%t:%n:%m
 
-Some examples for C compilers that produce single-line error outputs: >
-	%f:%l:\ %t%*[^0123456789]%n:\ %m	for Manx/Aztec C error messages
-						(scanf() doesn't understand [0-9])
-	%f\ %l\ %t%*[^0-9]%n:\ %m		for SAS C
-	\"%f\"\\,%*[^0-9]%l:\ %m		for generic C compilers
-	%f:%l:\ %m				for GCC
-	%f:%l:\ %m,%Dgmake[%*\\d]:\ Entering\ directory\ `%f',
-	%Dgmake[%*\\d]:\ Leaving\ directory\ `%f'
-						for GCC with gmake (concat the lines!)
-	%f(%l)\ :\ %*[^:]:\ %m			old SCO C compiler (pre-OS5)
-	%f(%l)\ :\ %t%*[^0-9]%n:\ %m		idem, with error type and number
-	%f:%l:\ %m,In\ file\ included\ from\ %f:%l:,\^I\^Ifrom\ %f:%l%m
-						for GCC, with some extras
+Some examples for C compilers that produce single-line error outputs:
+%f:%l:\ %t%*[^0123456789]%n:\ %m	for Manx/Aztec C error messages
+					(scanf() doesn't understand [0-9])
+%f\ %l\ %t%*[^0-9]%n:\ %m		for SAS C
+\"%f\"\\,%*[^0-9]%l:\ %m		for generic C compilers
+%f:%l:\ %m				for GCC
+%f:%l:\ %m,%Dgmake[%*\\d]:\ Entering\ directory\ `%f',
+%Dgmake[%*\\d]:\ Leaving\ directory\ `%f'
+					for GCC with gmake (concat the lines!)
+%f(%l)\ :\ %*[^:]:\ %m			old SCO C compiler (pre-OS5)
+%f(%l)\ :\ %t%*[^0-9]%n:\ %m		idem, with error type and number
+%f:%l:\ %m,In\ file\ included\ from\ %f:%l:,\^I\^Ifrom\ %f:%l%m
+					for GCC, with some extras
 
 Extended examples for the handling of multi-line messages are given below,
 see |errorformat-Jikes| and |errorformat-LaTeX|.
@@ -2223,12 +2148,6 @@ done via a 'cd' command in the makefile or with the parameter "-C dir" (change
 to directory before reading the makefile).  It may be useful to use the switch
 "-w" to force GNU-make to print out the working directory before and after
 processing.
-
-This matters only when compiler output contains relative file names from
-multiple directories.  If the output does not clearly report directory
-changes, Vim has to guess and can select the wrong file.  Printing absolute
-directory names and both entering and leaving directory messages avoids this
-problem.
 
 Maintaining the correct directory is more complicated if you don't use
 GNU-make.  AIX-make for example doesn't print any information about its
@@ -2398,9 +2317,7 @@ remove the comment lines.  For the '\' notation at the start of some lines see
 	\%+WLaTeX\ %.%#Warning:\ %.%#line\ %l%.%#,
 	\%+W%.%#\ at\ lines\ %l--%*\\d,
 	\%WLaTeX\ %.%#Warning:\ %m,
-<
-
-		Possible continuations of error/warning messages; the first
+<		Possible continuations of error/warning messages; the first
 		one also includes the line number: >
 	\%Cl.%l\ %m,
 	\%+C\ \ %m.,
@@ -2481,7 +2398,6 @@ to a Vim function.  This function will be called with a dict argument and
 should return a List of strings to be displayed in the quickfix or location
 list window.  The dict argument will have the following fields:
 
-    Key		Description ~
     quickfix	set to 1 when called for a quickfix list and 0 when called for
 		a location list.
     winid	for a location list, set to the id of the window with the

@@ -4,7 +4,6 @@
 			    NVIM REFERENCE MANUAL
 
 
-==============================================================================
 Nvim UI protocol					*UI* *ui* *api-ui-events*
 
 This document describes the UI protocol. See |gui| and |tui| for user-facing
@@ -129,12 +128,14 @@ Nvim will pause before loading startup files and reading buffers, so the UI
 has a chance to invoke requests and do early initialization. Startup will
 continue when the UI invokes |nvim_ui_attach()|.
 
-A basic UI only needs to call |nvim_ui_attach()| and then prepare to handle
-UI events. A more featureful UI, should use the following startup procedure:
+A simple UI only needs to do a single |nvim_ui_attach()| request and then
+prepare to handle any UI event. A more featureful UI, which might need
+additional configuration of the Nvim process, should use the following startup
+procedure:
 
 1. Invoke |nvim_get_api_info()|, if needed to setup the client library and/or
    to get the list of supported UI extensions.
-2. Do any configuration that should happen before user config is loaded.
+2. Do any configuration that should be happen before user config is loaded.
    Buffers and windows are not available at this point, but this could be used
    to set |g:| variables visible to init.vim
 3. If the UI wants to do additional setup after user config is loaded,
@@ -145,8 +146,6 @@ UI events. A more featureful UI, should use the following startup procedure:
 5. If step 3 was used, Nvim will send a blocking "vimenter" request to the UI.
    Inside this request handler, the UI can safely do any initialization before
    entering normal mode, for example reading variables set by init.vim.
-
-UIs should also handle |ui-event-restart|.
 
 							   *ui-startup-stdin*
 UIs can support reading from stdin (like `command | nvim -`, see |--|) as follows:
@@ -180,8 +179,8 @@ the editor.
 
 	KEY		DESCRIPTION ~
 	`cursor_shape`:	"block", "horizontal", "vertical"
-	`cell_percentage`:	Cell % occupied by the cursor.
-	`blinkwait`, `blinkon`, `blinkoff`:	See |cursor-blinking|.
+	`cell_percentage`: Cell % occupied by the cursor.
+	`blinkwait`, `blinkon`, `blinkoff`: See |cursor-blinking|.
 	`attr_id`:	Cursor attribute id (defined by `hl_attr_define`).
 			When attr_id is 0, the background and foreground
 			colors should be swapped.
@@ -194,7 +193,6 @@ the editor.
 
 	The following keys are deprecated:
 
-	Key		Description ~
 	`hl_id`:	Use `attr_id` instead.
 	`id_lm`:	Use `attr_id_lm` instead.
 
@@ -255,22 +253,14 @@ the editor.
 	UI is expected to:
 	1. Attach to the server at `server_addr`.
 
-							*ui-event-restart*
-["restart", listen_addr, chan_config] ~
+["restart", listen_addr] ~
 	User invoked the |:restart| command. Nvim started a new server. The
 	old server is about to exit and close its channel.
-
-	- `listen_addr`: The new server's address, or the channel-stored
-	  `addr` (|nvim_chan_set()|).
-	- `chan_config`: Channel properties from the old server, which the UI
-	  should restore intact via |nvim_chan_set()|.
 
 	UI is expected to:
 	1. Wait for the channel to be closed, to confirm that the old server
 	   actually exited.
-	2. Call `nvim_chan_set(0, chan_config)` on the new server at
-	   `listen_addr`, to restore the channel properties (e.g. |:detach!|).
-	3. Attach to the new server at `listen_addr`.
+	2. Attach to the new server at `listen_addr`.
 
 ["suspend"] ~
 	|:suspend| command or |CTRL-Z| mapping is used. A terminal client (or
@@ -337,7 +327,6 @@ numerical highlight ids to the actual attributes.
 	attributes specified by the `rgb_attr` and `cterm_attr` dicts, with the
 	following (all optional) keys.
 
-	Key			Description ~
 	`foreground`:		foreground color.
 	`background`:		background color.
 	`special`:		color to use for various underlines, when
@@ -513,7 +502,6 @@ is not active. New UIs should implement |ui-linegrid| instead.
 	to its default value. Color defaults are set by the `update_fg` etc
 	updates. All boolean keys default to false.
 
-	Key		Description ~
 	`foreground`:	foreground color.
 	`background`:	background color.
 	`special`:	color to use for various underlines, when present.
@@ -521,7 +509,7 @@ is not active. New UIs should implement |ui-linegrid| instead.
 			switched.
 	`italic`:	italic text.
 	`bold`:		bold text.
-	`strikethrough`:	struckthrough text.
+	`strikethrough`:  struckthrough text.
 	`underline`:	underlined text. The line has `special` color.
 	`undercurl`:	undercurled text. The curl has `special` color.
 	`underdouble`:	double underlined text. The lines have `special` color.
@@ -594,16 +582,17 @@ The `info` parameter in `hl_attr_define` contains a semantic description of
 the highlights. Because highlight groups can be combined, this is an array
 where the highest-priority item is last. Each item is a dict with these keys:
 
-• `kind`: always present. One of the following values:
-  • "ui": Builtin UI highlight. |highlight-groups|
-  • "syntax": Highlight applied to a buffer by a syntax declaration or other
-    runtime/plugin functionality such as |nvim_buf_set_extmark()|
-  • "terminal": highlight from a process running in a |terminal-emulator|.
-    Contains no further semantic information.
-• `ui_name`: Highlight name from |highlight-groups|. Only for "ui" kind.
-• `hi_name`: Name of the final |:highlight| group where the used attributes
-  are defined.
-• `id`: Unique numeric id representing this item.
+    `kind`:	always present. One of the following values:
+	"ui":       Builtin UI highlight. |highlight-groups|
+	"syntax":   Highlight applied to a buffer by a syntax declaration or
+		    other runtime/plugin functionality such as
+		    |nvim_buf_set_extmark()|
+	"terminal": highlight from a process running in a |terminal-emulator|.
+		    Contains no further semantic information.
+    `ui_name`:	Highlight name from |highlight-groups|. Only for "ui" kind.
+    `hi_name`:	Name of the final |:highlight| group where the used
+		attributes are defined.
+    `id`:	Unique numeric id representing this item.
 
 Note: "ui" items will have both `ui_name` and `hi_name` present. These can
 differ, because the builtin group was linked to another group |:hi-link| , or
@@ -778,32 +767,27 @@ This UI extension delegates presentation of the |cmdline| (except 'wildmenu').
 For command-line 'wildmenu' UI events, activate |ui-popupmenu|.
 
 ["cmdline_show", content, pos, firstc, prompt, indent, level, hl_id] ~
+        content: List of [attrs, string, hl_id]
+	         [[{}, "t", hl_id], [attrs, "est", hl_id], ...]
+
 	Triggered when the cmdline is displayed or changed.
+	The `content` is the full content that should be displayed in the
+	cmdline, and the `pos` is the position of the cursor that in the
+	cmdline. The content is divided into chunks with different highlight
+	attributes represented as a dict (see |ui-event-highlight_set|).
 
-	content
-	    Array of `[attr_id, text_chunk, hl_id]` tuples, building up the
-	    cmdline text of chunks with different highlights.
+	`firstc` and `prompt` are text, that if non-empty should be
+	displayed in front of the command line. `firstc` always indicates
+	built-in command lines such as `:` (ex command) and `/` `?` (search),
+	while `prompt` is an |input()| prompt, highlighted with `hl_id`.
+	`indent` tells how many spaces the content should be indented.
 
-	pos
-	    Position of the cursor in the cmdline (byte offset).
-
-	firstc
-	    Character preceding the cmdline content (|getcmdtype()|).
-
-	prompt
-	    String preceding the cmdline content when an |input()| prompt is
-	    active, false otherwise. Highlighted with `hl_id`.
-
-	indent
-	    Number of spaces the content should be indented.
-
-	level
-	    Number indicating the cmdline recursion level. Incremented by
-	    e.g |c_CTRL-R_=|, prompts or a commandline invoked from the
-	    |cmdline-window|.
-
-	hl_id
-	    Highlight group ID of the prompt, -1 with no active prompt.
+	The Nvim command line can be invoked recursively, for instance by
+	typing `<c-r>=` at the command line prompt. The `level` field is used
+	to distinguish different command lines active at the same time. The
+	first invoked command line has level 1, the next recursively-invoked
+	prompt has level 2. A command line invoked from the |cmdline-window|
+	has a higher level than the edited command line.
 
 ["cmdline_pos", pos, level] ~
 	Change the cursor position in the cmdline.
@@ -856,72 +840,67 @@ must handle.
 	Display a message to the user. Update (replace) any existing message
 	matching `id`.
 
-	• kind
-	    Name indicating the message kind. New kinds may be added in the
-	    future; clients should treat unknown kinds as the empty kind.
-	      • "" (empty): Unknown (consider a |feature-request|)
-	      • "bufwrite": |:write| message. If :write is slow it emits "progress".
-	      • "empty": Empty message (`:echo ""`), with empty `content`. Should
-	        clear messages sharing the 'cmdheight' area if it is the only
-	        message in a batch.
-	      • "confirm": Message preceding a prompt (|:confirm|, |confirm()|,
-	        |inputlist()|, |z=|, …)
-	      • "emsg": Error (|errors|, internal error, |:throw|, …)
-	      • "echo": |:echo| message
-	      • "echomsg": |:echomsg| message
-	      • "echoerr": |:echoerr| message
-	      • "completion": |ins-completion-menu| message
-	      • "list_cmd": List output for various commands (|:ls|, |:set|, …)
-	      • "lua_error": Error in |:lua| code
-	      • "lua_print": |print()| from |:lua| code
-	      • "progress": Progress message emitted by |nvim_echo()|. Internal
-	        progress messages use these ids:
-		• `nvim.bufread "<filename>"` (slow file read, e.g. |:edit|)
-		• `nvim.bufwrite "<filename>"` (slow |:write|)
-		• `nvim.completion`
-		• `nvim.indent`
-	      • "quickfix": Quickfix navigation message
-	      • "rpc_error": Error response from |rpcrequest()|
-	      • "search_cmd": Entered search command
-	      • "search_count": Search count message ("S" flag of 'shortmess')
-	      • "shell_cmd": |:!cmd| executed command
-	      • "shell_err": |:!cmd| shell stderr output
-	      • "shell_out": |:!cmd| shell stdout output
-	      • "shell_ret": |:!cmd| shell return code
-	      • "undo": |:undo| and |:redo| message
-	      • "verbose": 'verbose' message
-	      • "wildlist": 'wildmode' "list" message
-	      • "wmsg": Warning ("search hit BOTTOM", |W10|, …)
+	kind
+	    Name indicating the message kind:
+		"" (empty)	Unknown (consider a |feature-request|)
+		"empty"		Empty message (`:echo ""`), with empty `content`.
+				Should clear messages sharing the 'cmdheight'
+				area if it is the only message in a batch.
+		"confirm"	Message preceding a prompt (|:confirm|,
+				|confirm()|, |inputlist()|, |z=|, …)
+		"emsg"		Error (|errors|, internal error, |:throw|, …)
+		"echo"		|:echo| message
+		"echomsg"	|:echomsg| message
+		"echoerr"	|:echoerr| message
+		"completion"    |ins-completion-menu| message
+		"list_cmd"	List output for various commands (|:ls|, |:set|, …)
+		"lua_error"	Error in |:lua| code
+		"lua_print"	|print()| from |:lua| code
+		"progress"	Progress message emitted by |nvim_echo()|
+		"quickfix"	Quickfix navigation message
+		"rpc_error"	Error response from |rpcrequest()|
+		"search_cmd"	Entered search command
+		"search_count"	Search count message ("S" flag of 'shortmess')
+		"shell_cmd"	|:!cmd| executed command
+		"shell_err"	|:!cmd| shell stderr output
+		"shell_out"	|:!cmd| shell stdout output
+		"shell_ret"	|:!cmd| shell return code
+		"undo"		|:undo| and |:redo| message
+		"verbose"	'verbose' message
+		"wildlist"	'wildmode' "list" message
+		"wmsg"		Warning ("search hit BOTTOM", |W10|, …)
+	    New kinds may be added in the future; clients should treat unknown
+	    kinds as the empty kind.
 
-	• content
+	content
 	    Array of `[attr_id, text_chunk, hl_id]` tuples, building up the
-	    message text of chunks with different highlights. No extra spacing
+	    message text of chunks of different highlights. No extra spacing
 	    should be added between chunks, the `text_chunk` by itself
 	    contains any necessary whitespace. Messages can contain line
 	    breaks "\n".
 
-	• replace_last
+	replace_last
 	    Decides how multiple messages should be displayed:
-	      • false: Display the message together with all previous messages
-	        that are still visible.
-	      • true: Replace the message in the most-recent `msg_show` call, but
-	        any other visible message should still remain.
+	    false: Display the message together with all previous messages
+		   that are still visible.
+	    true:  Replace the message in the most-recent `msg_show` call,
+		   but any other visible message should still remain.
 
-	• history
+	history
 	    True if the message was added to the |:messages| history.
 
-	• append
+	append
 	    True if the message should be appended to the previous message,
 	    rather than started on a new line. Is set for |:echon|.
 
-	• id
+	id
 	    Unique identifier for the message. It can either be an integer or
 	    string. A (visible) message with the same id should be replaced.
 
-	• trigger
+	trigger
 	    Type of action that triggered the message:
-	      • "" (empty): Unknown (consider a |feature-request|)
-	      • "typed_cmd": Interactively typed command on the |cmdline|
+		"" (empty)      Unknown (consider a |feature-request|)
+		"typed_cmd"     Interactively typed command on the |cmdline|
 
 ["msg_clear"] ~
 	Clear all messages currently displayed by "msg_show", emitted after

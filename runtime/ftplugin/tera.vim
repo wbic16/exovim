@@ -3,7 +3,6 @@
 " Maintainer:           Muntasir Mahmud <muntasir.joypurhat@gmail.com>
 " Last Change:          2025 Mar 08
 " 2025 Apr 16 by Vim Project (set 'cpoptions' for line continuation, #17121)
-" 2026 Jun 27 by Vim Project (add recommended style guard)
 
 if exists("b:did_ftplugin")
   finish
@@ -26,12 +25,9 @@ endif
 setlocal includeexpr=substitute(v:fname,'\\([^.]*\\)$','\\1','g')
 setlocal suffixesadd=.tera
 
-if get(g:, 'tera_recommended_style',
-      \ get(g:, 'filetype_recommended_style', 1))
-  setlocal expandtab
-  setlocal shiftwidth=2
-  setlocal softtabstop=2
-endif
+setlocal expandtab
+setlocal shiftwidth=2
+setlocal softtabstop=2
 
 let b:undo_ftplugin = "setlocal autoindent< commentstring< comments< " ..
       \ "includeexpr< suffixesadd< expandtab< shiftwidth< softtabstop<"

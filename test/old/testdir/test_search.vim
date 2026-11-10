@@ -642,27 +642,6 @@ func Test_search_cmdline7()
   call feedkeys("//e\<c-g>\<cr>", 'tx')
   call assert_equal('1 bbvimb', getline('.'))
   call assert_equal(4, col('.'))
-  call cursor(1, 1)
-  call feedkeys("//+1\<c-g>\<cr>", 'tx')
-  call assert_equal(' 2 bbvimb', getline('.'))
-  call assert_equal([0, 2, 1, 0], getpos('.'))
-  call setline(1, ['blah blah blah'])
-  call feedkeys("gg0/blah/e\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 9, 0], getpos('.'))
-  call feedkeys("gg0/blah/e\<c-g>\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 14, 0], getpos('.'))
-  call feedkeys("gg0/blah/e\<c-g>\<c-g>\<c-t>\<cr>", 'tx')
-  call assert_equal([0, 1, 9, 0], getpos('.'))
-  call cursor(1, col('$'))
-  call feedkeys("?blah?e\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 9, 0], getpos('.'))
-  call feedkeys("gg0/blah/e+1\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 10, 0], getpos('.'))
-  call feedkeys("gg0/blah/e-2\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 7, 0], getpos('.'))
-  call setline(1, ['a/b a/b a/b'])
-  call feedkeys("gg0/a\\/b/e\<c-g>\<cr>", 'tx')
-  call assert_equal([0, 1, 7, 0], getpos('.'))
 
   set noincsearch
   call Ntest_override("char_avail", 0)
@@ -767,9 +746,8 @@ func Test_search_regexp()
   call assert_equal([0, 2, 5, 0], getpos('.'))
   call assert_equal(2, line('$'))
   normal u
-  " Nvim: undo restores the cursor to where "dv?bar?" started.
-  call assert_equal('9 foobar', getline(2))
-  call assert_equal([0, 3, 1, 0], getpos('.'))
+  call assert_equal('9 foobar', getline('.'))
+  call assert_equal([0, 2, 6, 0], getpos('.'))
   call assert_equal(3, line('$'))
 
   set undolevels&
@@ -996,7 +974,6 @@ func Test_hlsearch_and_visual()
 	\ ], 'Xhlvisual_script', 'D')
   let buf = RunVimInTerminal('-S Xhlvisual_script', {'rows': 6, 'cols': 40})
   call term_sendkeys(buf, "vjj")
-  call WaitForAssert({-> assert_match('VISUAL.*-\d', term_getline(buf, 6))}, 1000)
   call VerifyScreenDump(buf, 'Test_hlsearch_visual_1', {})
   call term_sendkeys(buf, "\<Esc>")
 
@@ -1572,22 +1549,6 @@ func Test_large_hex_chars3()
   endtry
 endfunc
 
-func Test_large_dec_chars()
-  " A large decimal number used to wrap around: 2^64 + 97 becomes 'a'
-  for re in [1, 2]
-    let &re = re
-    call assert_fails("call match('xab', '\\%d18446744073709551713')", 'E678:')
-    call assert_fails("call match('xab', '[\\d18446744073709551713]')", 'E1541:')
-    " With a 32-bit long_u, 2^32 + 97 used to become 'a'
-    call assert_fails("call match('xab', '\\%d4294967393')", 'E678:')
-    call assert_fails("call match('xab', '[\\d4294967393]')", 'E1541:')
-    " INT_MAX is the largest accepted value
-    call assert_equal(-1, match('xab', '\%d2147483647'))
-    call assert_fails("call match('xab', '\\%d2147483648')", 'E678:')
-  endfor
-  set re&
-endfunc
-
 func Test_one_error_msg()
   " This was also giving an internal error
   call assert_fails('call search(" \\((\\v[[=P=]]){185}+             ")', 'E871:')
@@ -1750,22 +1711,10 @@ endfunc
 func Test_search_with_last_substitute_pat()
   let lines =<< trim [SCRIPT]
     new
-    set shortmess+=Ss
+    set shortmess+=S
     call setline(1, repeat(['foofoo'], 3))
     %s/foo/bar/
     call assert_equal(repeat(['barfoo'], 3), getline(1, '$'))
-
-    " this was crashing
-    call cursor(1, 1)
-    call assert_equal("/foo/e", execute('call feedkeys("//e\r", "tx")', '')->trim())
-    call assert_equal([0, 1, 6, 0], getpos('.'))
-    call assert_equal("?foo?e", execute('call feedkeys("??e\r", "tx")', '')->trim())
-    call assert_equal([0, 3, 6, 0], getpos('.'))
-    call cursor(1, 1)
-    call assert_equal("/foo", execute('call feedkeys("//\r", "tx")', '')->trim())
-    call assert_equal([0, 1, 4, 0], getpos('.'))
-    call assert_equal("?foo", execute('call feedkeys("??\r", "tx")', '')->trim())
-    call assert_equal([0, 3, 4, 0], getpos('.'))
 
     call cursor(1, 1)
     call assert_equal("/foo", execute('call feedkeys("/\r", "tx")', '')->trim())
@@ -2101,19 +2050,6 @@ func Test_search_match_paren()
   normal [(
   call assert_equal([1, 4], [line('.'), col('.')])
 
-  call setline(1, ['x" (a "b" )\', '")'])
-  call cursor(1, 4)
-  normal %
-  call assert_equal([1, 11], [line('.'), col('.')])
-  normal %
-  call assert_equal([1, 4], [line('.'), col('.')])
-  call cursor(1, 10)
-  normal [(
-  call assert_equal([1, 4], [line('.'), col('.')])
-  call cursor(1, 4)
-  normal ])
-  call assert_equal([1, 11], [line('.'), col('.')])
-
   " matching parenthesis in 'virtualedit' mode with cursor after the eol
   call setline(1, 'abc(defgh)')
   set virtualedit=all
@@ -2149,7 +2085,6 @@ func Test_incsearch_highlighting_newline()
   [CODE]
   call writefile(commands, 'Xincsearch_nl', 'D')
   let buf = RunVimInTerminal('-S Xincsearch_nl', {'rows': 5, 'cols': 10})
-  call TermWait(buf, 100)
   call term_sendkeys(buf, '/test')
   call VerifyScreenDump(buf, 'Test_incsearch_newline1', {})
   " Need to send one key at a time to force a redraw

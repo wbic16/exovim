@@ -35,7 +35,6 @@ augroup tar
    au FileWriteCmd tarfile::*/*	call tar#Write(expand("<amatch>"))
   endif
 
-  au BufReadCmd   *.cbt			call tar#Browse(expand("<amatch>"))
   au BufReadCmd   *.lrp			call tar#Browse(expand("<amatch>"))
   au BufReadCmd   *.tar			call tar#Browse(expand("<amatch>"))
   au BufReadCmd   *.tar.bz2		call tar#Browse(expand("<amatch>"))

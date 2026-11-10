@@ -5,22 +5,6 @@
 #include "nvim/pos_defs.h"
 #include "nvim/types_defs.h"
 
-// Values for cmd_flags.
-#define NV_NCH      0x01            // May need to get a second char.
-#define NV_NCH_NOP  (0x02|NV_NCH)   // Get second char when no operator pending.
-#define NV_NCH_ALW  (0x04|NV_NCH)   // Always get a second char.
-#define NV_LANG     0x08            // Second char needs language adjustment.
-#define NV_SS       0x10            // May start selection.
-#define NV_SSS      0x20            // May start selection with shift modifier.
-#define NV_STS      0x40            // May stop selection without shift modif.
-#define NV_RL       0x80            // 'rightleft' modifies command.
-#define NV_KEEPREG  0x100           // Don't clear regname.
-#define NV_NCW      0x200           // Not allowed in command-line window.
-#define NV_NCH_ARG  0x400           // Second char is a typed operand (mark/reg name), not part of
-                                    // the name (see NV_LANG for f/t/r).
-#define NV_MOTION   0x800           // Cursor-relative motion.
-#define NV_JUMP     0x1000          // Absolute motion, target independent of the cursor ("G").
-
 /// Motion types, used for operators and for yank/delete registers.
 ///
 /// The three valid numerical values must not be changed, as they
@@ -47,12 +31,10 @@ typedef struct {
   pos_T start;             ///< start of the operator
   pos_T end;               ///< end of the operator
   pos_T cursor_start;      ///< cursor position before motion for "gw"
-  bool restore_cursor;     ///< restore cursor after yank
 
   linenr_T line_count;     ///< number of lines from op_start to op_end (inclusive)
   bool empty;              ///< op_start and op_end the same (only used by op_change())
   bool is_VIsual;          ///< operator on Visual area
-  bool from_visual;        ///< Started in Visual. For "zq" (which ends Visual, to accept a motion).
   colnr_T start_vcol;      ///< start col for block mode operator
   colnr_T end_vcol;        ///< end col for block mode operator
   int prev_opcount;        ///< ca.opcount saved for K_EVENT
@@ -82,36 +64,6 @@ enum {
   CA_COMMAND_BUSY  = 1,  ///< skip restarting edit() once
   CA_NO_ADJ_OP_END = 2,  ///< don't adjust operator end
 };
-
-/// A Visual selection's mode and extent (line/column span, not absolute positions), so an
-/// equal-sized region can be re-applied starting at the cursor: {count}v reselect.
-typedef struct {
-  int mode;             ///< 'v', 'V', or Ctrl-V
-  linenr_T line_count;  ///< number of lines
-  colnr_T vcol;         ///< number of cols or end column (MAXCOL: to end of line)
-} VisualExtent;
-
-/// Visual/Select mode state, as one global "group" (Visual).
-typedef struct {
-  pos_T start;            ///< Start position of the active Visual selection.
-  bool active;            ///< Whether Visual mode is active.
-  bool select;            ///< Whether Select mode is active.
-  int select_reg;         ///< Register name for Select mode.
-  bool select_exclu_adj;  ///< Cursor was incremented during exclusive selection.
-  int restart_select;     ///< Restart Select mode when next cmd finished.
-  bool need_end;          ///< End Visual mode when the cmd finishes.
-  int reselect;           ///< Restart the selection after a Select-mode mapping or menu.
-  int mode;               ///< Type of Visual mode: 'v', 'V', Ctrl-V.
-  VisualExtent resel;     ///< Previous Visual area's extent, for {count}v reselect.
-} VisualState;
-
-/// Visual area. The region when Visual mode ended, or the active region (visualinfo()).
-typedef struct {
-  pos_T vi_start;       ///< Start pos.
-  pos_T vi_end;         ///< End position.
-  int vi_mode;          ///< Visual.mode.
-  colnr_T vi_curswant;  ///< MAXCOL from w_curswant.
-} visualinfo_T;
 
 /// Replacement for nchar used by nv_replace().
 enum {

@@ -16,14 +16,17 @@ local archive_patterns = {
 }
 
 ---@param url string
+---@return string
+local function url_path(url)
+  return (url:gsub('[?#].*$', ''))
+end
+
+---@param url string
 ---@return 'zip'|'tar'?
 local function archive_type(url)
-  local uri = vim.uri.parse(url)
-  if not uri then
-    return nil
-  end
+  local path = url_path(url)
   for _, pattern in ipairs(archive_patterns) do
-    if vim.endswith(uri.path, pattern.suffix) then
+    if vim.endswith(path, pattern.suffix) then
       return pattern.kind
     end
   end
@@ -58,11 +61,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
           end
 
           if archive_kind == 'zip' then
-            if vim.fn.exists('#zip') == 1 then
-              vim.fn['zip#Browse'](tmpfile)
-            elseif vim.fn.exists('#nvim.zip') == 1 then
-              require('nvim.zip').browse(ev.buf, tmpfile)
-            end
+            vim.fn['zip#Browse'](tmpfile)
           else
             vim.fn['tar#Browse'](tmpfile)
           end
@@ -84,7 +83,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
           return
         end
 
-        vim.api.nvim_exec_autocmds('BufRead', { group = 'filetypedetect', buf = ev.buf })
+        vim.api.nvim_exec_autocmds('BufRead', { group = 'filetypedetect', buffer = ev.buf })
         vim.bo[ev.buf].modified = false
         vim.bo[ev.buf].buftype = 'nofile'
         vim.notify(('Loaded %s'):format(url), vim.log.levels.INFO)

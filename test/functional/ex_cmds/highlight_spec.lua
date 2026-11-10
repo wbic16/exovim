@@ -1,5 +1,4 @@
 local t = require('test.testutil')
-local describe, it, before_each = t.describe, t.it, t.before_each
 local pcall_err = t.pcall_err
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')

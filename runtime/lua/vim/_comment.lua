@@ -20,7 +20,7 @@ local function get_commentstring(ref_position)
 
   -- Get 'commentstring' from tree-sitter captures' metadata.
   -- Traverse backwards to prefer narrower captures.
-  local caps = vim.treesitter.get_captures(0, { row, col })
+  local caps = vim.treesitter.get_captures_at_pos(0, row, col)
   for i = #caps, 1, -1 do
     local id, metadata = caps[i].id, caps[i].metadata
     local md_cms = metadata['bo.commentstring'] or metadata[id] and metadata[id]['bo.commentstring']
@@ -38,7 +38,6 @@ local function get_commentstring(ref_position)
   local ts_cs, res_level = nil, 0
 
   ---@param lang_tree vim.treesitter.LanguageTree
-  ---@param level integer
   local function traverse(lang_tree, level)
     if not lang_tree:contains(ref_range) then
       return
@@ -69,7 +68,7 @@ local function get_comment_parts(ref_position)
   local cs = get_commentstring(ref_position)
 
   if cs == nil or cs == '' then
-    vim.api.nvim_echo({ { "Option 'commentstring' is empty.", 'WarningMsg' } }, true)
+    vim.api.nvim_echo({ { "Option 'commentstring' is empty.", 'WarningMsg' } }, true, {})
     return { left = '', right = '' }
   end
 
@@ -222,7 +221,7 @@ local function operator(mode)
   -- Used without arguments as part of expression mapping. Otherwise it is
   -- called as 'operatorfunc'.
   if mode == nil then
-    vim.o.operatorfunc = operator
+    vim.o.operatorfunc = "v:lua.require'vim._comment'.operator"
     return 'g@'
   end
 

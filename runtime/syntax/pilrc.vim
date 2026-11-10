@@ -1,8 +1,7 @@
 " Vim syntax file
 " Language:	pilrc - a resource compiler for Palm OS development
 " Maintainer:	Brian Schau <brian@schau.com>
-" Last Change:	2003 May 11
-" 2026 May 30 by Vim project: Fix typo #20369
+" Last change:	2003 May 11
 " Available on:	http://www.schau.com/pilrcvim/pilrc.vim
 
 " quit when a syntax file was already loaded
@@ -73,7 +72,7 @@ syn keyword pilrcType WARNING WEEKSTARTDAY
 
 " Country
 syn keyword pilrcCountry Australia Austria Belgium Brazil Canada Denmark
-syn keyword pilrcCountry Finland France Germany HongKong Iceland India
+syn keyword pilrcCountry Finland France Germany HongKong Iceland Indian
 syn keyword pilrcCountry Indonesia Ireland Italy Japan Korea Luxembourg Malaysia
 syn keyword pilrcCountry Mexico Netherlands NewZealand Norway Philippines
 syn keyword pilrcCountry RepChina Singapore Spain Sweden Switzerland Thailand

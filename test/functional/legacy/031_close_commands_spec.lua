@@ -10,9 +10,7 @@
 -- :edit
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 
-local describe, it, setup, teardown = t.describe, t.it, t.setup, t.teardown
 local feed = n.feed
 local clear = n.clear
 local source = n.source

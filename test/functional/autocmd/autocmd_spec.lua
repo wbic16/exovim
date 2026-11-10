@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local assert_visible = n.assert_visible
 local assert_alive = n.assert_alive
 local dedent = t.dedent
@@ -21,7 +20,6 @@ local command = n.command
 local exec_lua = n.exec_lua
 local retry = t.retry
 local source = n.source
-local request = n.request
 
 describe('autocmd', function()
   before_each(clear)
@@ -278,7 +276,7 @@ describe('autocmd', function()
   it('internal `aucmd_win` window', function()
     -- Nvim uses a special internal window `aucmd_win` to execute certain
     -- actions for an invisible buffer (:help E813).
-    -- Check redrawing (never shown) and API access to this window.
+    -- Check redrawing and API accesses to this window.
 
     local screen = Screen.new(50, 10)
 
@@ -305,9 +303,10 @@ describe('autocmd', function()
 
     feed(':enew | doautoall User<cr>')
     screen:expect([[
-                                                        |
-      {1:~                                                 }|*8
-      :enew | doautoall User                            |
+      {4:bb                                                }|
+      {11:~                                                 }|*4
+      {1:~                                                 }|*4
+      ^:enew | doautoall User                            |
     ]])
 
     feed('<cr>')
@@ -330,9 +329,10 @@ describe('autocmd', function()
     command('let g:had_value = v:null')
     feed(':doautoall User<cr>')
     screen:expect([[
-                                                        |
-      {1:~                                                 }|*8
-      :doautoall User                                   |
+      {4:bb                                                }|
+      {11:~                                                 }|*4
+      {1:~                                                 }|*4
+      ^:doautoall User                                   |
     ]])
 
     feed('<cr>')
@@ -867,31 +867,5 @@ describe('autocmd', function()
           fly]]),
       fn.execute('autocmd User ,,,there,is,,a,fly,,')
     )
-  end)
-
-  it('normalizes path sep (slashes) in env var `pattern` #39382', function()
-    local path = t.is_os('win') and [[C:\foo\bar]] or 'C:/foo/bar'
-    fn.setenv('FOOBAR', path)
-    exec [[
-      autocmd User ~,$FOOBAR "
-    ]]
-    local cmds = exec_lua(function()
-      return vim.api.nvim_get_autocmds({ event = 'User' })
-    end)
-    eq(vim.fs.normalize('~'), cmds[1].pattern)
-    eq(vim.fs.normalize(path), cmds[2].pattern)
-  end)
-
-  it('exists() consults &fileignorecase', function()
-    command([[autocmd User foo/bar echo]])
-    eq(0, fn.exists([[#User#foo/bar/]]))
-    eq(1, fn.exists([[#User#foo/bar]]))
-    -- Even on Windows, `/` should be used as the path sep
-    eq(0, fn.exists([[#User#foo\bar]]))
-
-    command([[set fileignorecase]])
-    eq(1, fn.exists([[#User#Foo/Bar]]))
-    command([[set nofileignorecase]])
-    eq(0, fn.exists([[#User#Foo/Bar]]))
   end)
 end)

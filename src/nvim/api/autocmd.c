@@ -23,7 +23,6 @@
 #include "nvim/lua/executor.h"
 #include "nvim/memory.h"
 #include "nvim/memory_defs.h"
-#include "nvim/option.h"
 #include "nvim/strings.h"
 #include "nvim/types_defs.h"
 #include "nvim/vim_defs.h"
@@ -309,7 +308,6 @@ ArrayOf(DictAs(get_autocmds__ret)) nvim_get_autocmds(Dict(get_autocmds) *opts, A
         case kCallbackPartial:
           PUT_C(autocmd_info, "callback", CSTR_AS_OBJ(callback_to_string(cb, arena)));
           break;
-        case kCallbackExpr:
         case kCallbackNone:
           abort();
         }
@@ -365,28 +363,25 @@ cleanup:
 /// pattern = vim.fn.expand('~') .. '/some/path/*.py'
 /// ```
 ///
-/// @param event Event(s) that will trigger the handler (`callback` or `command`): one handler is
-///        created for each event name.
+/// @param event Event(s) that will trigger the handler (`callback` or `command`).
 /// @param opts Options dict:
 ///        - buf (`integer?`) Buffer id for buffer-local autocommands |autocmd-buflocal|.
 ///          Not allowed with {pattern}.
 ///        - callback (`function|string?`) Lua function (or Vimscript function name, if string)
 ///          called when the event(s) is triggered. Lua callback can return |lua-truthy| to delete
 ///          the autocommand. Callback receives one argument, a table with keys: [event-args]()
-///            - buf: (`integer`) [<abuf>]
+///            - buf: (`number`) [<abuf>]
 ///            - data: (`any`) Arbitrary data passed from [nvim_exec_autocmds()] [event-data]()
 ///            - event: (`vim.api.keyset.events`) Name of the triggered event |autocmd-events|
 ///            - file: (`string`) [<afile>] (not expanded to a full path)
-///            - group: (`integer?`) Group id, if any
-///            - id: (`integer`) Autocommand id
+///            - group: (`number?`) Group id, if any
+///            - id: (`number`) Autocommand id
 ///            - match: (`string`) [<amatch>] (expanded to a full path)
-///            - win: (`integer`) id of the window for the event, see |window-ID|
 ///        - command (string?) Vim command executed on event. Not allowed with {callback}.
 ///        - desc (`string?`) Description (for documentation and troubleshooting).
 ///        - group (`string|integer?`) Group name or id to match against.
 ///        - nested (`boolean?`, default: false) Run nested autocommands |autocmd-nested|.
-///        - once (`boolean?`, default: false) Handle the event only once |autocmd-once|. If {event}
-///          is a list, each handler will fire once.
+///        - once (`boolean?`, default: false) Handle the event only once |autocmd-once|.
 ///        - pattern (`string|array?`) Pattern(s) to match literally |autocmd-pattern|.
 ///
 /// @return Autocommand id (number)
@@ -395,7 +390,6 @@ cleanup:
 Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autocmd) *opts,
                             Arena *arena, Error *err)
   FUNC_API_SINCE(9)
-  FUNC_API_FAST
 {
   int64_t autocmd_id = -1;
   char *desc = NULL;
@@ -470,9 +464,6 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
   if (ERROR_SET(err)) {
     goto cleanup;
   }
-  VALIDATE(patterns.size > 0, "%s", "No non-empty patterns specified", {
-    goto cleanup;
-  });
 
   if (HAS_KEY(opts, create_autocmd, desc)) {
     desc = opts->desc.data;
@@ -588,7 +579,7 @@ void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena, Error *err)
   }
 
   // If we didn't pass any events, that means clear all events.
-  if (opts->event.type == kObjectTypeNil) {
+  if (event_array.size == 0) {
     FOR_ALL_AUEVENTS(event) {
       FOREACH_ITEM(patterns, pat_object, {
         char *pat = pat_object.data.string.data;
@@ -664,7 +655,8 @@ void nvim_del_augroup_by_id(Integer id, Error *err)
   FUNC_API_SINCE(9)
 {
   TRY_WRAP(err, {
-    augroup_del_by_id((int)id);
+    char *name = id == 0 ? NULL : augroup_name((int)id);
+    augroup_del(name, false);
   });
 }
 
@@ -678,19 +670,18 @@ void nvim_del_augroup_by_name(String name, Error *err)
   FUNC_API_SINCE(9)
 {
   TRY_WRAP(err, {
-    augroup_del(name.data, -1, false);
+    augroup_del(name.data, false);
   });
 }
 
-/// Executes {event} handlers matching the {opts} query, in the context of {buf} (if given). |autocmd-execute|
-///
+/// Executes handlers for {event} that match the corresponding {opts} query. |autocmd-execute|
 /// @param event Event(s) to execute.
 /// @param opts Optional filters:
-///        - buf (`integer?`) Buffer where the event is applied. |autocmd-buflocal| Not allowed with {pattern}.
+///        - buf (`integer?`) Buffer id |autocmd-buflocal|. Not allowed with {pattern}.
 ///        - data (`any`): Arbitrary data passed to the callback. See |nvim_create_autocmd()|.
 ///        - group (`string|integer?`) Group name or id to match against. |autocmd-groups|.
 ///        - modeline (`boolean?`, default: true) Process the modeline after the autocommands
-///          [<nomodeline>]. Ignored if `buf` is given.
+///          [<nomodeline>].
 ///        - pattern (`string|array?`, default: current file name) |autocmd-pattern|. Not allowed with {buf}.
 /// @see |:doautocmd|
 void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena, Error *err)
@@ -765,12 +756,11 @@ void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena, E
 
     FOREACH_ITEM(patterns, pat, {
       char *fname = !has_buf ? pat.data.string.data : NULL;
-      did_aucmd |= apply_autocmds_group(event_nr, fname, NULL, true, au_group, b, curwin, NULL,
-                                        data, has_buf);
+      did_aucmd |= apply_autocmds_group(event_nr, fname, NULL, true, au_group, b, NULL, data);
     })
   })
 
-  if (did_aucmd && modeline && !has_buf) {
+  if (did_aucmd && modeline) {
     do_modelines(0);
   }
 }
@@ -865,7 +855,9 @@ static Array get_patterns_from_pattern_or_buf(Object pattern, bool has_buf, Buff
     }
 
     kvi_push(patterns, STRING_OBJ(arena_printf(arena, "<buffer=%d>", (int)b->handle)));
-  } else if (fallback) {
+  }
+
+  if (kv_size(patterns) == 0 && fallback) {
     kvi_push(patterns, CSTR_AS_OBJ(fallback));
   }
 

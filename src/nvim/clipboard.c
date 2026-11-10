@@ -7,7 +7,6 @@
 #include "nvim/clipboard.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
-#include "nvim/mcursor.h"
 #include "nvim/option_vars.h"
 #include "nvim/register.h"
 
@@ -27,8 +26,8 @@ static bool clipboard_didwarn = false;
 /// @param quiet Suppress error messages
 /// @param writing if we're setting the contents of the clipboard
 ///
-/// @return The yankreg that should be written-to/read-from, or `NULL` if the register isn't
-/// a clipboard or provider isn't available.
+/// @returns the yankreg that should be written into, or `NULL`
+/// if the register isn't a clipboard or provider isn't available.
 yankreg_T *adjust_clipboard_name(int *name, bool quiet, bool writing)
 {
 #define MSG_NO_CLIP "clipboard: No provider. " \
@@ -85,20 +84,12 @@ end:
 
 bool get_clipboard(int name, yankreg_T **target, bool quiet)
 {
-  const bool implicit = name == NUL;  // clipboard=unnamed[plus]
   // show message on error
   bool errmsg = true;
 
   yankreg_T *reg = adjust_clipboard_name(&name, quiet, false);
   if (reg == NULL) {
     return false;
-  }
-  if (mc_replaying()) {  // Multicursor cascade: don't read the provider.
-    if (implicit) {
-      return false;  // clipboard=unnamed[plus] behaves as (cursor-local) unnamed register.
-    }
-    *target = reg;  // Explicit "+/"* gets the primary cursor's (cached) clipboard value.
-    return true;
   }
   free_register(reg);
 
@@ -211,8 +202,7 @@ err:
 
 void set_clipboard(int name, yankreg_T *reg)
 {
-  if (mc_replaying()  // Multicursor cascade never writes the clipboard.
-      || !adjust_clipboard_name(&name, false, true)) {
+  if (!adjust_clipboard_name(&name, false, true)) {
     return;
   }
 
@@ -270,5 +260,27 @@ void end_batch_changes(void)
     clipboard_needs_update = false;
     // unnamed ("implicit" clipboard)
     set_clipboard(NUL, get_y_previous());
+  }
+}
+
+int save_batch_count(void)
+{
+  int save_count = batch_change_count;
+  batch_change_count = 0;
+  clipboard_delay_update = false;
+  if (clipboard_needs_update) {
+    clipboard_needs_update = false;
+    // unnamed ("implicit" clipboard)
+    set_clipboard(NUL, get_y_previous());
+  }
+  return save_count;
+}
+
+void restore_batch_count(int save_count)
+{
+  assert(batch_change_count == 0);
+  batch_change_count = save_count;
+  if (batch_change_count > 0) {
+    clipboard_delay_update = true;
   }
 }

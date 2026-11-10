@@ -35,8 +35,8 @@
 
   5. 単語 'cake' の上に移動した後、`ciw<CTRL-r>b<ESC>`{normal} とタイプします。
 
-a) Edward will henceforth be in charge of the cookie rations [[-1]]
-b) In this capacity, Vince will have sole cake discretionary powers [[b) In this capacity, Edward will have sole cookie discretionary powers]]
+a) Edward will henceforth be in charge of the cookie rations
+b) In this capacity, Vince will have sole cake discretionary powers
 
 NOTE: 削除した文字列もレジスタに格納されます。例えば `"sdiw`{normal} はカーソル下の単語を
       削除し、レジスタ s に格納します。
@@ -63,8 +63,8 @@ REFERENCE: [レジスタ](registers)
 NOTE: すべてのシステムコールは OS 依存です。例えば Windows では以下を使います:
       `system('date /t')`{vim}   または  `:r!date /t`{vim}
 
-一日って何秒だっけ、 84600 秒かな? [[一日って何秒だっけ、 86400 秒かな?]]
-本日の日付は:  [[-1]]
+一日って何秒だっけ、 84600 秒かな?
+本日の日付は: 
 
 NOTE: 日付を入力するには、`:pu=`{normal}`system('date')`{vim} や、よりキーストロークの少ない
       `:r!date`{vim} でも可能です。
@@ -90,7 +90,7 @@ NOTE: 新たに削除された項目が追加される度に、古い項目が�
 
   5. 次の順番でレジスタをペーストします: c, 7, 4, 8, 2。例: `"7p`{normal}
 
-0. ねがわくは [[-1]]
+0. ねがわくは
 9. おちゃめな
 8. ゔぃまーと
 7. いつまでも
@@ -135,7 +135,7 @@ NOTE: 行内におけるカーソル位置は重要ではありません!
 NOTE: `ma$%"ad'a`{normal} という操作に慣れるまで何度も練習しましょう。
 
 ~~~ cmd
-AAA [[-1]]
+AAA
 function itGotRealBigRealFast() {
   if ( somethingIsTrue ) {
     doIt()

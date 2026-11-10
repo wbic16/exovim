@@ -3,7 +3,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local pcall_err = t.pcall_err
 local remove_trace = t.remove_trace
 local exec_lua = n.exec_lua
@@ -161,10 +160,6 @@ describe('luaeval()', function()
     eq({ 4, 2 }, fn.luaeval('_A', { 4, 2 }))
     local level = 28
     eq(nested_by_level[level].o, fn.luaeval('_A', nested_by_level[level].o))
-    -- Up to the Lua stack limit: 2 slots per level.
-    command('let g:l = [] | for _ in range(3000) | let g:l = [g:l] | endfor')
-    local depth = '(function(l) local d = 0 while l[1] do d, l = d + 1, l[1] end return d end)(_A)'
-    eq(3000, eval(([[luaeval('%s', g:l)]]):format(depth)))
   end)
 
   local function sp(typ, val)
@@ -213,14 +208,6 @@ describe('luaeval()', function()
       'Vim(call):E5108: Lua: [string "luaeval()"]:',
       pcall_err(command, 'call luaeval("(nil)()")')
     )
-
-    -- A value nested deeper than the Lua stack limit converts to nil.
-    command('let g:l = [] | for _ in range(5000) | let g:l = [g:l] | endfor')
-    eq(
-      'Vim(call):E5102: Lua failed to grow stack to 8002',
-      pcall_err(command, 'call luaeval("_A", g:l)')
-    )
-    eq(true, exec_lua('return vim.g.l == nil'))
   end)
 
   it('handles sending lua functions to viml', function()
@@ -508,7 +495,7 @@ describe('luaeval()', function()
       remove_trace(pcall_err(command, [[call luaeval("error('ERROR')")]]))
     )
     eq(
-      'Vim(call):E5108: Lua: nil',
+      'Vim(call):E5108: Lua: [NULL]',
       remove_trace(pcall_err(command, [[call luaeval("error(nil)")]]))
     )
   end)

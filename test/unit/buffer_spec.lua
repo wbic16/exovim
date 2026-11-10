@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe, setup, teardown = t.describe, t.setup, t.teardown
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local to_cstr = t.to_cstr
 local eq = t.eq
@@ -14,8 +13,8 @@ describe('buffer functions', function()
     return buffer.buflist_new(c_file, c_file, 1, flags)
   end
 
-  local close_buffer = function(...)
-    return buffer.close_buffer(...)
+  local close_buffer = function(win, buf, action, abort_if_last, ignore_abort)
+    return buffer.close_buffer(win, buf, action, abort_if_last, ignore_abort)
   end
 
   local path1 = 'test_file_path'
@@ -49,7 +48,7 @@ describe('buffer functions', function()
     itp('should view a closed and hidden buffer as valid', function()
       local buf = buflist_new(path1, buffer.BLN_LISTED)
 
-      close_buffer(NULL, buf, 0, 0, 0, 0)
+      close_buffer(NULL, buf, 0, 0, 0)
 
       eq(true, buffer.buf_valid(buf))
     end)
@@ -57,7 +56,7 @@ describe('buffer functions', function()
     itp('should view a closed and unloaded buffer as valid', function()
       local buf = buflist_new(path1, buffer.BLN_LISTED)
 
-      close_buffer(NULL, buf, buffer.DOBUF_UNLOAD, 0, 0, 0)
+      close_buffer(NULL, buf, buffer.DOBUF_UNLOAD, 0, 0)
 
       eq(true, buffer.buf_valid(buf))
     end)
@@ -65,7 +64,7 @@ describe('buffer functions', function()
     itp('should view a closed and wiped buffer as invalid', function()
       local buf = buflist_new(path1, buffer.BLN_LISTED)
 
-      close_buffer(NULL, buf, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf, buffer.DOBUF_WIPE, 0, 0)
 
       eq(false, buffer.buf_valid(buf))
     end)
@@ -84,7 +83,7 @@ describe('buffer functions', function()
 
       eq(buf.handle, buflist_findpat(path1, ONLY_LISTED))
 
-      close_buffer(NULL, buf, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf, buffer.DOBUF_WIPE, 0, 0)
     end)
 
     itp('should prefer to match the start of a file path', function()
@@ -96,9 +95,9 @@ describe('buffer functions', function()
       eq(buf2.handle, buflist_findpat('file', ONLY_LISTED))
       eq(buf3.handle, buflist_findpat('path', ONLY_LISTED))
 
-      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0)
     end)
 
     itp('should prefer to match the end of a file over the middle', function()
@@ -112,7 +111,7 @@ describe('buffer functions', function()
       --}
 
       --{ When: We close buf2
-      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0)
 
       -- And: Open buf1, which has 'file' in the middle of its name
       local buf1 = buflist_new(path1, buffer.BLN_LISTED)
@@ -121,8 +120,8 @@ describe('buffer functions', function()
       eq(buf3.handle, buflist_findpat('file', ONLY_LISTED))
       --}
 
-      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0)
     end)
 
     itp('should match a unique fragment of a file path', function()
@@ -132,9 +131,9 @@ describe('buffer functions', function()
 
       eq(buf3.handle, buflist_findpat('_test_', ONLY_LISTED))
 
-      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0)
     end)
 
     itp('should include / ignore unlisted buffers based on the flag.', function()
@@ -146,7 +145,7 @@ describe('buffer functions', function()
       --}
 
       --{ When: We unlist the buffer
-      close_buffer(NULL, buf3, buffer.DOBUF_DEL, 0, 0, 0)
+      close_buffer(NULL, buf3, buffer.DOBUF_DEL, 0, 0)
 
       -- Then: It should not find the buffer when searching only listed buffers
       eq(-1, buflist_findpat('_test_', ONLY_LISTED))
@@ -156,7 +155,7 @@ describe('buffer functions', function()
       --}
 
       --{ When: We wipe the buffer
-      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf3, buffer.DOBUF_WIPE, 0, 0)
 
       -- Then: It should not find the buffer at all
       eq(-1, buflist_findpat('_test_', ONLY_LISTED))
@@ -174,7 +173,7 @@ describe('buffer functions', function()
       --}
 
       --{ When: The first buffer is unlisted
-      close_buffer(NULL, buf1, buffer.DOBUF_DEL, 0, 0, 0)
+      close_buffer(NULL, buf1, buffer.DOBUF_DEL, 0, 0)
 
       -- Then: The second buffer is preferred because
       --       unlisted buffers are not allowed
@@ -188,7 +187,7 @@ describe('buffer functions', function()
       --}
 
       --{ When: We unlist the second buffer
-      close_buffer(NULL, buf2, buffer.DOBUF_DEL, 0, 0, 0)
+      close_buffer(NULL, buf2, buffer.DOBUF_DEL, 0, 0)
 
       -- Then: The first buffer is preferred again
       --       because buf1 matches better which takes precedence
@@ -199,8 +198,8 @@ describe('buffer functions', function()
       eq(-1, buflist_findpat('test', ONLY_LISTED))
       --}
 
-      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0, 0)
-      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0, 0)
+      close_buffer(NULL, buf1, buffer.DOBUF_WIPE, 0, 0)
+      close_buffer(NULL, buf2, buffer.DOBUF_WIPE, 0, 0)
     end)
   end)
 end)

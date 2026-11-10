@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local uv = vim.uv
 
 local assert_log = t.assert_log
@@ -48,8 +47,6 @@ describe('fileio', function()
     rmdir('Xtest_startup_swapdir')
     rmdir('Xtest_backupdir')
     rmdir('Xtest_backupdir with spaces')
-    rmdir('Xtest_rename_dir')
-    rmdir('Xtest_rename_dest')
   end)
 
   local args = { '--clean', '--cmd', 'set nofsync directory=Xtest_startup_swapdir' }
@@ -264,18 +261,6 @@ describe('fileio', function()
     -- This should not segfault
     command('edit ++enc=utf32 Xtest-u8-int-max')
     assert_alive()
-  end)
-
-  it('rename() replaces an existing file with a directory', function()
-    clear()
-    mkdir('Xtest_rename_dir')
-    write_file('Xtest_rename_dir/file', 'dir_content')
-    write_file('Xtest_rename_dest', 'old_content')
-
-    eq(0, fn.rename('Xtest_rename_dir', 'Xtest_rename_dest'))
-    eq(nil, uv.fs_stat('Xtest_rename_dir'))
-    eq('directory', uv.fs_stat('Xtest_rename_dest').type)
-    eq('dir_content', read_file('Xtest_rename_dest/file'))
   end)
 
   it(':w! does not show "file has been changed" warning', function()

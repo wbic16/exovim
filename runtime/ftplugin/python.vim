@@ -6,7 +6,6 @@
 " Repository: https://github.com/tpict/vim-ftplugin-python
 " Last Change: 2024/05/13
 "              2024 Nov 30 use pytest compiler (#16130)
-"              2026 Jun 27 by Vim Project (normalize recommended style guard)
 
 if exists("b:did_ftplugin") | finish | endif
 let b:did_ftplugin = 1
@@ -120,8 +119,7 @@ if has("browsefilter") && !exists("b:browsefilter")
     endif
 endif
 
-if get(g:, 'python_recommended_style',
-      \ get(g:, 'filetype_recommended_style', 1))
+if !exists("g:python_recommended_style") || g:python_recommended_style != 0
     " As suggested by PEP8.
     setlocal expandtab tabstop=4 softtabstop=4 shiftwidth=4
 endif

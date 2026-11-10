@@ -4,9 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
-Messages
-
 This file contains an alphabetical list of messages and error messages that
 Vim produces.  You can use this if you don't understand what the message
 means.  It is not complete though.
@@ -98,14 +95,6 @@ report. |bugs|
   Found a swap file by the name ...
 
 See |ATTENTION|.
-
-							*E787*  >
-  Buffer changed unexpectedly
-
-An event handler changed a buffer while a command was using it:
-- A |FileChangedRO| handler changed buffers during |:diffget| or |:diffput|.
-- A |Progress| handler changed the buffer during a |:write|.  The write is
-  aborted, and the original file is restored ('writebackup').
 
 							*E92*  >
   Buffer {N} not found
@@ -559,11 +548,10 @@ into this limit, you have used too many |:highlight| commands with different
 arguments.  A ":highlight link" is not counted.
 
 							*E77*  >
-  Too many file names (glob not allowed)
+  Too many file names
 
 When expanding file names, more than one match was found.  Only one match is
 allowed for the command that was used.
-Use |:next| if you want to edit all files matching a glob pattern.
 
 							*E303*  >
   Unable to open swap file for "{filename}", recovery impossible
@@ -844,12 +832,6 @@ compilation error message.
 Failed to execute a Lua debug command string. {error} contains the runtime
 error message and traceback.
 
-							*E5117*  >
-  Lua mapping no longer exists
-
-Replayed keys (|.|, |CmdAtom| `keys`, or keys captured by |vim.on_key()|)
-referenced a Lua-callback mapping that was deleted or redefined since.
-
 ==============================================================================
 Messages						*messages*
 
@@ -861,6 +843,7 @@ To avoid overflow ("spill") of the |ui2| messages area:
 - Set 'cmdheight' to 2 or higher.
 - Add flags to 'shortmess'.
 - Reset 'showcmd' and/or 'ruler'.
+- Make sure `:echo` text is within |v:echospace| screen cells.
 
 						*more-prompt* *pager*  >
   f/d/j: screen/page/line down, b/u/k: up, <Esc>: stop paging
@@ -869,10 +852,7 @@ This message is given when the |ui2| modal dialog is active.
 Only when the 'more' option is on.
 Highlighted with the |hl-MoreMsg| group.
 
-With |ui2|: use "g<" to show messages in the pager.  When a command emits a
-message while a previous message is still displayed, the messages are
-collected in the pager window without focusing it: type "g<" to focus it, or
-any other typed key to dismiss it.
+With |ui2|: use "g<" to show messages in the pager.
 
      Type					Effect ~
      <CR> or <NL> or j or <Down>		one more line
@@ -881,7 +861,6 @@ any other typed key to dismiss it.
      G						down all the way, until the
 						hit-enter prompt
 
-     Key					Action ~
      <BS> or k or <Up>				one line back
      u						up a page (half a screen)
      b or <PageUp> or CTRL-B			back a screen
@@ -908,10 +887,6 @@ Create or update a progress-message by calling |nvim_echo()| with
 `kind='progress'`. Each message has a unique message-id, returned by
 `nvim_echo`. You can specify the id when calling `nvim_echo` to update an
 existing progress-message.
-
-Note: To avoid a "dangling" progress-message, always emit a non-"running"
-`status`, when your task is done; otherwise consumers (including Nvim itself)
-tracking the task by its message-id cannot know when the task is done.
 
 Events: ~
     • msg_show |ui-messages| event is fired for ext-ui upon creation/update of

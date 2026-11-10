@@ -1,8 +1,6 @@
 local t = require('test.testutil')
-local Screen = require('test.functional.ui.screen')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local eq = t.eq
 local eval = n.eval
 local feed = n.feed
@@ -12,42 +10,6 @@ local command = n.command
 local fn = n.fn
 local api = n.api
 local insert = n.insert
-
-describe('macro recording with requeued key', function()
-  before_each(function()
-    clear({ args_rm = { '--cmd' } })
-  end)
-
-  it('mapped key does not corrupt the recording', function()
-    -- Typing over a Select-mode selection puts the key back for Insert mode (requeue_key()).
-    -- A key produced by a mapping is not "typed", so ungetchars() must not touch the recording.
-    command('snoremap Z Y')
-    insert('abc')
-    feed('qq0ghZ<Esc>q')
-    -- "Y" replaced the selected "a".
-    expect('Ybc')
-    -- The recording holds the typed keys: the "Y" mapping must not have eaten the recorded "Z".
-    eq('0ghZ\27', eval('@q'))
-  end)
-
-  it('at hit-enter prompt records the key ONCE', function()
-    -- A non-prompt key typed at the hit-enter prompt is put back to execute
-    -- as a normal command: it is consumed twice, but must be recorded once.
-    local screen = Screen.new(40, 6)
-    insert('abc')
-    feed('qq0')
-    feed(':echo "one\\ntwo"<CR>')
-    -- The prompt must actually engage (needs an attached UI).
-    screen:expect({ any = 'Press ENTER' })
-    feed('x')
-    feed('q')
-    expect('bc')
-    eq('0:echo "one\\ntwo"\rx', eval('@q'))
-    -- Replaying executes "x" once, not twice.
-    feed('@q')
-    expect('c')
-  end)
-end)
 
 describe('macros with default mappings', function()
   before_each(function()
@@ -74,7 +36,7 @@ describe('macros with default mappings', function()
     eq('lxxx', eval('@i'))
   end)
 
-  it('can be replayed with @@', function()
+  it('can be replayed with Q', function()
     insert [[
 hello
 hello
@@ -87,7 +49,39 @@ helloFOO
 hello
 hello]]
 
-    feed [[@q]]
+    feed [[Q]]
+    expect [[
+helloFOOFOO
+hello
+hello]]
+
+    feed [[G3Q]]
+    expect [[
+helloFOOFOO
+hello
+helloFOOFOOFOO]]
+
+    feed [[ggV3jQ]]
+    expect [[
+helloFOOFOOFOO
+helloFOO
+helloFOOFOOFOOFOO]]
+  end)
+
+  it('can be replayed with Q and @@', function()
+    insert [[
+hello
+hello
+hello]]
+    feed [[gg]]
+
+    feed [[qqAFOO<esc>q]]
+    expect [[
+helloFOO
+hello
+hello]]
+
+    feed [[Q]]
     expect [[
 helloFOOFOO
 hello
@@ -136,6 +130,39 @@ helloFOO]]
 helloFOO123
 helloFOO123
 helloFOO]]
+  end)
+
+  it('can be recorded and replayed in Visual mode', function()
+    insert('foo BAR BAR foo BAR foo BAR BAR BAR foo BAR BAR')
+    feed('0vqifofRq')
+    eq({ 0, 1, 7, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 19, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 27, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('@i')
+    eq({ 0, 1, 43, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+  end)
+
+  it('can be recorded and replayed in Visual mode when ignorecase', function()
+    command('set ignorecase')
+    insert('foo BAR BAR foo BAR foo BAR BAR BAR foo BAR BAR')
+    feed('0vqifofRq')
+    eq({ 0, 1, 7, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 19, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('Q')
+    eq({ 0, 1, 27, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
+    feed('@i')
+    eq({ 0, 1, 43, 0 }, fn.getpos('.'))
+    eq({ 0, 1, 1, 0 }, fn.getpos('v'))
   end)
 
   it('can be replayed with @ in blockwise Visual mode', function()

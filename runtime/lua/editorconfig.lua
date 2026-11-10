@@ -57,9 +57,7 @@
 ---
 --- The following properties are supported by default:
 
-local nvim_on = require('vim._core.util').nvim_on
-
---- @type table<string,fun(bufnr: integer, val: string, opts: table<string,string>)>
+--- @type table<string,fun(bufnr: integer, val: string, opts?: table)>
 local properties = {}
 
 --- Modified version of the builtin assert that does not include error position information
@@ -82,9 +80,8 @@ end
 --- If "true", then stop searching for `.editorconfig` files in parent
 --- directories. This property must be at the top-level of the
 --- `.editorconfig` file (i.e. it must not be within a glob section).
---- It only controls the search and is excluded from property callbacks and [b:editorconfig].
 function properties.root()
-  -- Documentation only. The parser handles root separately.
+  -- Unused
 end
 
 --- One of `"utf-8"`, `"utf-8-bom"`, `"latin1"`, `"utf-16be"`, or `"utf-16le"`.
@@ -166,16 +163,16 @@ function properties.trim_trailing_whitespace(bufnr, val)
     'trim_trailing_whitespace must be either "true" or "false"'
   )
   if val == 'true' then
-    nvim_on('BufWritePre', 'nvim.editorconfig', { buf = bufnr }, function()
-      local mode = vim.api.nvim_get_mode().mode
-      if mode:sub(1, 1) == 'i' or mode:sub(1, 1) == 'R' or mode:sub(1, 2) == 'ni' then
-        return
-      end
-      local view = vim.fn.winsaveview()
-      vim.api.nvim_command('silent! undojoin')
-      vim.api.nvim_command('silent keepjumps keeppatterns %s/\\s\\+$//e')
-      vim.fn.winrestview(view)
-    end)
+    vim.api.nvim_create_autocmd('BufWritePre', {
+      group = 'nvim.editorconfig',
+      buf = bufnr,
+      callback = function()
+        local view = vim.fn.winsaveview()
+        vim.api.nvim_command('silent! undojoin')
+        vim.api.nvim_command('silent keepjumps keeppatterns %s/\\s\\+$//e')
+        vim.fn.winrestview(view)
+      end,
+    })
   else
     vim.api.nvim_clear_autocmds({
       event = 'BufWritePre',
@@ -195,9 +192,14 @@ function properties.insert_final_newline(bufnr, val)
   -- so only change 'endofline' right before writing the file
   local endofline = val == 'true'
   if vim.bo[bufnr].endofline ~= endofline then
-    nvim_on('BufWritePre', 'nvim.editorconfig', { buf = bufnr, once = true }, function()
-      vim.bo[bufnr].endofline = endofline
-    end)
+    vim.api.nvim_create_autocmd('BufWritePre', {
+      group = 'nvim.editorconfig',
+      buf = bufnr,
+      once = true,
+      callback = function()
+        vim.bo[bufnr].endofline = endofline
+      end,
+    })
   end
 end
 
@@ -222,33 +224,25 @@ function properties.spelling_language(bufnr, val)
   end
 end
 
---- Modified version of [glob2regpat()] that does not match path separators on `*` or `?`.
+--- Modified version of [glob2regpat()] that does not match path separators on `*`.
 ---
 --- This function replaces single instances of `*` with the regex pattern `[^/]*`.
 --- However, the star in the replacement pattern also gets interpreted by glob2regpat,
 --- so we insert a placeholder, pass it through glob2regpat, then replace the
---- placeholder with the actual regex pattern. `?` becomes `[^/]` the same way.
+--- placeholder with the actual regex pattern.
 ---
 --- @param glob string Glob to convert into a regular expression
 --- @return string regex Regular expression
 local function glob2regpat(glob)
   local placeholder = '@@PLACEHOLDER@@'
-  local qplaceholder = '@@QUESTION@@'
-  glob = glob:gsub([=[(\?)%?]=], function(esc)
-    return esc == '' and qplaceholder or nil
-  end)
   local glob1 = vim.fn.substitute(
     glob:gsub('{(%d+)%.%.(%d+)}', '[%1-%2]'),
     '\\*\\@<!\\*\\*\\@!',
     placeholder,
     'g'
   )
-  -- EditorConfig negates a character class with "[!seq]", Vim with "[^seq]".
-  glob1 = glob1:gsub([=[(\?)%[!]=], function(esc)
-    return esc == '' and '[^' or nil
-  end)
   local regpat = vim.fn.glob2regpat(glob1)
-  return (regpat:gsub(placeholder, '[^/]*'):gsub(qplaceholder, '[^/]'))
+  return (regpat:gsub(placeholder, '[^/]*'))
 end
 
 --- Parse a single line in an EditorConfig file
@@ -276,32 +270,27 @@ end
 --- Parse options from an `.editorconfig` file
 --- @param filepath string File path of the file to apply EditorConfig settings to
 --- @param dir string Current directory
---- @return table<string,string> options to apply to the given file
---- @return boolean is_root Whether to stop searching parent directories
+--- @return table<string,string|boolean> Table of options to apply to the given file
 local function parse(filepath, dir)
   local pat --- @type vim.regex?
-  local opts = {} --- @type table<string,string>
-  local is_root = false
+  local opts = {} --- @type table<string,string|boolean>
   local f = io.open(dir .. '/.editorconfig')
   if f then
     for line in f:lines() do
-      --- @cast line string
       local glob, key, val = parse_line(line)
       if glob then
         glob = glob:find('/') and (dir .. '/' .. glob:gsub('^/', '')) or ('**/' .. glob)
-        local ok, regex = pcall(function()
-          return vim.regex(glob2regpat(glob))
-        end)
+        local ok, regpat = pcall(glob2regpat, glob)
         if ok then
-          pat = regex
+          pat = vim.regex(regpat)
         else
           pat = nil
-          warn('editorconfig: Error occurred while parsing glob pattern "%s": %s', glob, regex)
+          warn('editorconfig: Error occurred while parsing glob pattern "%s": %s', glob, regpat)
         end
       elseif key ~= nil and val ~= nil then
         if key == 'root' then
           assert(val == 'true' or val == 'false', 'root must be either "true" or "false"')
-          is_root = val == 'true'
+          opts.root = val == 'true'
         elseif pat and pat:match_str(filepath) then
           opts[key] = val
         end
@@ -309,7 +298,7 @@ local function parse(filepath, dir)
     end
     f:close()
   end
-  return opts, is_root
+  return opts
 end
 
 local M = {}
@@ -331,25 +320,25 @@ function M.config(buf)
     return
   end
 
-  local opts = {} --- @type table<string,string>
+  local opts = {} --- @type table<string,string|boolean>
   for parent in vim.fs.parents(path) do
-    local parent_opts, is_root = parse(path, parent)
-    for k, v in pairs(parent_opts) do
+    for k, v in pairs(parse(path, parent)) do
       if opts[k] == nil then
         opts[k] = v
       end
     end
 
-    if is_root then
+    if opts.root then
       break
     end
   end
 
-  local applied = {} --- @type table<string,string>
+  local applied = {} --- @type table<string,string|boolean>
   for opt, val in pairs(opts) do
     if val ~= 'unset' then
       local func = M.properties[opt]
       if func then
+        --- @type boolean, string?
         local ok, err = pcall(func, buf, val, opts)
         if ok then
           applied[opt] = val

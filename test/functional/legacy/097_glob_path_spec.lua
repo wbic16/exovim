@@ -5,7 +5,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, setup, teardown = t.describe, t.it, t.setup, t.teardown
 local clear = n.clear
 local command, expect = n.command, n.expect
 
@@ -42,6 +41,15 @@ describe('glob() and globpath()', function()
 
       command([[$put =string(globpath('sautest\autoload', '*.vim'))]])
       command([[$put =string(globpath('sautest\autoload', '*.vim', 0, 1))]])
+      expect([=[
+
+
+
+        Xxx{
+        Xxx$
+        'sautest\autoload\Test104.vim
+        sautest\autoload\footest.vim'
+        ['sautest\autoload\Test104.vim', 'sautest\autoload\footest.vim']]=])
     else
       command([[$put =glob('Xxx\{')]])
       command([[$put =glob('Xxx\$')]])
@@ -53,16 +61,16 @@ describe('glob() and globpath()', function()
 
       command("$put =string(globpath('sautest/autoload', '*.vim'))")
       command("$put =string(globpath('sautest/autoload', '*.vim', 0, 1))")
+      expect([=[
+
+
+
+        Xxx{
+        Xxx$
+        'sautest/autoload/Test104.vim
+        sautest/autoload/footest.vim'
+        ['sautest/autoload/Test104.vim', 'sautest/autoload/footest.vim']]=])
     end
-    expect([=[
-
-
-
-      Xxx{
-      Xxx$
-      'sautest/autoload/Test104.vim
-      sautest/autoload/footest.vim'
-      ['sautest/autoload/Test104.vim', 'sautest/autoload/footest.vim']]=])
   end)
 
   teardown(function()

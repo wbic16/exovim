@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local clear, feed, insert = n.clear, n.feed, n.insert
 local command, neq = n.command, t.neq
 local api = n.api
@@ -752,7 +751,7 @@ describe('Buffer highlighting', function()
         {13:3 +} {11:ERROR:} invalid syntax               |
         {13:5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}|
         {13:, 5, 5, 5, 5, 5, 5, } Lorem ipsum dolor s|
-        {13:^x = 4}                                   |
+        ^x{13: = 4}                                   |
         {1:~                                       }|*2
         {7:-- VISUAL LINE --}                       |
       ]])
@@ -782,7 +781,7 @@ describe('Buffer highlighting', function()
 
       feed('jvk')
       screen:expect([[
-        {13:^ }{3:=}{2: 3}                                    |
+        ^ {3:=}{2: 3}                                    |
         {13:3} + {11:ERROR:} invalid syntax               |
         5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5|
         , 5, 5, 5, 5, 5, 5,  Lorem ipsum dolor s|
@@ -794,7 +793,7 @@ describe('Buffer highlighting', function()
       feed('o')
       screen:expect([[
         {13: }{3:=}{2: 3}                                    |
-        {13:^3} + {11:ERROR:} invalid syntax               |
+        ^3 + {11:ERROR:} invalid syntax               |
         5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5|
         , 5, 5, 5, 5, 5, 5,  Lorem ipsum dolor s|
         x = 4                                   |
@@ -806,10 +805,10 @@ describe('Buffer highlighting', function()
     it('works with listchars', function()
       command('set list listchars+=eol:$')
       screen:expect([[
-        ^1 + 2{1:$} {3:=}{2: 3}                              |
-        3 +{1:$} {11:ERROR:} invalid syntax              |
+        ^1 + 2{1:$}{3:=}{2: 3}                               |
+        3 +{1:$}{11:ERROR:} invalid syntax               |
         5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5|
-        , 5, 5, 5, 5, 5, 5,{1:-$} Lorem ipsum dolor |
+        , 5, 5, 5, 5, 5, 5,{1:-$}Lorem ipsum dolor s|
         x = 4{1:$}                                  |
         {1:~                                       }|*2
                                                 |

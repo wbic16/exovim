@@ -1,8 +1,7 @@
 local t = require('test.unit.testutil')
 local bit = require('bit')
 
-local describe = t.describe
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local child_call_once = t.child_call_once
 local cimport = t.cimport

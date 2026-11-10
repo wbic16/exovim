@@ -1480,7 +1480,7 @@ size_t spell_move_to(win_T *wp, int dir, smt_T behaviour, bool curline, hlf_T *a
         // starting line again and accept the last match.
         lnum = wp->w_buffer->b_ml.ml_line_count;
         wrapped = true;
-        if (!shortmess(kShmSearch)) {
+        if (!shortmess(SHM_SEARCH)) {
           give_warning(_(top_bot_msg), true, false);
         }
       }
@@ -1495,7 +1495,7 @@ size_t spell_move_to(win_T *wp, int dir, smt_T behaviour, bool curline, hlf_T *a
         // starting line again and accept the first match.
         lnum = 1;
         wrapped = true;
-        if (!shortmess(kShmSearch)) {
+        if (!shortmess(SHM_SEARCH)) {
           give_warning(_(bot_top_msg), true, false);
         }
       }
@@ -1678,14 +1678,6 @@ static void free_salitem(salitem_T *smp)
   xfree(smp->sm_to_w);
 }
 
-/// Free the salitem_T entries in a "sl_sal" garray (the SN_SAL form) and
-/// clear the garray.  Used by slang_clear() and when set_sofo() reuses
-/// sl_sal for the SN_SOFO form.
-void free_sal_items(garray_T *gap)
-{
-  GA_DEEP_CLEAR(gap, salitem_T, free_salitem);
-}
-
 /// Frees a fromto_T
 static void free_fromto(fromto_T *ftp)
 {
@@ -1714,7 +1706,8 @@ void slang_clear(slang_T *lp)
     // "ga_len" is set to 1 without adding an item for latin1
     GA_DEEP_CLEAR_PTR(gap);
   } else {
-    free_sal_items(gap);
+    // SAL items: free salitem_T items
+    GA_DEEP_CLEAR(gap, salitem_T, free_salitem);
   }
 
   for (int i = 0; i < lp->sl_prefixcnt; i++) {
@@ -1974,7 +1967,7 @@ char *parse_spelllang(win_T *wp)
     // If the name ends in ".spl" use it as the name of the spell file.
     // If there is a region name let "region" point to it and remove it
     // from the name.
-    if (len > 4 && path_equal(lang + len - 4, ".spl", kPathCmpLiteral)) {
+    if (len > 4 && path_fnamecmp(lang + len - 4, ".spl") == 0) {
       filename = true;
 
       // Locate a region and remove it from the file name.
@@ -1990,7 +1983,8 @@ char *parse_spelllang(win_T *wp)
 
       // Check if we loaded this language before.
       for (slang = first_lang; slang != NULL; slang = slang->sl_next) {
-        if (path_equal(lang, slang->sl_fname, kPathCmpExpand)) {
+        if (path_full_compare(lang, slang->sl_fname, false, true)
+            == kEqualFiles) {
           break;
         }
       }
@@ -2038,7 +2032,7 @@ char *parse_spelllang(win_T *wp)
     // Loop over the languages, there can be several files for "lang".
     for (slang = first_lang; slang != NULL; slang = slang->sl_next) {
       if (filename
-          ? path_equal(lang, slang->sl_fname, kPathCmpExpand)
+          ? path_full_compare(lang, slang->sl_fname, false, true) == kEqualFiles
           : STRICMP(lang, slang->sl_name) == 0) {
         int region_mask = REGION_ALL;
         if (!filename && region != NULL) {
@@ -2097,7 +2091,7 @@ char *parse_spelllang(win_T *wp)
       for (c = 0; c < ga.ga_len; c++) {
         char *p = LANGP_ENTRY(ga, c)->lp_slang->sl_fname;
         if (p != NULL
-            && path_equal(spf_name, p, kPathCmpExpand)) {
+            && path_full_compare(spf_name, p, false, true) == kEqualFiles) {
           break;
         }
       }
@@ -2110,7 +2104,8 @@ char *parse_spelllang(win_T *wp)
 
     // Check if it was loaded already.
     for (slang = first_lang; slang != NULL; slang = slang->sl_next) {
-      if (path_equal(spf_name, slang->sl_fname, kPathCmpExpand)) {
+      if (path_full_compare(spf_name, slang->sl_fname, false, true)
+          == kEqualFiles) {
         break;
       }
     }
@@ -2601,16 +2596,14 @@ bool check_need_cap(win_T *wp, linenr_T lnum, colnr_T col)
       if (*skipwhite(line) == NUL) {
         need_cap = true;
       } else {
-        colnr_T len = ml_get_buf_len(wp->w_buffer, lnum - 1);
         // Append a space in place of the line break.
         line_copy = concat_str(line, " ");
         line = line_copy;
-        endcol = len + 1;
+        endcol = (colnr_T)strlen(line);
       }
     }
   } else {
-    colnr_T len = ml_get_buf_len(wp->w_buffer, lnum);
-    endcol = MIN(col, len);
+    endcol = col;
   }
 
   if (endcol > 0) {
@@ -2663,7 +2656,7 @@ void ex_spellrepall(exarg_T *eap)
   sub_nlines = 0;
   curwin->w_cursor.lnum = 0;
   while (!got_int) {
-    if (do_search(NULL, '/', '/', frompat, frompatlen, 1, SEARCH_KEEP, false, NULL) == 0
+    if (do_search(NULL, '/', '/', frompat, frompatlen, 1, SEARCH_KEEP, NULL) == 0
         || u_save_cursor() == FAIL) {
       break;
     }
@@ -2940,8 +2933,7 @@ static void spell_soundfold_wsal(slang_T *slang, const char *inword, char *res)
       // Check all rules for the same index byte.
       // If c is 0x300 need extra check for the end of the array, as
       // (c & 0xff) is NUL.
-      for (; n < slang->sl_sal.ga_len
-           && ((ws = smp[n].sm_lead_w)[0] & 0xff) == (c & 0xff)
+      for (; ((ws = smp[n].sm_lead_w)[0] & 0xff) == (c & 0xff)
            && ws[0] != NUL; n++) {
         // Quickly skip entries that don't match the word.  Most
         // entries are less than three chars, optimize for that.
@@ -3221,13 +3213,13 @@ void ex_spelldump(exarg_T *eap)
   if (no_spell_checking(curwin)) {
     return;
   }
-  Object spl = get_option_value(kOptSpelllang, OPT_LOCAL);
+  OptVal spl = get_option_value(kOptSpelllang, OPT_LOCAL);
 
   // Create a new empty buffer in a new window.
   do_cmdline_cmd("new");
 
   // enable spelling locally in the new window
-  set_option_value_give_err(kOptSpell, BOOLEAN_OBJ(true), OPT_LOCAL);
+  set_option_value_give_err(kOptSpell, BOOLEAN_OPTVAL(true), OPT_LOCAL);
   set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
   optval_free(spl);
 
@@ -3574,7 +3566,7 @@ static linenr_T dump_prefixes(slang_T *slang, char *word, char *pat, Direction *
               }
             }
           }
-        } else if (depth < MAXWLEN - 1) {
+        } else {
           // Normal char, go one level deeper.
           prefix[depth++] = (char)c;
           arridx[depth] = idxs[n];
@@ -3676,11 +3668,6 @@ bool valid_spellfile(const char *val)
     if (l >= MAXPATHL - 4 || l < 4 || strcmp(spf_name + l - 4, ".add") != 0) {
       return false;
     }
-#ifdef BACKSLASH_IN_FILENAME
-    // The setter converts backslashes to slashes after validation.
-    // Do the same here before checking 'isfname'.
-    path_to_slash(spf_name);
-#endif
     for (char *s = spf_name; *s != NUL; s++) {
       if (!vim_is_fname_char((uint8_t)(*s))) {
         return false;
@@ -3703,22 +3690,26 @@ const char *did_set_spell_option(void)
   return errmsg;
 }
 
-/// Compile 'spellcapcheck', replacing the old program only on success.
-/// Return an error message when failed, NULL when OK.
-const char *compile_cap_prog(const char *value, regprog_T **prog)
+/// Set curbuf->b_cap_prog to the regexp program for 'spellcapcheck'.
+/// Return error message when failed, NULL when OK.
+const char *compile_cap_prog(synblock_T *synblock)
+  FUNC_ATTR_NONNULL_ALL
 {
-  regprog_T *rp = NULL;
-  if (value != NULL && *value != NUL) {
+  regprog_T *rp = synblock->b_cap_prog;
+
+  if (synblock->b_p_spc == NULL || *synblock->b_p_spc == NUL) {
+    synblock->b_cap_prog = NULL;
+  } else {
     // Prepend a ^ so that we only match at one column
-    char *re = concat_str("^", value);
-    rp = vim_regcomp(re, RE_MAGIC);
+    char *re = concat_str("^", synblock->b_p_spc);
+    synblock->b_cap_prog = vim_regcomp(re, RE_MAGIC);
     xfree(re);
-    if (rp == NULL) {
+    if (synblock->b_cap_prog == NULL) {
+      synblock->b_cap_prog = rp;         // restore the previous program
       return e_invarg;
     }
   }
 
-  vim_regfree(*prog);
-  *prog = rp;
+  vim_regfree(rp);
   return NULL;
 }

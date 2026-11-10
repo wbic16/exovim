@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local eq = t.eq
@@ -639,7 +638,7 @@ describe(":substitute, 'inccommand' preserves undo", function()
       if case == 'split' then
         screen:expect([[
           Inc substitution on |
-          ^two lines           |
+          two line^s           |
                               |
           {1:~                   }|*6
           Already ...t change |
@@ -647,7 +646,7 @@ describe(":substitute, 'inccommand' preserves undo", function()
       else
         screen:expect([[
           Inc substitution on |
-          ^two lines           |
+          two line^s           |
                               |
           {1:~                   }|*6
           Already ...t change |
@@ -2563,7 +2562,7 @@ describe(':substitute', function()
 end)
 
 it(':substitute with inccommand during :terminal activity', function()
-  if t.skip_fragile(t.pending) then
+  if t.skip_fragile(pending) then
     return
   end
   retry(2, 40000, function()

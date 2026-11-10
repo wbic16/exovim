@@ -41,8 +41,6 @@ static Map(uint64_t, int) combine_attr_entries = MAP_INIT;
 static Map(uint64_t, int) blend_attr_entries = MAP_INIT;
 static Map(uint64_t, int) blendthrough_attr_entries = MAP_INIT;
 static Set(cstr_t) urls = SET_INIT;
-/// Interned font names, referenced by index in HlAttrs.font.
-static Set(cstr_t) fonts = SET_INIT;
 
 #define attr_entry(i) attr_entries.keys[i]
 
@@ -149,7 +147,7 @@ int hl_get_syn_attr(int ns_id, int idx, HlAttrs at_en)
   if (at_en.cterm_fg_color != 0 || at_en.cterm_bg_color != 0
       || at_en.rgb_fg_color != -1 || at_en.rgb_bg_color != -1
       || at_en.rgb_sp_color != -1 || at_en.cterm_ae_attr != 0
-      || at_en.rgb_ae_attr != 0 || at_en.font >= 0 || ns_id != 0) {
+      || at_en.rgb_ae_attr != 0 || ns_id != 0) {
     return get_attr_entry((HlEntry){ .attr = at_en, .kind = kHlSyntax,
                                      .id1 = idx, .id2 = ns_id });
   }
@@ -280,6 +278,7 @@ bool hl_check_ns(void)
       hl_attr_active = *hl_def;
     }
   }
+  need_highlight_changed = true;
   return true;
 }
 
@@ -364,7 +363,7 @@ void update_window_hl(win_T *wp, bool invalid)
   int ns_id = wp->w_ns_hl;
 
   update_ns_hl(ns_id);
-  if (ns_id != wp->w_ns_hl_active) {
+  if (ns_id != wp->w_ns_hl_active || wp->w_ns_hl_attr == NULL) {
     wp->w_ns_hl_active = ns_id;
 
     NSHlAttr *hl_def_ptr = (NSHlAttr *)pmap_get(int)(&ns_hl_attr, ns_id);
@@ -372,11 +371,11 @@ void update_window_hl(win_T *wp, bool invalid)
       wp->w_ns_hl_attr = *hl_def_ptr;
     } else {
       // No specific highlights, use the defaults.
-      wp->w_ns_hl_attr = NULL;
+      wp->w_ns_hl_attr = highlight_attr;
     }
   }
 
-  int *hl_def = wp->w_ns_hl_attr ? wp->w_ns_hl_attr : hl_attr_active;
+  int *hl_def = wp->w_ns_hl_attr;
 
   if (!wp->w_hl_needs_update && !invalid) {
     return;
@@ -537,37 +536,6 @@ const char *hl_get_url(uint32_t index)
   return urls.keys[index];
 }
 
-// Intern a font name and return its stable index for use in HlAttrs.font.
-///
-/// @param font_name The font name to add
-/// @return Font index, or -1 if font_name is NULL or empty
-int32_t hl_add_font_idx(const char *font_name)
-{
-  if (font_name == NULL || *font_name == '\0') {
-    return -1;
-  }
-
-  MHPutStatus status;
-  uint32_t k = set_put_idx(cstr_t, &fonts, font_name, &status);
-  if (status != kMHExisting) {
-    fonts.keys[k] = xstrdup(font_name);
-  }
-
-  return (int32_t)k;
-}
-
-/// Get a font name by its index.
-///
-/// @param index Font index
-/// @return Font name, or NULL if index is invalid
-const char *hl_get_font(int32_t index)
-{
-  if (index < 0 || !fonts.keys) {
-    return NULL;
-  }
-  return fonts.keys[index];
-}
-
 /// Get attribute code for forwarded :terminal highlights.
 int hl_get_term_attr(HlAttrs *aep)
 {
@@ -595,17 +563,12 @@ void clear_hl_tables(bool reinit)
     highlight_changed();
     screen_invalidate_highlights();
   } else {
-    const char *font = NULL;
-    set_foreach(&fonts, font, {
-      xfree((void *)font);
-    });
     set_destroy(HlEntry, &attr_entries);
     map_destroy(uint64_t, &combine_attr_entries);
     map_destroy(uint64_t, &blend_attr_entries);
     map_destroy(uint64_t, &blendthrough_attr_entries);
     map_destroy(ColorKey, &ns_hls);
     set_destroy(cstr_t, &urls);
-    set_destroy(cstr_t, &fonts);
   }
 }
 
@@ -700,10 +663,6 @@ int hl_combine_attr(int char_attr, int prim_attr)
     new_en.url = prim_aep.url;
   }
 
-  if (prim_aep.font >= 0) {
-    new_en.font = prim_aep.font;
-  }
-
   id = get_attr_entry((HlEntry){ .attr = new_en, .kind = kHlCombine,
                                  .id1 = char_attr, .id2 = prim_attr });
   if (id > 0) {
@@ -792,7 +751,7 @@ int hl_blend_attrs(int back_attr, int front_attr, bool *through)
   } else {
     cattrs = fattrs;
     cattrs.rgb_fg_color = rgb_blend(ratio/2, battrs.rgb_fg_color, fattrs.rgb_fg_color);
-    if (cattrs.rgb_ae_attr & HL_UNDERLINE_MASK) {
+    if (cattrs.rgb_ae_attr & (HL_UNDERLINE_MASK)) {
       cattrs.rgb_sp_color = rgb_blend(ratio/2, battrs.rgb_bg_color, fattrs.rgb_sp_color);
     } else {
       cattrs.rgb_sp_color = -1;
@@ -1047,11 +1006,6 @@ void hlattrs2dict(Dict *hl, Dict *hl_attrs, HlAttrs ae, bool use_rgb, bool short
     if (mask & HL_BG_INDEXED) {
       PUT_C(*hl, "bg_indexed", BOOLEAN_OBJ(true));
     }
-
-    const char *font = hl_get_font(ae.font);
-    if (font != NULL) {
-      PUT_C(*hl, "font", STRING_OBJ(cstr_as_string(font)));
-    }
   } else {
     if (ae.cterm_fg_color != 0) {
       PUT_C(*hl, short_keys ? "ctermfg" : "foreground", INTEGER_OBJ(ae.cterm_fg_color - 1));
@@ -1079,7 +1033,6 @@ HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, HlAttrs 
   int blend = base ? base->hl_blend : -1;
   int32_t mask = base ? base->rgb_ae_attr : 0;
   int32_t cterm_mask = base ? base->cterm_ae_attr : 0;
-  int32_t font = base ? base->font : -1;
   bool cterm_mask_provided = false;
 
 #define CHECK_FLAG_WITH_KEY(d, m, name, extra, flag) \
@@ -1239,12 +1192,6 @@ HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, HlAttrs 
     hlattrs.cterm_fg_color = fg == -1 ? 0 : (int16_t)(fg + 1);
     hlattrs.cterm_ae_attr = mask;
   }
-
-  if (HAS_KEY_X(dict, font)) {
-    String str = dict->font;
-    font = (str.size > 0 && STRICMP(str.data, "NONE") != 0) ? hl_add_font_idx(str.data) : -1;
-  }
-  hlattrs.font = font;
 
   return hlattrs;
 #undef HAS_KEY_X

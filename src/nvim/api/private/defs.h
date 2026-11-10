@@ -104,9 +104,6 @@ typedef enum {
   kObjectTypeArray,
   kObjectTypeDict,
   kObjectTypeLuaRef,
-  /// Internal-only: for unset options (e.g. the local value of a global-local option).
-  /// Never crosses RPC/Lua boundary (becomes Nil).
-  kObjectTypeUnset,
   // EXT types, cannot be split or reordered, see #EXT_OBJECT_TYPE_SHIFT
   kObjectTypeBuffer,
   kObjectTypeWindow,
@@ -159,4 +156,4 @@ typedef struct {
   bool is_hlgroup;
 } KeySetLink;
 
-typedef const KeySetLink *(*FieldHashfn)(const char *str, size_t len);
+typedef KeySetLink *(*FieldHashfn)(const char *str, size_t len);

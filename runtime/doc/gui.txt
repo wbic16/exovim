@@ -4,7 +4,6 @@
                   VIM REFERENCE MANUAL    by Bram Moolenaar
 
 
-==============================================================================
 Nvim Graphical User Interface                           *gui* *GUI*
 
 Any client that supports the Nvim |ui-protocol| can be used as a UI for Nvim.
@@ -55,51 +54,31 @@ continues in the background), or |:connect| to another instance.
 Use cases:
 - keep the session running on remote machines after (unexpected) SSH disconnect
 - open files in an existing session from your OS file explorer
-- run Nvim as a background process (daemon/service), attach/detach as needed
+- run Nvim as a background process (daemon/service), atttach/detach as needed
 
 ------------------------------------------------------------------------------
 Stop or detach the current UI
 
-                                                             *:detach* *E5768*
-:[range]detach  Detaches the current UI. Other UIs (if any) remain attached,
-                unless [range] was given. If [range] is "%", all UIs _except_
-                the current UI are detached: >vim
-
-                    :%detach
-
-<                The server (typically `nvim --embed`) continues running as
-                a background process. Use |:connect| or |--remote-ui| to
-                reattach. Before detaching, you may want to note the server
-                address:
+                                                *:detach*
+:detach
+                Detaches the current UI. Other UIs (if any) remain attached.
+                The server (typically `nvim --embed`) continues running as
+                a background process, and you can reattach to it later.
+                Before detaching, you may want to note the server address:
                 >vim
                     :echo v:servername
 <
                 Note: The server closes the UI RPC channel, so :detach works
-                for any GUI/UI; but if the client isn't expecting this, it may
-                (incorrectly) report an error.
-
-                                                                    *:detach!*
-:detach!        Sets the current UI as "detachable" without detaching it now:
-                the UI stays attached, but if it later disconnects
-                unexpectedly (e.g. host terminal closed, ssh disconnect,
-                etc.), the server keeps running in the background.
-                Use |:connect| or |--remote-ui| to reattach.
-
-                Same as |nvim_chan_set()| `detach=true` on the UI channel.
-                Preserved across |:restart|.
-
-                If you always want Nvim to survive accidental disconnect, put
-                this in your config: >vim
-
-                    silent detach!
-<
+                for any UI client. But if the client isn't expecting this, it
+                may (incorrectly) report an error.
 
 ------------------------------------------------------------------------------
 Restart Nvim
 
-:restart[!] [+cmd] [command]			*:restart* *:restart!* *E5201*
-                Restarts Nvim. Saves and restores the current session, unless
-                [!] is given. Sets |v:exitreason|. See also |ZR|.
+                                                *:restart* *:restart!* *E5201*
+:restart[!] [+cmd] [command]
+                Restarts Nvim. Sets |v:exitreason|. See also |ZR|.
+                When [!] is included, the session is not restored.
 
                 1. Saves the current session (unless [!] was given).
                 2. Stops Nvim using `:qall` (or |+cmd|, if given).
@@ -111,16 +90,15 @@ Restart Nvim
 
                 Example: discard changes and stop with `:qall!`, then restart: >
                     :restart +qall!
-<                Example: restart and (manually) restore the session: >
+<                Example: restart and restore the current session: >
                     :mksession! Session.vim | restart! source Session.vim
 <                Example: restart and update plugins: >
-                    :restart packupdate
+                    :restart lua vim.pack.update()
 <
                 Note:
-                • UI connected to a remote machine (e.g. |remote-ssh|)
-                  reconnects only if using the server's |--listen| address.
-                • Windows limitation: During +cmd execution, |v:servername|
-                  refers to a temporary address. No remote restart.
+                • Only works if the UI and server are on the same system.
+                • Windows limitation: when +cmd is executed, |v:servername|
+                  refers to a temporary address.
                 • If no UI handles the "restart" event, this leaves a dangling
                   process.
                 • To adjust what `:restart` restores, set 'sessionoptions'.
@@ -128,79 +106,23 @@ Restart Nvim
 ------------------------------------------------------------------------------
 Connect UI to a different server
 
-:connect                                                *:connect*
-                Shows a menu (|vim.ui.select()|) of Nvim servers discovered by
-                |serverlist()| and hostnames in `~/.ssh/config`, ordered by
-                last activity (|v:useractive|). Selecting an item connects to
-                it (see below).
-
-                Also works on a |remote-ssh| session.
-
-:connect {address}                                      *E6102*
-                Attaches the UI to another Nvim instance: detaches from the
-                current server, then attaches to {address}. Stops the current
-                server if no other UIs are attached and ":qall" succeeds. If
-                {address} is an `ssh://` URI, see |remote-ssh|.
+                                                *:connect*
+:connect {address}
+                Detaches the UI from the server it is currently attached to
+                and attaches it to the server at {address} instead.
 
                 Note: If the current UI hasn't implemented the "connect" UI
                 event, this command is equivalent to |:detach|.
 
-:connect ssh://[{user}@]{host}[:{port}]                 *remote-ssh* *E6101*
-                Connects to Nvim on {host} (the "remote") over SSH:
-
-                1. Uses `nvim` found in the remote `$PATH` if it is >= the
-                   local version (except when "Update Nvim" is selected), or
-                   else auto-installs Nvim. (Note: `$PATH` is from a non-login
-                   shell, your shell rc isn't applied.)
-                2. Copies your local config files (`stdpath("config")`) to
-                   `~/.config/nvim-remote/`.
-                3. Starts Nvim on the remote.
-                4. Attaches the UI to it, through an SSH tunnel owned by the
-                   current (local) server.
-
-                                                        *remote-ssh-reconnect*
-                The session ends when the remote Nvim exits (e.g. |:qall|). If
-                the connection drops, the remote Nvim keeps running (if there
-                was any user activity |v:useractive|). To reconnect to your
-                previous session:
-                1. Run `:connect ssh://{host}` to reconnect to the SSH server.
-                2. Run `:connect` (no args) on the remote to see the most
-                   recent sessions. Select your previous session.
-
-                The remote Nvim runs with `NVIM_APPNAME=nvim-remote`, so its
-                config/data are isolated (appname "nvim-remote" is reserved
-                for this purpose):
-                - Config: `~/.config/nvim-remote/`, overwritten on connect by
-                  a copy of your local config files (`stdpath("config")`,
-                  excluding `.git/`). Plugins are not copied, that is
-                  delegated to your plugin manager (|vim.pack|).
-                - Data: `~/.local/share/nvim-remote/`, kept across sessions
-                  for fast reconnect. Caches autoinstalls in `…/releases/`.
-                  Nightly is installed once; choose "Update Nvim" at the
-                  prompt to refresh it (may break other sessions using it).
-
-                Requirements:
-                - Local: `ssh` (OpenSSH 7.6+). Win32-OpenSSH lacks
-                  multiplexing (`ControlMaster`), thus not supported.
-                - Local: key-based authentication. `ssh` runs with
-                  `BatchMode=yes`, so it never prompts. An unknown host key is
-                  accepted and recorded, unless your ssh_config sets
-                  `StrictHostKeyChecking`.
-                - Remote: POSIX `sh`, `tar`, writable `/tmp`.
-                - Remote (auto-install): Linux (x86_64/aarch64, glibc) or
-                  macOS (arm64/x86_64), `curl`, `sha256sum`. Else `nvim` must
-                  be in `$PATH`.
-
-                Examples: >vim
-                    :connect ssh://myhost
-                    :connect ssh://user@192.168.1.100
-                    :connect ssh://root@server:2222
-<
+:connect! {address}
+                Same as |:connect| but it also stops the detached server if
+                no other UI is currently attached to it.
 
 ------------------------------------------------------------------------------
 GUI commands
 
-:winp[os]					*:winp* *:winpos* *E188*
+                                                *:winp* *:winpos* *E188*
+:winp[os]
                 Display current position of the top left corner of the GUI vim
                 window in pixels.  Does not work in all versions.
                 Also see |getwinpos()|, |getwinposx()| and |getwinposy()|.
@@ -213,7 +135,8 @@ GUI commands
                 remembered until the window is opened.  The position is
                 adjusted to make the window fit on the screen (if possible).
 
-:win[size] {width} {height}			*:wi* *:win* *:winsize* *E465*
+                                            *:wi* *:win* *:winsize* *E465*
+:win[size] {width} {height}
                 Set the window height to {width} by {height} characters.
                 Obsolete, use ":set lines=11 columns=22".
 
@@ -225,58 +148,63 @@ Overview of what the mouse buttons do, when 'mousemodel' is "extend":
 
                *<S-LeftMouse>* *<A-RightMouse>* *<S-RightMouse>* *<RightDrag>*
                                                  *<RightRelease>* *<LeftDrag>*
-Normal Mode:
+Normal Mode: >
+  event         position     selection        change  action
+                 cursor                       window
+  ---------------------------------------------------------------------------
+  <LeftMouse>     yes          end              yes
+  <C-LeftMouse>   yes          end              yes    "CTRL-]" (2)
+  <S-LeftMouse>   yes       no change           yes    "*" (2)
+  <LeftDrag>      yes     start or extend (1)   no
+  <LeftRelease>   yes     start or extend (1)   no
+  <MiddleMouse>   yes       if not active       no     put
+  <MiddleMouse>   yes       if active           no     yank and put
+  <RightMouse>    yes     start or extend       yes
+  <A-RightMouse>  yes start or extend blockw.   yes
+  <S-RightMouse>  yes        no change          yes    "#" (2)
+  <C-RightMouse>  no         no change          no     "CTRL-T"
+  <RightDrag>     yes         extend            no
+  <RightRelease>  yes         extend            no
 
-  event		position cursor	selection	  change window	action ~
-  <LeftMouse>		yes	end			yes
-  <C-LeftMouse>		no	no change		no	toggle multicursor
-  <S-LeftMouse>		yes	no change		yes	"*" (2)
-  <LeftDrag>		yes	start or extend (1)	no
-  <LeftRelease>		yes	start or extend (1)	no
-  <MiddleMouse>		yes	if not active		no	put
-  <MiddleMouse>		yes	if active		no	yank and put
-  <RightMouse>		yes	start or extend		yes
-  <A-RightMouse>	yes	start or extend blockw.	yes
-  <S-RightMouse>	yes	no change		yes	"#" (2)
-  <C-RightMouse>	no	no change		no	"CTRL-T"
-  <RightDrag>		yes	extend			no
-  <RightRelease>	yes	extend			no
+Insert or Replace Mode: >
+  event         position     selection        change  action
+                 cursor                       window
+  ---------------------------------------------------------------------------
+  <LeftMouse>     yes     (cannot be active)    yes
+  <C-LeftMouse>   yes     (cannot be active)    yes    "CTRL-O^]" (2)
+  <S-LeftMouse>   yes     (cannot be active)    yes    "CTRL-O*" (2)
+  <LeftDrag>      yes     start or extend (1)   no     like CTRL-O (1)
+  <LeftRelease>   yes     start or extend (1)   no     like CTRL-O (1)
+  <MiddleMouse>   no      (cannot be active)    no     put register
+  <RightMouse>    yes     start or extend       yes    like CTRL-O
+  <A-RightMouse>  yes start or extend blockw.   yes
+  <S-RightMouse>  yes     (cannot be active)    yes    "CTRL-O#" (2)
+  <C-RightMouse>  no      (cannot be active)    no     "CTRL-O CTRL-T"
 
-Insert or Replace Mode:
-
-  event		position cursor	selection	  change window	action ~
-  <LeftMouse>		yes	(cannot be active)	yes
-  <C-LeftMouse>		no	(cannot be active)	no	no-op
-  <S-LeftMouse>		yes	(cannot be active)	yes	"CTRL-O*" (2)
-  <LeftDrag>		yes	start or extend (1)	no	like CTRL-O (1)
-  <LeftRelease>		yes	start or extend (1)	no	like CTRL-O (1)
-  <MiddleMouse>		no	(cannot be active)	no	put register
-  <RightMouse>		yes	start or extend		yes	like CTRL-O
-  <A-RightMouse>	yes	start or extend blockw.	yes
-  <S-RightMouse>	yes	(cannot be active)	yes	"CTRL-O#" (2)
-  <C-RightMouse>	no	(cannot be active)	no	"CTRL-O CTRL-T"
-
-In a help window:
-
-  event		position cursor	selection	  change window	action ~
-  <2-LeftMouse>		yes	(cannot be active)	no	"^]" (jump to help tag)
+In a help window: >
+  event         position     selection        change  action
+                 cursor                       window
+  ---------------------------------------------------------------------------
+  <2-LeftMouse>   yes     (cannot be active)    no     "^]" (jump to help tag)
 
 When 'mousemodel' is "popup", these are different:
 
                                                                *<A-LeftMouse>*
-Normal Mode:
+Normal Mode: >
+  event         position     selection        change  action
+                 cursor                       window
+  ---------------------------------------------------------------------------
+  <S-LeftMouse>   yes     start or extend (1)   no
+  <A-LeftMouse>   yes     start/extend blockw   no
+  <RightMouse>    no      popup menu            no
 
-  event		position cursor	selection	  change window	action ~
-  <S-LeftMouse>		yes	start or extend (1)	no
-  <A-LeftMouse>		yes	start/extend blockw	no
-  <RightMouse>		no	popup menu		no
-
-Insert or Replace Mode:
-
-  event		position cursor	selection	  change window	action ~
-  <S-LeftMouse>		yes	start or extend (1)	no	like CTRL-O (1)
-  <A-LeftMouse>		yes	start/extend blockw	no
-  <RightMouse>		no	popup menu		no
+Insert or Replace Mode: >
+  event         position     selection        change  action
+                 cursor                       window
+  ---------------------------------------------------------------------------
+  <S-LeftMouse>   yes     start or extend (1)   no     like CTRL-O (1)
+  <A-LeftMouse>   yes     start/extend blockw   no
+  <RightMouse>    no      popup menu            no
 
 (1) only if mouse pointer moved since press
 (2) only if click is in same buffer
@@ -308,12 +236,13 @@ alt key is pressed (it may move the window).
 
                 *double-click* *<2-LeftMouse>* *<3-LeftMouse>* *<4-LeftMouse>*
 Double, triple and quadruple clicks are supported.  For selecting text, extra
-clicks extend the selection:
+clicks extend the selection: >
 
-	click		select ~
-	double		word or % match
-	triple		line
-	quadruple	rectangular block
+        click           select
+        ---------------------------------
+        double          word or % match
+        triple          line
+        quadruple       rectangular block
 
 Exception: In a :help window, double-click jumps to help for the word that is
 clicked on.
@@ -342,24 +271,24 @@ This is like using CTRL-O in Insert mode.  Select mode is used when the
                                                 *X1Mouse* *X1Drag* *X1Release*
                                                 *X2Mouse* *X2Drag* *X2Release*
                                               *<MiddleRelease>* *<MiddleDrag>*
-Mouse clicks can be mapped using these |keycodes|:
-
-  code			mouse button			normal action ~
-  <LeftMouse>		left pressed			set cursor position
-  <LeftDrag>		left moved while pressed	extend selection
-  <LeftRelease>		left released			set selection end
-  <MiddleMouse>		middle pressed			paste text at cursor position
-  <MiddleDrag>		middle moved while pressed	-
-  <MiddleRelease>	middle released			-
-  <RightMouse>		right pressed			extend selection
-  <RightDrag>		right moved while pressed	extend selection
-  <RightRelease>	right released			set selection end
-  <X1Mouse>		X1 button pressed		-
-  <X1Drag>		X1 moved while pressed		-
-  <X1Release>		X1 button release		-
-  <X2Mouse>		X2 button pressed		-
-  <X2Drag>		X2 moved while pressed		-
-  <X2Release>		X2 button release		-
+Mouse clicks can be mapped using these |keycodes|: >
+      code           mouse button              normal action
+  ---------------------------------------------------------------------------
+  <LeftMouse>     left pressed               set cursor position
+  <LeftDrag>      left moved while pressed   extend selection
+  <LeftRelease>   left released              set selection end
+  <MiddleMouse>   middle pressed             paste text at cursor position
+  <MiddleDrag>    middle moved while pressed -
+  <MiddleRelease> middle released            -
+  <RightMouse>    right pressed              extend selection
+  <RightDrag>     right moved while pressed  extend selection
+  <RightRelease>  right released             set selection end
+  <X1Mouse>       X1 button pressed          -
+  <X1Drag>        X1 moved while pressed     -
+  <X1Release>     X1 button release          -
+  <X2Mouse>       X2 button pressed          -
+  <X2Drag>        X2 moved while pressed     -
+  <X2Release>     X2 button release          -
 
 The X1 and X2 buttons refer to the extra buttons found on some mice (e.g. the
 right thumb).

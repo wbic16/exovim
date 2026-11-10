@@ -4,8 +4,7 @@
 		     VIM USER MANUAL	by Bram Moolenaar
 
 
-==============================================================================
-Clever tricks
+				Clever tricks
 
 
 By combining several commands you can make Vim do nearly everything.  In this

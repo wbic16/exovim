@@ -176,7 +176,7 @@ char *os_get_userdir(const char *name)
   return NULL;
 }
 
-#ifdef EXITFREE
+#if defined(EXITFREE)
 
 void free_users(void)
 {

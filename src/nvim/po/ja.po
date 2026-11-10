@@ -3590,6 +3590,11 @@ msgstr "E471: 引数が必要です"
 msgid "E10: \\ should be followed by /, ? or &"
 msgstr "E10: \\ の後は / か ? か & でなければなりません"
 
+msgid "E11: Invalid in command-line window; <CR> executes, CTRL-C quits"
+msgstr ""
+"E11: コマンドラインウィンドウでは使用できません。<CR> で実行、CTRL-C で終了し"
+"ます。"
+
 #, fuzzy
 #~ msgid "E12: Command not allowed in secure mode in current dir or tag search"
 #~ msgstr "E12: このコマンドは現在のディレクトリやタグ検索では使用できません"
@@ -6655,14 +6660,44 @@ msgstr "E1505: 無効なフォーマット指示子です: %s"
 msgid "unknown"
 msgstr "不明"
 
+msgid "int"
+msgstr "int"
+
+msgid "long int"
+msgstr "long int"
+
+msgid "long long int"
+msgstr "long long int"
+
+msgid "signed size_t"
+msgstr "signed size_t"
+
+msgid "unsigned int"
+msgstr "unsigned int"
+
+msgid "unsigned long int"
+msgstr "unsigned long int"
+
+msgid "unsigned long long int"
+msgstr "unsigned long long int"
+
+msgid "size_t"
+msgstr "size_t"
+
 msgid "pointer"
 msgstr "pointer"
 
 msgid "percent"
 msgstr "percent"
 
+msgid "char"
+msgstr "char"
+
 msgid "string"
 msgstr "string"
+
+msgid "float"
+msgstr "float"
 
 msgid "E766: Insufficient arguments for printf()"
 msgstr "E766: printf() の引数が不十分です"

@@ -1,6 +1,6 @@
 local fs = vim.fs -- "vim.fs" is a dependency, so must be loaded early.
 local uv = vim.uv
-local uri_encode = vim.uri.encode --- @type function
+local uri_encode = vim.uri_encode --- @type function
 
 --- @type (fun(modename: string): fun()|string)[]
 local loaders = package.loaders
@@ -46,9 +46,7 @@ local M = {}
 --- The fs_stat of the module path. Won't be returned for `modname="*"`
 --- @field stat? uv.fs_stat.result
 
---- @class (private) vim.loader.Stats
---- @field [string] {total:number, time:number, [string]:number?}?>
---- @field find {total:number, time:number, not_found:number, stat?:number}
+--- @alias vim.loader.Stats table<string, {total:number, time:number, [string]:number?}?>
 
 --- @private
 M.path = vim.fn.stdpath('cache') .. '/luac'
@@ -62,7 +60,7 @@ local stats = { find = { total = 0, time = 0, not_found = 0 } }
 --- @type table<string, uv.fs_stat.result>?
 local fs_stat_cache
 
---- @type table<string, table<string,vim.loader.ModuleInfo>?>
+--- @type table<string, table<string,vim.loader.ModuleInfo>>
 local indexed = {}
 
 --- @param path string
@@ -80,9 +78,8 @@ local function fs_stat_cached(path)
   return fs_stat_cache[path]
 end
 
---- @param path string
 local function normalize(path)
-  return fs.normalize(path, { plain = true, _fast = true })
+  return fs.normalize(path, { expand_env = false, _fast = true })
 end
 
 local rtp_cached = {} --- @type string[]
@@ -175,6 +172,7 @@ local function read_cachefile(cname)
     return
   end
 
+  --- @type integer[]|{[0]:integer}
   local header = vim.split(data:sub(1, zero - 1), ',')
   local version = vim._tointeger(header[1])
   if version ~= VERSION then
@@ -256,10 +254,9 @@ end
 --- @param filename? string
 --- @param mode? "b"|"t"|"bt"
 --- @param env? table
---- @return_overload function chunk
---- @return_overload nil, string error_message
+--- @return function?, string?  error_message
 local function loadfile_cached(filename, mode, env)
-  local modpath = normalize(assert(filename))
+  local modpath = normalize(filename)
   local stat = fs_stat_cached(modpath)
   local cname = cache_filename(modpath)
   if stat then
@@ -288,7 +285,7 @@ local function lsmod(path)
     for name, t in fs.dir(path .. '/lua') do
       local modpath = path .. '/lua/' .. name
       -- HACK: type is not always returned due to a bug in luv
-      t = t or assert(fs_stat_cached(modpath)).type
+      t = t or fs_stat_cached(modpath).type
       --- @type string
       local topname
       local ext = name:sub(-4)
@@ -440,8 +437,7 @@ function M.enable(enable)
   M.enabled = enable
 
   if enable then
-    vim.fn.mkdir(fs.abspath(M.path), 'p')
-    ---@diagnostic disable-next-line: global-in-non-module
+    vim.fn.mkdir(vim.fs.abspath(M.path), 'p')
     _G.loadfile = loadfile_cached
     -- add Lua loader
     table.insert(loaders, 2, loader_cached)
@@ -455,10 +451,8 @@ function M.enable(enable)
       end
     end
   else
-    ---@diagnostic disable-next-line: global-in-non-module
     _G.loadfile = _loadfile
-    for l = #loaders, 1, -1 do
-      local loader = loaders[l]
+    for l, loader in ipairs(loaders) do
       if loader == loader_cached or loader == loader_lib_cached then
         table.remove(loaders, l)
       end
@@ -467,9 +461,14 @@ function M.enable(enable)
   end
 end
 
+--- @deprecated
+function M.disable()
+  vim.deprecate('vim.loader.disable', 'vim.loader.enable(false)', '0.12')
+  vim.loader.enable(false)
+end
+
 --- Tracks the time spent in a function
 --- @generic F: function
---- @param stat string
 --- @param f F
 --- @return F
 local function track(stat, f)
@@ -501,7 +500,7 @@ function M._profile(opts)
 
   if opts and opts.loaders then
     for l, loader in pairs(loaders) do
-      local loc = assert(debug.getinfo(loader, 'Sn')).source:gsub('^@', '')
+      local loc = debug.getinfo(loader, 'Sn').source:gsub('^@', '')
       loaders[l] = track('loader ' .. l .. ': ' .. loc, loader)
     end
   end
@@ -513,14 +512,13 @@ end
 --- @private
 function M._inspect(opts)
   if opts and opts.print then
-    --- @param nsec number
     local function ms(nsec)
       return math.floor(nsec / 1e6 * 1000 + 0.5) / 1000 .. 'ms'
     end
-    local chunks = {} --- @type [string, string?][]
-    for name, stat in vim.spairs(stats) do
+    local chunks = {} --- @type string[][]
+    for _, stat in vim.spairs(stats) do
       vim.list_extend(chunks, {
-        { '\n' .. name .. '\n', 'Title' },
+        { '\n' .. stat .. '\n', 'Title' },
         { '* total:    ' },
         { tostring(stat.total) .. '\n', 'Number' },
         { '* time:     ' },
@@ -535,7 +533,7 @@ function M._inspect(opts)
         end
       end
     end
-    vim.api.nvim_echo(chunks, true)
+    vim.api.nvim_echo(chunks, true, {})
   end
   return stats
 end

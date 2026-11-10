@@ -44,7 +44,6 @@ if(WIN32)
   list(APPEND LIBUV_LIBRARIES
     iphlpapi
     psapi
-    synchronization
     userenv
     ws2_32
     dbghelp)

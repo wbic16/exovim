@@ -21,11 +21,11 @@
 #include "nvim/ex_docmd.h"
 #include "nvim/garray.h"
 #include "nvim/garray_defs.h"
+#include "nvim/getchar.h"
+#include "nvim/getchar_defs.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
 #include "nvim/highlight_defs.h"
-#include "nvim/input.h"
-#include "nvim/input_defs.h"
 #include "nvim/keycodes.h"
 #include "nvim/macros_defs.h"
 #include "nvim/mbyte.h"
@@ -674,8 +674,8 @@ static dict_T *menu_get_recursive(const vimmenu_T *menu, int modes)
 
   if (menu->mnemonic) {
     char buf[MB_MAXCHAR + 1] = { 0 };  // > max value of utf8_char2bytes
-    int buflen = utf_char2bytes(menu->mnemonic, buf);
-    tv_dict_add_str_len(dict, S_LEN("shortcut"), buf, buflen);
+    utf_char2bytes(menu->mnemonic, buf);
+    tv_dict_add_str(dict, S_LEN("shortcut"), buf);
   }
 
   if (menu->actext) {
@@ -704,7 +704,7 @@ static dict_T *menu_get_recursive(const vimmenu_T *menu, int modes)
                        (menu->noremap[bit] == REMAP_NONE) ? 1 : 0);
         tv_dict_add_nr(impl, S_LEN("sid"),
                        (menu->noremap[bit] == REMAP_SCRIPT) ? 1 : 0);
-        tv_dict_add_dict(commands, menu_mode_chars[bit], strlen(menu_mode_chars[bit]), impl);
+        tv_dict_add_dict(commands, menu_mode_chars[bit], 1, impl);
       }
     }
   } else {
@@ -1397,8 +1397,8 @@ static int get_menu_mode(void)
   if (State & MODE_TERMINAL) {
     return MENU_INDEX_TERMINAL;
   }
-  if (Visual.active) {
-    if (Visual.select) {
+  if (VIsual_active) {
+    if (VIsual_select) {
       return MENU_INDEX_SELECT;
     }
     return MENU_INDEX_VISUAL;
@@ -1495,13 +1495,13 @@ void execute_menu(const exarg_T *eap, vimmenu_T *menu, int mode_idx)
       if ((curbuf->b_visual.vi_start.lnum == eap->line1)
           && (curbuf->b_visual.vi_end.lnum) == eap->line2) {
         // Set it up for visual mode - equivalent to gv.
-        Visual.mode = curbuf->b_visual.vi_mode;
+        VIsual_mode = curbuf->b_visual.vi_mode;
         tpos = curbuf->b_visual.vi_end;
         curwin->w_cursor = curbuf->b_visual.vi_start;
         curwin->w_curswant = curbuf->b_visual.vi_curswant;
       } else {
         // Set it up for line-wise visual mode
-        Visual.mode = 'V';
+        VIsual_mode = 'V';
         curwin->w_cursor.lnum = eap->line1;
         curwin->w_cursor.col = 1;
         tpos.lnum = eap->line2;
@@ -1510,10 +1510,10 @@ void execute_menu(const exarg_T *eap, vimmenu_T *menu, int mode_idx)
       }
 
       // Activate visual mode
-      Visual.active = true;
-      Visual.reselect = true;
+      VIsual_active = true;
+      VIsual_reselect = true;
       check_cursor(curwin);
-      Visual.start = curwin->w_cursor;
+      VIsual = curwin->w_cursor;
       curwin->w_cursor = tpos;
 
       check_cursor(curwin);
@@ -1538,8 +1538,10 @@ void execute_menu(const exarg_T *eap, vimmenu_T *menu, int mode_idx)
       save_state_T save_state;
 
       ex_normal_busy++;
-      save_current_state(&save_state);
-      exec_normal_cmd(menu->strings[idx], menu->noremap[idx], menu->silent[idx]);
+      if (save_current_state(&save_state)) {
+        exec_normal_cmd(menu->strings[idx], menu->noremap[idx],
+                        menu->silent[idx]);
+      }
       restore_current_state(&save_state);
       ex_normal_busy--;
     } else {
@@ -1782,7 +1784,7 @@ static char *menutrans_lookup(char *name, int len)
   menutrans_T *tp = (menutrans_T *)menutrans_ga.ga_data;
 
   for (int i = 0; i < menutrans_ga.ga_len; i++) {
-    if (STRNICMP(name, tp[i].from, (size_t)len) == 0 && tp[i].from[len] == NUL) {
+    if (STRNICMP(name, tp[i].from, len) == 0 && tp[i].from[len] == NUL) {
       return tp[i].to;
     }
   }
@@ -1862,9 +1864,8 @@ static void menuitem_getinfo(const char *menu_name, const vimmenu_T *menu, int m
   tv_dict_add_str(dict, S_LEN("modes"), get_menu_mode_str(menu->modes));
 
   char buf[NUMBUFLEN];
-  int buflen = utf_char2bytes(menu->mnemonic, buf);
-  buf[buflen] = NUL;
-  tv_dict_add_str_len(dict, S_LEN("shortcut"), buf, buflen);
+  buf[utf_char2bytes(menu->mnemonic, buf)] = NUL;
+  tv_dict_add_str(dict, S_LEN("shortcut"), buf);
 
   if (menu->children == NULL) {  // leaf menu
     int bit;
@@ -1876,7 +1877,7 @@ static void menuitem_getinfo(const char *menu_name, const vimmenu_T *menu, int m
       if (menu->strings[bit] != NULL) {
         tv_dict_add_allocated_str(dict, S_LEN("rhs"),
                                   *menu->strings[bit] == NUL
-                                  ? xmemdupz(S_LEN("<Nop>"))
+                                  ? xstrdup("<Nop>")
                                   : str2special_save(menu->strings[bit], false, false));
       }
       tv_dict_add_bool(dict, S_LEN("noremenu"), menu->noremap[bit] == REMAP_NONE);

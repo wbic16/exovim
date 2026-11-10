@@ -4,7 +4,6 @@
 		 NVIM REFERENCE MANUAL    by Thiago de Arruda
 
 
-==============================================================================
 Nvim asynchronous IO					*channel*
 
 				      Type |gO| to see the table of contents.
@@ -44,10 +43,10 @@ a job channel using RPC, bytes can still be read over its stderr. Similarly,
 only bytes can be written to Nvim's own stderr.
 
 					*channel-callback* *E904* *E906* *E921* *E5407*
-on_stdout({chan-id}, {data}, {name})		*on_stdout*
-on_stderr({chan-id}, {data}, {name})		*on_stderr*
-on_stdin({chan-id}, {data}, {name})		*on_stdin*
-on_data({chan-id}, {data}, {name})		*on_data*
+- on_stdout({chan-id}, {data}, {name})		*on_stdout*
+- on_stderr({chan-id}, {data}, {name})		*on_stderr*
+- on_stdin({chan-id}, {data}, {name})		*on_stdin*
+- on_data({chan-id}, {data}, {name})		*on_data*
 
     Scripts can react to channel activity (received data) via callback
     functions assigned to the `on_stdout`, `on_stderr`, `on_stdin`, or
@@ -172,13 +171,11 @@ Put this in `uppercase.vim` and run:  >bash
     nvim --headless --cmd "source uppercase.vim"
 
 ==============================================================================
-5. Using a prompt buffer                                   *repl* *prompt-buffer*
+5. Using a prompt buffer				*prompt-buffer*
 
 Prompt buffers provide a "prompt" interface: they are like regular buffers,
 except only the last section of the buffer is editable, and the user can
-"submit" the prompt by hitting Enter. The 'scrollback' option can be used
-to limit the number of history lines kept above the prompt. Useful for
-implementing:
+"submit" the prompt by hitting Enter. Useful for implementing:
 
 - chat UI
 - REPL or shell plugins
@@ -224,12 +221,8 @@ Any command that starts Insert mode, such as "a", "i", "A" and "I", will move
 the cursor to the last line.  "A" will move to the end of the line, "I" to the
 start of the line.
 
-                                                                *emacs-eshell*
-Example: The following code snippet implements a "shell buffer" similar to
-Emacs "eshell". Because the interface is a prompt-buffer, you can edit the
-prompt using normal Nvim commands, unlike a |:terminal| shell. Each prompt is
-sent to the shell process started by |jobstart()|, and appended to the buffer
-when output is received: >lua
+Example: start a shell in the background and prompt for the next shell
+command, displaying shell output above the prompt: >lua
 
     local shell_job
 

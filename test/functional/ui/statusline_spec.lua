@@ -3,7 +3,6 @@ local n = require('test.functional.testnvim')()
 local tt = require('test.functional.testterm')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local assert_alive = n.assert_alive
 local clear = n.clear
 local command = n.command
@@ -346,7 +345,7 @@ describe('global statusline', function()
     screen:expect([[
       ^                                                            |
       {1:~                                                           }|*14
-                                                0,0-1          All|
+                                                0,0-1         All |
     ]])
 
     command('set laststatus=3')
@@ -402,7 +401,7 @@ describe('global statusline', function()
       {2:< 0,0-1          All <-1          All <}│{1:~                   }|
                                              │{1:~                   }|
       {1:~                                      }│{1:~                   }|*4
-                                                0,0-1          All|
+                                                0,0-1         All |
     ]])
 
     command('set laststatus=3')
@@ -418,24 +417,6 @@ describe('global statusline', function()
                                              │{1:~                   }|
       {1:~                                      }│{1:~                   }|*3
       {3:[No Name]                                 0,0-1          All}|
-                                                                  |
-    ]])
-  end)
-
-  it('leaving laststatus=3 does not push a window past the last row', function()
-    command('split | wincmd j | vsplit | split')
-    command('wincmd t')
-    command('resize 1000')
-    command('set laststatus=2')
-    command('resize 1000')
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*9
-      {3:[No Name]                                 0,0-1          All}|
-                                    │                             |
-      {2:[No Name]   0,0-1          All}│{1:~                            }|
-                                    │{1:~                            }|
-      {2:[No Name]   0,0-1          All [No Name]  0,0-1          All}|
                                                                   |
     ]])
   end)
@@ -764,21 +745,21 @@ describe('statusline', function()
     screen:expect(s2)
     feed('v')
     screen:expect([[
-      {17:^ }                                       |
+      ^                                        |
       {1:~                                       }|*5
       {3:v                                       }|
       {5:-- VISUAL --}                            |
     ]])
     feed('V')
     screen:expect([[
-      {17:^ }                                       |
+      ^                                        |
       {1:~                                       }|*5
       {3:V                                       }|
       {5:-- VISUAL LINE --}                       |
     ]])
     feed('<C-V>')
     screen:expect([[
-      {17:^ }                                       |
+      ^                                        |
       {1:~                                       }|*5
       {3:^V                                      }|
       {5:-- VISUAL BLOCK --}                      |
@@ -795,14 +776,14 @@ describe('statusline', function()
     ]])
     feed('iabc<Esc>v')
     screen:expect([[
-      ab{17:^c}                                     |
+      ab^c                                     |
       {1:~                                       }|*5
       {3:v 3 3                                   }|
       {5:-- VISUAL --}                            |
     ]])
     feed('iw')
     screen:expect([[
-      {17:ab^c}                                     |
+      {17:ab}^c                                     |
       {1:~                                       }|*5
       {3:v 1 3                                   }|
       {5:-- VISUAL --}                            |
@@ -834,7 +815,7 @@ describe('statusline', function()
       {1:~}{15:^ }{1:                                      }|
       {1:~                                       }|*4
       {2:[No Name]             0,0-1          All}|
-                            0,0-1          All|
+                            0,0-1         All |
     ]])
     api.nvim_win_close(win, true)
     screen:expect([[
@@ -975,208 +956,14 @@ describe('statusline', function()
     eq('B:' .. truncated, rendered)
   end)
 
-  it('truncation inside nested nvim_eval_statusline correctly adjusts highlights', function()
-    exec_lua('vim.o.laststatus = 2')
-    exec_lua([[vim.o.statusline = "%{%repeat('%#Error#',20)%}"]])
-    exec_lua([[
-      vim.o.statusline = "%l%l%l%l%{%nvim_eval_statusline('test%#Error#%l%<',{'maxwidth':4,'highlights':1}).highlights%}"
-    ]])
-    screen:expect([[
-      ^                                        |
-      {1:~                                       }|*5
-      {3:< 'groups': ['StatusLine'], 'start': 0}]}|
-                                              |
-    ]])
-  end)
-
   it('no cmdline ruler for autocmd window #39938', function()
     command('set ruler laststatus=2')
     api.nvim_create_autocmd('BufDelete', { command = 'redrawstatus' })
+    api.nvim_exec_autocmds('BufDelete', { buf = api.nvim_create_buf(true, true) })
     screen:expect([[
       ^                                        |
       {1:~                                       }|*5
       {3:[No Name]             0,0-1          All}|
-                                              |
-    ]])
-    api.nvim_exec_autocmds('BufDelete', { buf = api.nvim_create_buf(true, true) })
-    screen:expect_unchanged(true)
-  end)
-
-  it('active window is correct after nvim_exec_autocmds({buf}) #40153', function()
-    command('set laststatus=2')
-    local caller_win = api.nvim_get_current_win()
-    command('split')
-    local target = api.nvim_create_buf(true, false)
-    api.nvim_set_current_buf(target)
-    api.nvim_set_current_win(caller_win)
-    exec_lua(function(buf)
-      _G.in_aucmd_statusline = false
-      _G.statusline_contexts = {}
-      _G.Status = function()
-        local current = vim.api.nvim_get_current_win()
-        local statusline = vim.g.statusline_winid
-        local focus = current == statusline
-        table.insert(_G.statusline_contexts, {
-          current = current,
-          focus = focus,
-          in_aucmd = _G.in_aucmd_statusline,
-          statusline = statusline,
-        })
-        return focus and 'CUR' or 'nc'
-      end
-      vim.o.statusline = '%!v:lua.Status()'
-      vim.api.nvim_create_autocmd('User', {
-        buffer = buf,
-        callback = function(ev)
-          _G.in_aucmd_statusline = true
-          vim.api.nvim__redraw({ buf = ev.buf, statusline = true })
-          _G.in_aucmd_statusline = false
-        end,
-      })
-    end, target)
-    -- Ignore statusline evaluations from setup; only the autocmd redraw matters.
-    exec_lua('_G.statusline_contexts = {}')
-    api.nvim_exec_autocmds('User', { buf = target })
-    screen:expect([[
-                                              |
-      {1:~                                       }|*2
-      {2:nc                                      }|
-      ^                                        |
-      {1:~                                       }|
-      {3:CUR                                     }|
-                                              |
-    ]])
-    -- `%!` may evaluate during the callback, but must not see the target as focused.
-    eq(
-      {},
-      exec_lua(function(win)
-        return vim
-          .iter(_G.statusline_contexts)
-          :filter(function(context)
-            return context.in_aucmd and context.focus and context.current ~= win
-          end)
-          :totable()
-      end, caller_win)
-    )
-  end)
-
-  it('statusline evaluation during nvim_exec_autocmds({buf}) #40153', function()
-    command('set laststatus=2')
-    local caller_win = api.nvim_get_current_win()
-    command('split')
-    local target = api.nvim_create_buf(true, false)
-    api.nvim_set_current_buf(target)
-    api.nvim_set_current_win(caller_win)
-    exec_lua(function(buf)
-      _G.in_aucmd_statusline = false
-      _G.statusline_contexts = {}
-      _G.Status = function()
-        table.insert(_G.statusline_contexts, {
-          in_aucmd = _G.in_aucmd_statusline,
-          current = vim.api.nvim_get_current_win(),
-          actual = tonumber(vim.g.actual_curwin or -1),
-        })
-        return vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and 'CUR'
-          or 'nc'
-      end
-      -- `%{%...%}` sets g:actual_curwin while evaluating the statusline.
-      vim.o.statusline = '%{%v:lua.Status()%}'
-      vim.api.nvim_create_autocmd('User', {
-        buffer = buf,
-        callback = function(ev)
-          _G.in_aucmd_statusline = true
-          vim.api.nvim__redraw({ buf = ev.buf, statusline = true })
-          _G.in_aucmd_statusline = false
-        end,
-      })
-    end, target)
-    screen:expect([[
-                                              |
-      {1:~                                       }|*2
-      {2:nc                                      }|
-      ^                                        |
-      {1:~                                       }|
-      {3:CUR                                     }|
-                                              |
-    ]])
-    -- Ignore statusline evaluations from setup; only the autocmd redraw matters.
-    exec_lua('_G.statusline_contexts = {}')
-    api.nvim_exec_autocmds('User', { buf = target })
-    screen:expect({ unchanged = true })
-    local contexts = exec_lua(function()
-      return _G.statusline_contexts
-    end)
-    eq(true, #contexts > 0)
-    eq(caller_win, contexts[#contexts].actual)
-  end)
-
-  it('%P %L updates in other windows', function()
-    screen:try_resize(40, 14)
-    command('set laststatus=2 statusline=%P\\ %L | split')
-    feed(':put=range(10)<cr>dgg')
-    screen:expect([[
-      ^                                        |
-      {1:~                                       }|*5
-      {3:All 1                                   }|
-                                              |
-      {1:~                                       }|*4
-      {2:All 1                                   }|
-      --No lines in buffer--                  |
-    ]])
-  end)
-
-  it('works with highlight scopes', function()
-    screen:add_extra_attr_ids({
-      [131] = {
-        bold = true,
-        reverse = true,
-        background = Screen.colors.Green,
-      },
-      [132] = {
-        bold = true,
-        reverse = true,
-        background = Screen.colors.Green,
-        foreground = Screen.colors.Red,
-      },
-      [133] = {
-        bold = true,
-        reverse = true,
-        background = Screen.colors.Green,
-        foreground = Screen.colors.Red,
-        underline = true,
-      },
-      [134] = {
-        bold = true,
-        reverse = true,
-        background = Screen.colors.Green,
-        underline = true,
-      },
-    })
-    command('hi User1 guibg=green')
-    command('hi User2 guifg=red')
-    command('hi User3 gui=underline')
-    command('set laststatus=2')
-    command('set statusline=a%#User1#b%$User2$c%#(%$User3$d%#)e')
-    screen:expect([[
-      ^                                        |
-      {1:~                                       }|*5
-      {3:a}{131:b}{132:c}{133:d}{132:e                                   }|
-                                              |
-    ]])
-    command('set statusline=a%$User1$b%$User2$c%#(%$User3$d%#)e')
-    screen:expect_unchanged()
-    command('set statusline=a%#(%#User1#b%#(%$User2$c%#(%$User3$d%#)e%#)f%#)g')
-    screen:expect([[
-      ^                                        |
-      {1:~                                       }|*5
-      {3:a}{131:b}{132:c}{133:d}{132:e}{131:f}{3:g                                 }|
-                                              |
-    ]])
-    command('set statusline=a%#(%#User1#b%#(%$User2$c%#)d%#(%$User3$e%#)f%#)g')
-    screen:expect([[
-      ^                                        |
-      {1:~                                       }|*5
-      {3:a}{131:b}{132:c}{131:d}{134:e}{131:f}{3:g                                 }|
                                               |
     ]])
   end)
@@ -1191,8 +978,6 @@ describe('default statusline', function()
     screen:add_extra_attr_ids {
       [100] = { foreground = Screen.colors.Magenta1, bold = true },
       [131] = { foreground = Screen.colors.NvimDarkGreen },
-      [132] = { bold = true, background = Screen.colors.LightBlue, reverse = true },
-      [133] = { background = Screen.colors.LightBlue, reverse = true },
     }
     command('set laststatus=2')
     command('set ruler')
@@ -1209,17 +994,16 @@ describe('default statusline', function()
     ]])
 
     local default_statusline = table.concat({
-      "%(%#(%#StatusLineRemote# @%.30(%{ v:lua.require('vim._core.util').remote_host() }%<%) %#) %)",
       '%<',
-      '%f',
-      "%( %h%w%m%r%{ v:lua.require('vim._core.util').term_exitcode() }%)",
-      '%= ',
-      '%(%-10S %)',
-      "%{ &busy > 0 ? '◐\226\128\175' : '' }",
-      "%(%{ luaeval('(package.loaded[''vim.ui''] and vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and vim.ui.progress_status()) or '''' ')} %)",
-      "%{% luaeval('(package.loaded[''vim.diagnostic''] and next(vim.diagnostic.count(0)) and vim.diagnostic.status() .. '' '') or '''' ') %}",
-      '%(%k %)',
-      "%{% &ruler ? &rulerformat : '' %}",
+      '%f %h%w%m%r ',
+      "%{% v:lua.require('vim._core.util').term_exitcode() %}",
+      '%=',
+      "%{% luaeval('(package.loaded[''vim.ui''] and vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and vim.ui.progress_status()) or '''' ')%}",
+      "%{% &showcmdloc == 'statusline' ? '%-10.S ' : '' %}",
+      "%{% exists('b:keymap_name') ? '<'..b:keymap_name..'> ' : '' %}",
+      "%{% &busy > 0 ? '◐ ' : '' %}",
+      "%{% luaeval('(package.loaded[''vim.diagnostic''] and next(vim.diagnostic.count()) and vim.diagnostic.status() .. '' '') or '''' ') %}",
+      "%{% &ruler ? ( &rulerformat == '' ? '%-14.(%l,%c%V%) %P' : &rulerformat ) : '' %}",
     })
 
     exec_lua("vim.o.statusline = ''")
@@ -1269,64 +1053,11 @@ describe('default statusline', function()
     screen:expect([[
       ^                                                            |
       {1:~                                                           }|*13
-      {3:[No Name]                               ◐ 0,0-1          All}|
+      {3:[No Name]                               ◐ 0,0-1          All}|
                                                                   |
     ]])
 
     exec_lua('vim.o.busy = 0')
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*13
-      {3:[No Name]                                 0,0-1          All}|
-                                                                  |
-    ]])
-  end)
-
-  it('shows the hostname in an SSH session', function()
-    local function set_hostname(name)
-      exec_lua(function()
-        vim.fn.hostname = function()
-          return name
-        end
-      end)
-    end
-    set_hostname('host')
-    exec_lua("vim.o.statusline = ''")
-    command('let $SSH_CONNECTION = "10.0.0.1 50000 10.0.0.2 22" | redrawstatus')
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*13
-      {132: @host }{3: [No Name]                         0,0-1          All}|
-                                                                  |
-    ]])
-
-    -- Only in the bottom-left statusline.
-    command('split | wincmd j | vsplit | wincmd k')
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*6
-      {3:[No Name]                                 0,0-1          All}|
-                                    │                             |
-      {1:~                             }│{1:~                            }|*5
-      {133: @host }{2: <e] 0,0-1          All [No Name]  0,0-1          All}|
-                                                                  |
-    ]])
-
-    -- In the global statusline. Truncated from the right.
-    set_hostname(('h'):rep(40))
-    command('set laststatus=3 noruler')
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*6
-      ──────────────────────────────┬─────────────────────────────|
-                                    │                             |
-      {1:~                             }│{1:~                            }|*5
-      {132: @hhhhhhhhhhhhhhhhhhhhhhhhhhhhh> }{3: [No Name]                 }|
-                                                                  |
-    ]])
-
-    command('set laststatus=2 ruler | only')
-    command('unlet $SSH_CONNECTION | redrawstatus')
     screen:expect([[
       ^                                                            |
       {1:~                                                           }|*13
@@ -1341,7 +1072,7 @@ describe('default statusline', function()
     api.nvim_set_option_value('shellcmdflag', 'EXIT', {})
     api.nvim_set_option_value('shellxquote', '', {}) -- win: avoid extra quotes
     command('terminal 9')
-    screen:expect({ any = '%[Exit:\226\128\1759%]' })
+    screen:expect({ any = '%[Exit: 9%]' })
     expect_exitcode(9)
   end)
 
@@ -1349,7 +1080,8 @@ describe('default statusline', function()
     exec_lua("vim.o.statusline = ''")
     local function get_progress()
       return exec_lua(function()
-        return vim.ui.progress_status()
+        local stl_str = vim.ui.progress_status()
+        return vim.api.nvim_eval_statusline(stl_str, {}).str
       end)
     end
 
@@ -1360,7 +1092,7 @@ describe('default statusline', function()
       true,
       { kind = 'progress', source = 'tests', title = 'test', status = 'running', percent = 10 }
     )
-    eq('10%(1)', get_progress())
+    eq('10%(1) ', get_progress())
 
     api.nvim_echo({ { 'searching' } }, true, {
       id = id1,
@@ -1370,7 +1102,7 @@ describe('default statusline', function()
       status = 'running',
       title = 'terminal(ripgrep)',
     })
-    eq('50%(1)', get_progress())
+    eq('50%(1) ', get_progress())
 
     api.nvim_echo({ { 'searching...' } }, true, {
       kind = 'progress',
@@ -1379,7 +1111,7 @@ describe('default statusline', function()
       status = 'running',
       percent = 20,
     })
-    eq('35%(2)', get_progress())
+    eq('35%(2) ', get_progress())
 
     api.nvim_echo({ { 'searching' } }, true, {
       id = id1,
@@ -1389,7 +1121,7 @@ describe('default statusline', function()
       status = 'success',
       title = 'terminal(ripgrep)',
     })
-    eq('20%(1)', get_progress())
+    eq('20%(1) ', get_progress())
 
     exec('redrawstatus')
     screen:expect([[
@@ -1420,48 +1152,6 @@ describe('default statusline', function()
       {1:~                                                           }|*5
       {3:[No Name]                          20%(1) 0,0-1          All}|
       {131:terminal(ripgrep)}: {19:100% }searching                           |
-    ]])
-  end)
-end)
-
-describe('default rulerformat', function()
-  local screen
-
-  before_each(function()
-    clear()
-    screen = Screen.new(60, 16)
-    command('set ruler')
-  end)
-
-  it('setting rulerformat to empty string sets default rulerformat', function()
-    exec_lua("vim.o.rulerformat = 'hjkl'")
-    eq('hjkl', eval('&rulerformat'))
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*14
-                                                hjkl              |
-    ]])
-
-    local default_rulerformat = '%18(%l,%c%V%= %P%)%<'
-
-    exec_lua("vim.o.rulerformat = ''")
-    eq(default_rulerformat, eval('&rulerformat'))
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*14
-                                                0,0-1          All|
-    ]])
-
-    -- Reset to default if there's an error.
-    command('set rulerformat=%{a%}')
-    eq(default_rulerformat, eval('&rulerformat'))
-    eq(default_rulerformat, eval('&g:rulerformat'))
-    eq(default_rulerformat, eval('&l:rulerformat'))
-    command('redrawstatus') -- like Vim, rulerformat isn't immediately redrawn after an error
-    screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*14
-      {9:E121: Undefined variable: a}               0,0-1          All|
     ]])
   end)
 end)
@@ -1499,13 +1189,13 @@ describe("'statusline' in floatwin", function()
     command(set_stl)
     local has_stl = [[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:│}{3:<Name] [+]}{4:│}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}│{3:<Name] [+]}│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*10
       {2:[No Name]                     }|
                                     |
@@ -1516,12 +1206,12 @@ describe("'statusline' in floatwin", function()
     api.nvim_win_set_config(win, { style = 'minimal' })
     local without_stl = [[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*11
       {2:[No Name]                     }|
                                     |
@@ -1544,12 +1234,12 @@ describe("'statusline' in floatwin", function()
     command(set_stl)
     screen:expect([[
       {24: }{102:2}{24:+ [No Name] }{5: }{101:2}{5:+ [No Name] }{2: }{24:X}|
-      ^ {4:┌──────────┐}                 |
-      {1:~}{4:│1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      ^ ┌──────────┐                 |
+      {1:~}│{4:1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*11
       {3:[No Name]                     }|
                                     |
@@ -1558,13 +1248,13 @@ describe("'statusline' in floatwin", function()
     api.nvim_win_set_config(win2, { style = 'minimal' })
     screen:expect([[
       {5: }{101:2}{5:+ [No Name] }{24: }{102:2}{24:+ [No Name] }{2: }{24:X}|
-       {4:┌──────────┐}                 |
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:│}{3:<Name] [+]}{4:│}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+       ┌──────────┐                 |
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}│{3:<Name] [+]}│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*10
       {2:[No Name]                     }|
                                     |
@@ -1572,12 +1262,12 @@ describe("'statusline' in floatwin", function()
     command('tabnext')
     screen:expect([[
       {24: }{102:2}{24:+ [No Name] }{5: }{101:2}{5:+ [No Name] }{2: }{24:X}|
-      ^ {4:┌──────────┐}                 |
-      {1:~}{4:│1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      ^ ┌──────────┐                 |
+      {1:~}│{4:1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*11
       {3:[No Name]                     }|
                                     |
@@ -1586,13 +1276,13 @@ describe("'statusline' in floatwin", function()
     command('tabclose | set laststatus=2')
     screen:expect([[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:│}{3:<Name] [+]}{4:│}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}│{3:<Name] [+]}│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*10
       {2:[No Name]                     }|
                                     |
@@ -1600,12 +1290,12 @@ describe("'statusline' in floatwin", function()
     command('set laststatus=0')
     screen:expect([[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*12
                                     |
     ]])
@@ -1613,12 +1303,12 @@ describe("'statusline' in floatwin", function()
     command('set laststatus=3')
     screen:expect([[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*11
       {3:[No Name] [+]                 }|
                                     |
@@ -1626,12 +1316,12 @@ describe("'statusline' in floatwin", function()
     api.nvim_buf_set_name(buf, 'stl_test')
     screen:expect([[
                                     |
-      {1:~}{4:┌──────────┐}{1:                 }|
-      {1:~}{4:│^1         │}{1:                 }|
-      {1:~}{4:│2         │}{1:                 }|
-      {1:~}{4:│3         │}{1:                 }|
-      {1:~}{4:│4         │}{1:                 }|
-      {1:~}{4:└──────────┘}{1:                 }|
+      {1:~}┌──────────┐{1:                 }|
+      {1:~}│{4:^1         }│{1:                 }|
+      {1:~}│{4:2         }│{1:                 }|
+      {1:~}│{4:3         }│{1:                 }|
+      {1:~}│{4:4         }│{1:                 }|
+      {1:~}└──────────┘{1:                 }|
       {1:~                             }|*11
       {3:stl_test [+]                  }|
                                     |

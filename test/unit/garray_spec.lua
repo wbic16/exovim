@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe = t.describe
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local cimport = t.cimport
 local internalize = t.internalize
@@ -74,7 +73,7 @@ local ga_clear = function(garr)
 end
 
 local ga_clear_strings = function(garr)
-  t.ok(ga_itemsize(garr) == ffi.sizeof('char *'))
+  assert.is_true(ga_itemsize(garr) == ffi.sizeof('char *'))
   return garray.ga_clear_strings(garr)
 end
 
@@ -104,7 +103,7 @@ end
 
 -- derived manipulators
 local ga_set_len = function(garr, len)
-  t.ok(len <= ga_maxlen(garr))
+  assert.is_true(len <= ga_maxlen(garr))
   garr[0].ga_len = len
 end
 
@@ -115,7 +114,7 @@ end
 -- custom append functions
 -- not the C ga_append, which only works for bytes
 local ga_append_int = function(garr, it)
-  t.ok(ga_itemsize(garr) == ffi.sizeof('int'))
+  assert.is_true(ga_itemsize(garr) == ffi.sizeof('int'))
   ga_grow(garr, 1)
   local data = ga_data_as_ints(garr)
   data[ga_len(garr)] = it
@@ -123,7 +122,7 @@ local ga_append_int = function(garr, it)
 end
 
 local ga_append_string = function(garr, it)
-  t.ok(ga_itemsize(garr) == ffi.sizeof('char *'))
+  assert.is_true(ga_itemsize(garr) == ffi.sizeof('char *'))
   -- make a non-garbage collected string and copy the lua string into it,
   -- TODO(aktau): we should probably call xmalloc here, though as long as
   -- xmalloc is based on malloc it should work.

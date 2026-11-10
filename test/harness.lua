@@ -5,7 +5,7 @@
 ---| 'failure'
 ---| 'error'
 
---- Hook phases supported by the test framework.
+--- Hook phases supported by the chunk environment.
 --- @alias test.harness.HookKind
 ---| 'setup'
 ---| 'teardown'
@@ -71,12 +71,7 @@
 --- @field fn? fun()
 --- @field parent test.harness.Suite
 --- @field pending_message? string
---- @field retries? integer
 --- @field selected? boolean
-
---- Test context: state passed to the `it` callback (the test body).
---- @class test.harness.Context
---- @field retry integer Attempt index: 0 on the first run, 1 on the first retry.
 
 --- Normalized result returned from running a test or hook.
 --- @class test.harness.Result
@@ -137,7 +132,6 @@ local uv = vim.uv
 --- Public test harness module surface.
 --- @class test.harness
 --- @field is_ci fun(name?: 'github'): boolean
---- @field is_defining fun(): boolean
 --- @field on_suite_end fun(callback: fun()): fun()
 --- @field read_nvim_log fun(logfile?: string, ci_rename?: boolean): string?
 local M = {}
@@ -392,25 +386,16 @@ local function current_suite()
   return state.current_define_suite
 end
 
---- Whether a test file/suite is currently being defined (vs. executing, or neither: e.g. when this
---- module is loaded from a preload/helper). Lets callers register hooks at a valid stage.
---- @return boolean
-function M.is_defining()
-  return state.current_define_suite ~= nil
-end
-
 --- Add a test node to the current suite.
 --- @param name string
 --- @param fn? fun()
 --- @param pending_message? string
 --- @return test.harness.Test
-local function register_test(name, fn, pending_message, opts)
+local function register_test(name, fn, pending_message)
   assert(type(name) == 'string' and name ~= '', 'test name must be a non-empty string')
   if fn ~= nil then
     assert(type(fn) == 'function', 'test body must be a function')
   end
-  local retries = opts and opts.retries or 0
-  assert(type(retries) == 'number' and retries >= 0, 'retries must be a non-negative number')
 
   local suite = current_suite()
   local test = {
@@ -420,13 +405,12 @@ local function register_test(name, fn, pending_message, opts)
     parent = suite,
     trace = caller_trace(3),
     pending_message = pending_message,
-    retries = retries,
   }
   table.insert(suite.children, test)
   return test
 end
 
---- Build a hook registrar exposed in the test framework.
+--- Build a hook registrar exposed in the test chunk environment.
 --- @param kind test.harness.HookKind
 --- @return fun(fn: fun())
 local function chunk_hook(kind)
@@ -439,18 +423,21 @@ local function chunk_hook(kind)
   end
 end
 
--- Busted-style test API.
--- Specs import it explicitly (`local describe, it = require('test.testutil').describe, …`).
-M.setup = chunk_hook('setup')
-M.teardown = chunk_hook('teardown')
-M.before_each = chunk_hook('before_each')
-M.after_each = chunk_hook('after_each')
+-- Chunk environment
+local chunk_env = {
+  _G = _G,
+  assert = test_assert,
+  setup = chunk_hook('setup'),
+  teardown = chunk_hook('teardown'),
+  before_each = chunk_hook('before_each'),
+  after_each = chunk_hook('after_each'),
+}
 
---- Define a nested suite.
+--- Define a nested suite in the chunk environment.
 --- @param name string
 --- @param fn fun()
 --- @return test.harness.Suite
-function M.describe(name, fn)
+function chunk_env.describe(name, fn)
   assert(type(name) == 'string', 'describe() expects a string')
   assert(type(fn) == 'function', 'describe() expects a function body')
 
@@ -470,22 +457,12 @@ function M.describe(name, fn)
   return suite
 end
 
---- Define a test.
----
---- @param name string Test description.
---- @param opts? table|fun() Options:
----        - `retries`: (default: 0) Retry the test, including setup/teardown
----          (`before_each`/`after_each`/`finally`), up to this many times.
----          Only the last attempt is reported.
---- @param fn? fun(ctx: test.harness.Context) Test body.
----        - `ctx.retry` is the index of the `retries` attempt, or 0 if this is not a retry.
+--- Define a test in the chunk environment.
+--- @param name string
+--- @param fn? fun()
 --- @return test.harness.Test
-function M.it(name, opts, fn)
-  if type(opts) == 'function' then
-    opts, fn = nil, opts
-  end
-  assert(opts == nil or type(opts) == 'table', 'it() arg 2 must be an opts table or a function')
-  return register_test(name, fn, nil, opts)
+function chunk_env.it(name, fn)
+  return register_test(name, fn, nil)
 end
 
 --- Mark the current test as pending or define a pending test.
@@ -498,7 +475,7 @@ end
 --- @param name? string
 --- @param block? fun()|string
 --- @return boolean
-function M.pending(name, block)
+function chunk_env.pending(name, block)
   if state.current_execution then
     error({
       __harness_pending = true,
@@ -512,7 +489,7 @@ end
 
 --- Register a finalizer to run after the current test body.
 --- @param fn fun()
-function M.finally(fn)
+function chunk_env.finally(fn)
   assert(type(fn) == 'function', 'finally() expects a function')
   assert(
     state.current_execution and state.current_execution.scope == 'test',
@@ -527,7 +504,7 @@ end
 --- Convert an arbitrary error value into printable text.
 --- @param err any
 --- @return string
-function M.format_error_value(err)
+local function format_error_value(err)
   if type(err) == 'string' then
     return err
   end
@@ -626,7 +603,7 @@ end
 --- Once execution returns to the harness, the rest of the stack is framework
 --- noise and should not be printed in verbose failure output.
 --- @return string?
-function M.build_error_traceback(framework_source)
+local function build_error_traceback()
   local lines = {}
 
   for level = 3, math.huge do
@@ -635,7 +612,7 @@ function M.build_error_traceback(framework_source)
       break
     end
 
-    if info.source == framework_source then
+    if info.source == harness_source then
       break
     end
 
@@ -676,12 +653,12 @@ local function exception_handler(err)
     return err
   end
 
-  local message = M.format_error_value(err)
+  local message = format_error_value(err)
   local raw_traceback = debug.traceback('', 2)
   return {
     message = message,
     trace = parse_error_trace(message, raw_traceback),
-    traceback = M.build_error_traceback(harness_source) or raw_traceback,
+    traceback = build_error_traceback() or raw_traceback,
   }
 end
 
@@ -703,7 +680,7 @@ end
 --- @param callable test.harness.RegisteredCallback
 --- @param fallback_status? test.harness.ResultStatus
 --- @return test.harness.Result, test.harness.Trace?
-local function run_callable(scope, callable, fallback_status, ctx)
+local function run_callable(scope, callable, fallback_status)
   local previous_execution = state.current_execution
   --- @type test.harness.Execution
   local execution = {
@@ -712,10 +689,7 @@ local function run_callable(scope, callable, fallback_status, ctx)
   }
   state.current_execution = execution
 
-  -- Note: xpcall variadic args not supported by Lua 5.1.
-  local ok, err = xpcall(function()
-    return callable.fn(ctx)
-  end, exception_handler)
+  local ok, err = xpcall(callable.fn, exception_handler)
   local finalizer_err
   local finalizer_trace
   for i = #execution.finalizers, 1, -1 do
@@ -1020,57 +994,46 @@ local function run_test(test, reporter, summary, file_summary)
       message = test.pending_message,
     }
   else
-    local attempt = 0
-    repeat
-      attempt = attempt + 1
-      --- @type test.harness.Context
-      local ctx = { retry = attempt - 1 }
-      result = { status = 'success' }
+    result = { status = 'success' }
 
-      for _, hook in ipairs(gather_before_each(test.parent)) do
-        result, report_trace = run_callable('before_each', hook, 'failure')
-        if result.status ~= 'success' then
-          break
-        end
+    for _, hook in ipairs(gather_before_each(test.parent)) do
+      result, report_trace = run_callable('before_each', hook, 'failure')
+      if result.status ~= 'success' then
+        break
       end
+    end
 
-      if attempt == 1 then
-        reporter:test_start(name)
-      end
+    reporter:test_start(name)
 
+    if result.status == 'success' then
+      result, report_trace = run_callable('test', { fn = test.fn, trace = test.trace }, 'failure')
+    end
+
+    for _, hook in ipairs(gather_after_each(test.parent)) do
+      local hook_result, hook_trace = run_callable('after_each', hook, 'failure')
       if result.status == 'success' then
-        result, report_trace =
-          run_callable('test', { fn = test.fn, trace = test.trace }, 'failure', ctx)
-      end
-
-      for _, hook in ipairs(gather_after_each(test.parent)) do
-        local hook_result, hook_trace = run_callable('after_each', hook, 'failure')
-        if result.status == 'success' then
-          result = hook_result
-          report_trace = hook_trace
-        elseif hook_result.status ~= 'success' then
-          local hook_report_trace = hook_trace or hook.trace
-          result.message = (result.message or '')
-            .. (result.message and result.message ~= '' and '\n\n' or '')
-            .. 'after_each: '
-            .. hook_result.message
-          if not result.traceback then
-            result.traceback = hook_result.traceback
-          end
-          if not result.trace then
-            result.trace = hook_result.trace
-          end
-          if result.status == 'pending' then
-            result.status = 'error'
-            report_trace = hook_report_trace
-          elseif not report_trace then
-            report_trace = hook_report_trace
-          end
+        result = hook_result
+        report_trace = hook_trace
+      elseif hook_result.status ~= 'success' then
+        local hook_report_trace = hook_trace or hook.trace
+        result.message = (result.message or '')
+          .. (result.message and result.message ~= '' and '\n\n' or '')
+          .. 'after_each: '
+          .. hook_result.message
+        if not result.traceback then
+          result.traceback = hook_result.traceback
+        end
+        if not result.trace then
+          result.trace = hook_result.trace
+        end
+        if result.status == 'pending' then
+          result.status = 'error'
+          report_trace = hook_report_trace
+        elseif not report_trace then
+          report_trace = hook_report_trace
         end
       end
-      -- check for interrupts
-      vim.wait(0)
-    until result.status == 'success' or attempt > test.retries
+    end
   end
 
   test.duration = now_seconds() - start_time
@@ -1352,9 +1315,6 @@ local function parse_args(argv)
     end),
     ['--lpath'] = append_value(opts.lpaths),
     ['--cpath'] = append_value(opts.cpaths),
-    ['--default-path'] = set_nonempty_value('--default-path', function(path)
-      opts.default_path = path
-    end),
   }
 
   local i = 1
@@ -1426,24 +1386,23 @@ local function parse_args(argv)
   end
 
   if #opts.paths == 0 then
-    if opts.default_path then
-      opts.paths[1] = opts.default_path
-    else
-      return nil, 'no test paths provided'
-    end
+    return nil, 'no test paths provided'
   end
 
   return opts
 end
 
---- Load a Lua chunk.
----
---- Note: Tests run in the real global environment and import the "framework" explicitly
---- (`testutil.it()`, …), so we no longer inject it into the spec environment via `setfenv`.
+--- Load a Lua chunk and bind it to a shallow copy of the given environment.
 --- @param path string
+--- @param env table<any, any>
 --- @return function?, string?
-local function load_chunk(path)
-  return loadfile(path)
+local function load_chunk(path, env)
+  local chunk, err = loadfile(path)
+  if not chunk then
+    return nil, err
+  end
+
+  return setfenv(chunk, setmetatable(vim._copy(env), { __index = _G }))
 end
 
 --- Load a helper file before the test baseline is captured.
@@ -1453,7 +1412,10 @@ end
 --- @return boolean?, string?
 local function load_helper(path)
   local helper_path = normalize_path(path)
-  local chunk, err = load_chunk(helper_path)
+  local chunk, err = load_chunk(helper_path, {
+    _G = _G,
+    assert = test_assert,
+  })
   if not chunk then
     return nil, err
   end
@@ -1477,7 +1439,7 @@ local function evaluate_test_file(file, root_suite)
   table.insert(root_suite.children, file_suite)
 
   state.current_define_suite = file_suite
-  local chunk, load_err = load_chunk(file.path)
+  local chunk, load_err = load_chunk(file.path, chunk_env)
   if not chunk then
     state.current_define_suite = nil
     return file_suite,

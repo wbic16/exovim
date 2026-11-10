@@ -4,8 +4,7 @@
                   VIM REFERENCE MANUAL    by Bram Moolenaar
 
 
-==============================================================================
-Starting Nvim                                           *starting*
+Starting Vim                                            *starting*
 
                                       Type |gO| to see the table of contents.
 
@@ -35,8 +34,8 @@ filename        One or more file names.  The first one will be the current
 <                All arguments after "--" are interpreted as file names, no
                 other options or "+command" arguments can follow.
 
-`-`                                                     *--*
-                Alias for stdin (standard input).
+                                                        *--*
+`-`               Alias for stdin (standard input).
                 Example: >
                         echo text | nvim - file
 <                "text" is read into buffer 1, "file" is opened as buffer 2.
@@ -80,18 +79,16 @@ The option arguments may be given in any order.  Single-letter options can be
 combined after one dash.  There can be no option arguments after the "--"
 argument.
 
---help                                                  *--help*
--?                                                      *-?*
--h                                                      *-h*
-                Give usage (help) message and exit.
+--help                                                  *-h* *--help* *-?*
+-?
+-h              Give usage (help) message and exit.
 
---version                                               *--version*
--v                                                      *-v*
-                Print version information and exit.  Same output as for
+--version                                               *-v* *--version*
+-v              Print version information and exit.  Same output as for
                 |:version| command.
 
---clean                                                 *--clean*
-                Mimics a fresh install of Nvim:
+                                                        *--clean*
+--clean         Mimics a fresh install of Nvim:
                 - Skips initializations from files and environment variables.
                 - No 'shada' file is read or written.
                 - Excludes user directories from 'runtimepath'
@@ -125,9 +122,8 @@ argument.
                 last used from |shada|.  To force a search from the first
                 line use "+1 +/pat".
 
-+{command}                                              *-+c*
--c {command}                                            *-c*
-                {command} will be executed after the first file has been
++{command}                                              *-+c* *-c*
+-c {command}    {command} will be executed after the first file has been
                 read (and after autocommands and modelines for that file have
                 been processed).  "command" is interpreted as an Ex command.
                 If the "command" contains spaces, it must be enclosed in
@@ -154,9 +150,8 @@ argument.
 <                Can be repeated like "-c", subject to the same limit of 10
                 "-c" arguments. {file} cannot start with a "-".
 
--L                                                      *-L*
--r                                                      *-r*
-                Recovery mode.  Without a file name argument, a list of
+-L                                                      *-L* *-r*
+-r              Recovery mode.  Without a file name argument, a list of
                 existing swap files is given.  With a file name, a swap file
                 is read to recover a crashed editing session.  See
                 |crash-recovery|.
@@ -186,17 +181,15 @@ argument.
                 the 'modifiable' and 'write' options can be set to enable
                 changes and writing.
 
--e                                                      *-e*
--E                                                      *-E*
-                Start Nvim in |Ex-mode|.
+-e                                                      *-e* *-E*
+-E              Start Nvim in Ex mode |gQ|, see |Ex-mode|.
 
                 If stdin is not a TTY:
                 • -e reads/executes stdin as Ex commands.
                 • -E reads stdin as text (into buffer 1).
 
--es                                                     *-es* *-s-ex* *silent-mode*
--Es                                                     *-Es*
-                Script mode, aka "silent mode", aka "batch mode". No UI,
+-es                                             *-es* *-Es* *-s-ex* *silent-mode*
+-Es             Script mode, aka "silent mode", aka "batch mode". No UI,
                 disables most prompts and messages. Unrelated to |-s|.
                 See also |-S| to run script files.
 
@@ -217,16 +210,12 @@ argument.
                         nvim -es +"verbose echo 'foo'"
                         nvim -V1 -es +"echo 'foo'"
 <
-                Commands that wait for typed input (|input()|, |getchar()|, …)
-                stop Nvim on EOF; they do not consume stdin. Lua can read
-                stdin as data: >
-                        printf 'lua vim.g.b = io.read()\nfoo\nput =g:b\np' | nvim -es
-<
                 Skips user |config| unless |-u| was given.
                 Disables |shada| unless |-i| was given.
                 Disables swapfile (like |-n|).
 
--l {script} [args]                                      *-l*
+                                                        *-l*
+-l {script} [args]
                 Executes Lua {script} non-interactively (no UI) with optional
                 [args] after processing any preceding Nvim |cli-arguments|,
                 then exits. Exits 1 on Lua error. See |-S| to run multiple Lua
@@ -257,6 +246,14 @@ argument.
                 Disables plugins unless 'loadplugins' was set.
                 Disables |shada| unless |-i| was given.
                 Disables swapfile (like |-n|).
+
+                                                        *-ll*
+-ll {script} [args]
+                Executes a Lua script, similarly to |-l|, but the editor is not
+                initialized. This gives a Lua environment similar to a worker
+                thread. See |lua-loop-threading|.
+
+                Unlike `-l` no prior arguments are allowed.
 
                                                         *-b*
 -b              Binary mode.  File I/O will only recognize <NL> to separate
@@ -383,16 +380,14 @@ argument.
 
                                                         *--embed*
 --embed         Use stdin/stdout as a msgpack-RPC channel, so applications can
-                embed and control Nvim via the RPC |API|. Nvim exits if the
-                channel is closed, unless the channel was detached (|:detach|,
-                |:detach!|, |nvim_chan_set()|) or another `detach=false`
-                channel is still open.
+                embed and control Nvim via the RPC |API|. If the channel is
+                closed (except by |:detach|), Nvim exits.
 
                 Waits for a client to call |nvim_ui_attach()| before sourcing
-                startup files and reading buffers, so UIs can display early
-                messages/dialogs and make preliminary requests (e.g.
-                `nvim_chan_set` to set channel config, or `nvim_get_api_info`
-                for feature-detection). During this pre-startup phase the user
+                startup files and reading buffers, so that UIs can handle
+                (display) early messages, dialogs, etc. Clients can do other
+                requests before `nvim_ui_attach` (e.g. `nvim_get_api_info` for
+                feature-detection). During this pre-startup phase the user
                 config is of course not available (similar to `--cmd`).
 
                 Non-UI embedders must pass |--headless|, then startup will
@@ -404,17 +399,8 @@ argument.
                 UI embedders that want the UI protocol on a socket (instead of
                 stdio) must pass |--listen| as well as |--embed|: >
                     nvim --embed --listen addr
-<                Then stdin is an RPC channel only if it is a pipe/socket.
-                Otherwise (tty, /dev/null) Nvim waits for a UI to attach at
-                `addr`, e.g. to start a server for a GUI on a remote host: >
-                    ssh host 'nvim --embed --listen 0.0.0.0:8888 &'
-<                The UI can call |nvim_chan_set()| with `detach=false` to
-                enable exit-on-channel-close behavior.
 
-                To "daemonize" such a server, use |jobstart()| with "detach": >
-                    nvim -es +"lua vim.fn.jobstart({'nvim', '--embed', '--listen', 'addr'}, {detach=true, stdin='null'})" +q
-<
-                See also: |ui-startup| |channel-stdio|
+<                See also: |ui-startup| |channel-stdio|
 
                                                         *--headless*
 --headless      Start without UI, and do not wait for `nvim_ui_attach`. The
@@ -634,7 +620,7 @@ setting can affect the entire editor in ways that are not initially obvious.
 
 To find the cause of a problem in your config, you must "bisect" it:
 1. Remove or disable half of your |config|.
-2. Restart Nvim (|:restart|).
+2. Restart Nvim.
 3. If the problem still occurs, goto 1.
 4. If the problem is gone, restore half of the removed lines.
 5. Continue narrowing your config in this way, until you find the setting or
@@ -692,16 +678,15 @@ greps in the help files) you might be able to use this: >
 ==============================================================================
 Suspending                                              *suspend*
 
-CTRL-Z                                                  *CTRL-Z* *v_CTRL-Z*
-                        Suspend Nvim, like ":stop".
+                                        *CTRL-Z* *v_CTRL-Z*
+CTRL-Z                  Suspend Nvim, like ":stop".
                         Works in Normal and in Visual mode.  In Insert and
                         Command-line mode, the CTRL-Z is inserted as a normal
                         character.  In Visual mode Nvim goes back to Normal
                         mode before suspending.
 
-:sus[pend][!]                                           *:sus* *:suspend*
-:st[op][!]                                              *:st* *:stop*
-                        Suspend Nvim using OS "job control"; it will continue
+:sus[pend][!]   or                      *:sus* *:suspend* *:st* *:stop*
+:st[op][!]              Suspend Nvim using OS "job control"; it will continue
                         if you make it the foreground job again.  Triggers
                         |VimSuspend| before suspending and |VimResume| when
                         resumed.
@@ -726,13 +711,6 @@ There are several ways to exit Vim:
 
 When using `:cquit` or when there was an error message Vim exits with exit
 code 1.  Errors can be avoided by using `:silent!` or with `:catch`.
-
-If Nvim is exiting without a UI, or after a deadly signal (|v:dying|), prompts
-are dismissed (instead of waiting for user input that is unlikely to arrive).
-- |hit-enter| and |more-prompt| are skipped
-- |confirm()| returns its default
-- other prompts (|input()|, |getchar()|) are interrupted as if CTRL-C was
-  typed, which skips any remaining autocmds (|VimLeavePre|, |VimLeave|, …)
 
 ==============================================================================
 Saving settings                                         *save-settings*
@@ -825,7 +803,7 @@ The output of ":mksession" is like ":mkvimrc", but additional commands are
 added to the file.  Which ones depends on the 'sessionoptions' option.  The
 resulting file, when executed with a ":source" command:
 1. Restores global mappings and options, if 'sessionoptions' contains
-   "options".  Lua functions, and script-local mappings, will not be written.
+   "options".  Script-local mappings will not be written.
 2. Restores global variables that start with an uppercase letter and contain
    at least one lowercase letter, if 'sessionoptions' contains "globals".
 3. Closes all windows in the current tabpage, except the current one; closes
@@ -897,7 +875,6 @@ The output of ":mkview" contains these items:
    that are local to the current buffer and the current window are restored.
    When storing the view as part of a session and "options" is in
    'sessionoptions', global values for local options will be stored too.
-   Lua functions are not restored.
 4. Restore folds when using manual folding and 'viewoptions' contains
    "folds".  Restore manually opened and closed folds.
 5. The scroll position and the cursor position in the file.  Doesn't work very
@@ -1137,7 +1114,7 @@ files for different types of files (e.g., C code) and load them based on the
 file name, using the ":autocmd" command (see |:autocmd|).  More information on
 ShaDa file format is contained in |shada-format| section.
 
-                                                 *E136* *shada-error-handling*
+                                          *E136* *E929* *shada-error-handling*
 Some errors make Nvim leave temporary file named `{basename}.tmp.X` (X is
 any free letter from `a` to `z`) while normally it will create this file,
 write to it and then rename `{basename}.tmp.X` to `{basename}`. Such errors
@@ -1148,9 +1125,7 @@ include:
   non-ShaDa files are not overwritten for safety reasons to avoid accidentally
   destroying an unrelated file.  This could happen e.g. when typing "nvim -i
   file" in place of "nvim -R file" (yes, somebody did that at least with Vim).
-  Such errors are listed at |shada-critical-contents-errors|.  If they occur
-  after a valid ShaDa header (e.g. file was truncated by a crash), Nvim keeps
-  the entries before the damage and replaces the file.
+  Such errors are listed at |shada-critical-contents-errors|.
 - If writing to the temporary file failed: e.g. because of the insufficient
   space left.
 - If renaming file failed: e.g. because of insufficient permissions.
@@ -1159,10 +1134,10 @@ include:
   Nvim was launched from root.
 
 Do not forget to remove the temporary file or replace the target file with
-temporary one after getting one of the above errors.  When all names from
-`.tmp.a…z` are taken, Nvim discards the oldest such file and reuses its name.
-If you got one of the errors when using |:wshada| (i.e. not on exit) you have
-additional options:
+temporary one after getting one of the above errors or all attempts to create
+a ShaDa file may fail with |E929|.  If you got one of them when using
+|:wshada| (and not when exiting Nvim: i.e. when you have Nvim session
+running) you have additional options:
 
 - First thing which you should consider if you got any error, except failure
   to write to the temporary file: remove existing file and replace it with the
@@ -1192,10 +1167,10 @@ additional options:
                         internal info is written (also disables safety checks
                         described in |shada-error-handling|).  If 'shada' is
                         empty, marks for up to 100 files will be written.
-                        When you get error "E138: All .tmp.X files exist,
-                        cannot write ShaDa file!", check that old temp files
-                        (e.g. ~/.local/state/nvim/shada/main.shada.tmp*) can
-                        be removed.
+                        When you get error "E929: All .tmp.X files exist,
+                        cannot write ShaDa file!", check that no old temp
+                        files were left behind (e.g.
+                        ~/.local/state/nvim/shada/main.shada.tmp*).
 
                         Note: Executing :wshada will reset all |'quote| marks.
 
@@ -1432,15 +1407,12 @@ CACHE DIRECTORY (DEFAULT) ~
     Unix:         ~/.cache                    ~/.cache/nvim
     Windows:      ~/AppData/Local/Temp        ~/AppData/Local/Temp/nvim-data
 
-LOG DIRECTORY (DEFAULT) ~
-                  *$XDG_STATE_HOME*/.../logs    Nvim: stdpath("log") >
-    Unix:         Not applicable              ~/.local/state/nvim/logs
-    Windows:      Not applicable              ~/AppData/Local/nvim-data/logs
-
 LOG FILE (DEFAULT) ~
                   `$NVIM_LOG_FILE`              Nvim: stdpath("log")/nvim.log >
-    Unix:         ~/.local/state/nvim         ~/.local/state/nvim/logs/nvim.log
-    Windows:      ~/AppData/Local/nvim-data   ~/AppData/Local/nvim-data/logs/nvim.log
+    Unix:         ~/.local/state/nvim         ~/.local/state/nvim/nvim.log
+    Windows:      ~/AppData/Local/nvim-data   ~/AppData/Local/nvim-data/nvim.log
+
+Note that stdpath("log") is currently an alias for stdpath("state").
 
 ADDITIONAL CONFIGS DIRECTORY (DEFAULT) ~
                   *$XDG_CONFIG_DIRS*            Nvim: stdpath("config_dirs") >
@@ -1476,14 +1448,10 @@ To run Nvim without creating any directories or data files: >
 
 LOG FILE                                        *log* *$NVIM_LOG_FILE* *E5430*
 Besides 'debug' and 'verbose', Nvim keeps a general log file for internal
-debugging, plugins and RPC clients. The log file can be viewed with: >
-        :log nvim
-
-Default location is stdpath("log")/nvim.log ($XDG_STATE_HOME/nvim/logs/nvim.log)
-unless that path is inaccessible or $NVIM_LOG_FILE was set before |startup|.
-
-See |log-files| for details about other log files that can be created by Nvim
-during runtime or by plugins.
+debugging, plugins and RPC clients. >
+        :echo $NVIM_LOG_FILE
+Default location is stdpath("log")/log ($XDG_STATE_HOME/nvim/nvim.log) unless
+that path is inaccessible or $NVIM_LOG_FILE was set before |startup|.
 
 
  vim:et:tw=78:ts=8:sw=4:ft=help:norl:

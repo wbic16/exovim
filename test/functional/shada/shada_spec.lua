@@ -2,7 +2,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local t_shada = require('test.functional.shada.testutil')
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local uv = vim.uv
 local paths = t.paths
 local pcall_err = t.pcall_err
@@ -11,7 +10,6 @@ local api, nvim_command, fn, eq = n.api, n.command, n.fn, t.eq
 local write_file, set_session = t.write_file, n.set_session
 local is_os = t.is_os
 local skip = t.skip
-local feed = n.feed
 
 local reset, clear, get_shada_rw = t_shada.reset, t_shada.clear, t_shada.get_shada_rw
 local read_shada_file = t_shada.read_shada_file
@@ -122,18 +120,17 @@ describe('ShaDa support code', function()
     end
   )
 
-  it('reuses the oldest of .tmp.a … .tmp.z ShaDa files', function()
+  it('errors out when there are .tmp.a … .tmp.z ShaDa files', function()
     wshada('')
     local i = ('a'):byte()
     while i <= ('z'):byte() do
       write_file(shada_fname .. ('.tmp.%c'):format(i), '', true)
       i = i + 1
     end
-    uv.fs_utime(shada_fname .. '.tmp.m', 1, 1)
-    n.command('wshada ' .. shada_fname)
-    eq(1, read_shada_file(shada_fname)[1].type)
-    eq(nil, uv.fs_stat(shada_fname .. '.tmp.m'))
-    eq(25, #fn.glob(shada_fname .. '.tmp.*', false, true))
+    eq(
+      'Vim(wshada):E138: All Xtest-functional-shada-shada.shada.tmp.X files exist, cannot write ShaDa file!',
+      t.pcall_err(n.command, 'wshada ' .. shada_fname)
+    )
   end)
 
   it('reads correctly various timestamps', function()
@@ -303,40 +300,6 @@ describe('ShaDa support code', function()
       t.pcall_err(n.command, 'wshada')
     )
     api.nvim_set_option_value('shada', '', {})
-  end)
-
-  it('deduplicates items on case-insensitive systems', function()
-    local file = ('%s/nonexistent/héllo'):format(dirname)
-    nvim_command(('edit %s'):format(file))
-    file = api.nvim_buf_get_name(0)
-
-    local file_upper = fn.toupper(file)
-    if t.is_os('win') then
-      file_upper = file_upper:sub(3) -- drop drive letter
-    end
-
-    nvim_command(('edit %s'):format(file_upper))
-    feed('i1<Esc>')
-    nvim_command(('wshada! %s'):format(dirshada))
-    nvim_command('bw!')
-
-    -- path_cmp() ignores a single trailing slash
-    local file_slash = ('%s/'):format(file)
-    nvim_command(('edit %s'):format(file_slash))
-    feed('i123<Esc>')
-    nvim_command('mark a')
-    nvim_command(('wshada %s'):format(dirshada))
-    nvim_command('bw!')
-    nvim_command(('rshada! %s'):format(dirshada))
-    local oldfiles = api.nvim_get_vvar('oldfiles')
-    -- Both filenames appear in shada file, but iteration order is unspecified.
-    if t.is_os('win') or t.is_os('mac') then
-      eq(1, #oldfiles)
-      t.ok(oldfiles[1] == file or oldfiles[1] == file_slash)
-    else
-      eq(2, #oldfiles)
-      t.ok(oldfiles[1] == file or oldfiles[1] == file_upper)
-    end
   end)
 end)
 

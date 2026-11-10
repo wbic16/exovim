@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local clear = n.clear
 local eq = t.eq
 local environ = n.fn.environ
@@ -12,56 +11,17 @@ local command = n.command
 local eval = n.eval
 local setenv = n.fn.setenv
 
-describe('vim.fn.environ()', function()
-  it("$VAR reads (multibyte) envvar, irrespective of 'isident'", function()
-    -- Decoy envvar "\195" (the first byte of "é"): $é must not read it. (Windows can't set it.)
-    clear({ env = { ['é'] = 'x', ['aあ'] = 'y', ['\195'] = not t.is_os('win') and 'bad' or nil } })
-    command('set isident=') -- Does not matter.
-    eq('x', eval('$é'))
-    eq('y', eval('$aあ'))
-    command("cgetexpr ['$é/$aあ-z:1:text']") -- Quickfix expands $VAR in filenames.
-    eq('x/y-z', n.fn.bufname(n.fn.getqflist()[1].bufnr))
+describe('environment variables', function()
+  it('environ() handles empty env variable', function()
+    clear({ env = { EMPTY_VAR = '' } })
+    eq('', environ()['EMPTY_VAR'])
+    eq(nil, environ()['DOES_NOT_EXIST'])
   end)
 
   it('exists() handles empty env variable', function()
     clear({ env = { EMPTY_VAR = '' } })
     eq(1, exists('$EMPTY_VAR'))
     eq(0, exists('$DOES_NOT_EXIST'))
-  end)
-
-  it('handles empty env variable', function()
-    clear({ env = { EMPTY_VAR = '' } })
-    eq('', environ()['EMPTY_VAR'])
-    -- vim.env returns nil if the value is empty string. 🤷
-    eq(vim.NIL, n.exec_lua('return vim.env.EMPTY_VAR'))
-    eq(nil, environ()['DOES_NOT_EXIST'])
-    eq(vim.NIL, n.exec_lua('return vim.env.DOES_NOT_EXIST'))
-  end)
-
-  it('forces uppercase keys on Windows #39443', function()
-    if not t.is_os('win') then
-      return
-    end
-    clear({ env = { mixed_Case_Var = 'val' } })
-    eq('val', environ()['MIXED_CASE_VAR'])
-    eq(nil, environ()['mixed_Case_Var'])
-  end)
-
-  it('results match getenv()', function()
-    clear()
-    eq(
-      true,
-      n.exec_lua([[
-        local env = vim.fn.environ()
-        assert(vim.tbl_count(env) > 10, 'environ() should have some env vars!')
-        for k, v in pairs(env) do
-          if v ~= '' and vim.fn.getenv(k) ~= v and vim.fn.getenv(k) ~= v:gsub('\\', '/') then
-            error(('environ()[%q] = %q, but vim.fn.getenv(%q) = %q'):format(k, v, k, vim.fn.getenv(k)))
-          end
-        end
-        return true
-      ]])
-    )
   end)
 end)
 

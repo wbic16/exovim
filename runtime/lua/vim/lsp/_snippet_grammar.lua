@@ -89,11 +89,12 @@ M.NodeType = Type
 --- @class vim.snippet.FormatData: { capture: number, modifier?: string, if_text?: string, else_text?: string }
 --- @class vim.snippet.SnippetData: { children: vim.snippet.Node<any>[] }
 
+--- @type vim.snippet.Node<any>
 local Node = {}
 
---- @param self vim.snippet.Node<any>
 --- @return string
-function Node.__tostring(self)
+--- @diagnostic disable-next-line: inject-field
+function Node:__tostring()
   local node_text = {}
   local type, data = self.type, self.data
   if type == Type.Snippet then
@@ -173,7 +174,7 @@ local G = P({
 --- @param input string
 --- @return vim.snippet.Node<vim.snippet.SnippetData>
 function M.parse(input)
-  return (assert(G:match(input), 'snippet parsing failed'))
+  return assert(G:match(input), 'snippet parsing failed')
 end
 
 return M

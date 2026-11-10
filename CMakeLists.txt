@@ -44,9 +44,7 @@ endif()
 # User settings
 #-------------------------------------------------------------------------------
 
-if(NOT DEPS_IGNORE_SHA)
-  set(DEPS_IGNORE_SHA FALSE)
-endif()
+set(DEPS_IGNORE_SHA FALSE)
 
 #-------------------------------------------------------------------------------
 # Variables
@@ -148,14 +146,14 @@ endif()
 # If not in a git repo (e.g., a tarball) these tokens define the complete
 # version string, else they are combined with the result of `git describe`.
 set(NVIM_VERSION_MAJOR 0)
-set(NVIM_VERSION_MINOR 13)
-set(NVIM_VERSION_PATCH 0)
-set(NVIM_VERSION_PRERELEASE "-dev") # for package maintainers
+set(NVIM_VERSION_MINOR 12)
+set(NVIM_VERSION_PATCH 6)
+set(NVIM_VERSION_PRERELEASE "-exovim.1") # for package maintainers
 
 # API level
-set(NVIM_API_LEVEL 15)        # Bump this after any API/stdlib change.
+set(NVIM_API_LEVEL 14)        # Bump this after any API/stdlib change.
 set(NVIM_API_LEVEL_COMPAT 0)  # Adjust this after a _breaking_ API change.
-set(NVIM_API_PRERELEASE true)
+set(NVIM_API_PRERELEASE false)
 
 # We _want_ assertions in RelWithDebInfo build-type.
 if(CMAKE_C_FLAGS_RELWITHDEBINFO MATCHES DNDEBUG)
@@ -248,7 +246,7 @@ add_glob_target(
   TARGET lintsh
   COMMAND ${SHELLCHECK_PRG}
   FLAGS -x -a
-  GLOB_DIRS scripts runtime/scripts
+  GLOB_DIRS scripts
   GLOB_PAT *.sh
   TOUCH_STRATEGY PER_DIR)
 
@@ -331,34 +329,21 @@ ExternalProject_Add(uncrustify
   EXCLUDE_FROM_ALL TRUE
   ${EXTERNALPROJECT_OPTIONS})
 
-if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm|aarch|ARM")
-  set(EMMYLUA_ARCH arm64)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch")
+  set(LUALS_ARCH arm64)
 else()
-  set(EMMYLUA_ARCH x64)
+  set(LUALS_ARCH x64)
 endif()
 
-string(TOLOWER ${CMAKE_HOST_SYSTEM_NAME} EMMYLUA_SYSTEM)
-set(EMMYLUA_ARCHIVE_EXT tar.gz)
-set(EMMYLUA_EXE_EXT "")
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-  if(EMMYLUA_ARCH STREQUAL "arm64")
-    set(EMMYLUA_ARCH aarch64)
-  endif()
-  string(APPEND EMMYLUA_ARCH "-glibc.2.17")
-elseif(CMAKE_HOST_WIN32)
-  set(EMMYLUA_SYSTEM win32)
-  set(EMMYLUA_ARCHIVE_EXT zip)
-  set(EMMYLUA_EXE_EXT .exe)
-endif()
+set(LUALS_VERSION 3.15.0)
+set(LUALS "lua-language-server-${LUALS_VERSION}-${CMAKE_SYSTEM_NAME}-${LUALS_ARCH}")
+set(LUALS_TARBALL ${LUALS}.tar.gz)
+set(LUALS_URL https://github.com/LuaLS/lua-language-server/releases/download/${LUALS_VERSION}/${LUALS_TARBALL})
 
-set(EMMYLUA_VERSION 0.25.1)
-set(EMMYLUA_ARCHIVE "emmylua_check-${EMMYLUA_SYSTEM}-${EMMYLUA_ARCH}.${EMMYLUA_ARCHIVE_EXT}")
-set(EMMYLUA_URL https://github.com/EmmyLuaLs/emmylua-analyzer-rust/releases/download/${EMMYLUA_VERSION}/${EMMYLUA_ARCHIVE})
-
-ExternalProject_Add(download_emmylua
-  URL ${EMMYLUA_URL}
-  DOWNLOAD_DIR ${DEPS_DOWNLOAD_DIR}/emmylua
-  SOURCE_DIR ${DEPS_BIN_DIR}/emmylua
+ExternalProject_Add(download_luals
+  URL ${LUALS_URL}
+  DOWNLOAD_DIR ${DEPS_DOWNLOAD_DIR}/luals
+  SOURCE_DIR ${DEPS_BIN_DIR}/luals
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   INSTALL_COMMAND ""
@@ -366,13 +351,13 @@ ExternalProject_Add(download_emmylua
   DOWNLOAD_NO_PROGRESS TRUE
   CMAKE_CACHE_ARGS ${DEPS_CMAKE_CACHE_ARGS})
 
-add_custom_target(emmylua-check
-  COMMAND ${DEPS_BIN_DIR}/emmylua/emmylua_check${EMMYLUA_EXE_EXT}
-    ${PROJECT_SOURCE_DIR}/runtime
-    --config ${PROJECT_SOURCE_DIR}/.emmyrc.json
-    --warnings-as-errors
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  USES_TERMINAL
-  VERBATIM)
+file(GLOB_RECURSE LUAFILES runtime/*.lua)
+add_target(luals
+  COMMAND ${DEPS_BIN_DIR}/luals/bin/lua-language-server
+    --configpath=${PROJECT_SOURCE_DIR}/.luarc.json
+    --check=${PROJECT_SOURCE_DIR}/runtime
+    --checklevel=Hint
+  DEPENDS ${LUAFILES}
+  CUSTOM_COMMAND_ARGS USES_TERMINAL)
 
-add_dependencies(emmylua-check download_emmylua)
+add_dependencies(luals download_luals)

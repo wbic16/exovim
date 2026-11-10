@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local clear, ok, eval = n.clear, t.ok, n.eval
 
 describe(':grep', function()
@@ -13,8 +12,10 @@ describe(':grep', function()
       return
     end
 
-    n.command('set grepprg=grep')
-    n.feed(':grep N test/functional/fixtures/bigfile.txt<cr>')
+    n.command([[set grepprg=grep\ -r]])
+    -- Change to test directory so that the test does not run too long.
+    n.command('cd test')
+    n.feed(':grep a **/*<cr>')
     n.feed('<cr>') -- Press ENTER
     ok(eval('len(getqflist())') > 9000) -- IT'S OVER 9000!!1
   end)

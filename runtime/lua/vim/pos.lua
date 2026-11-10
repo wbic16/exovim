@@ -8,10 +8,11 @@
 
 local api = vim.api
 local validate = vim.validate
-local util = require('vim.pos._util')
 
---- Represents a buffer position based on [api-indexing] (0-indexed, end-exclusive ranges).
---- Call `vim.pos()` to create a new `vim.Pos` by passing the {buf}, {row}, and {col} of a position.
+--- Represents a well-defined position.
+---
+--- A |vim.Pos| object contains the {row} and {col} coordinates of a position.
+--- To create a new |vim.Pos| object, call `vim.pos()`.
 ---
 --- Example:
 --- ```lua
@@ -100,25 +101,48 @@ function M.new(buf, row, col)
   return self
 end
 
----@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function M.__lt(p1, p2)
-  return util.cmp_pos.lt(p1[1], p1[2], p2[1], p2[2])
+---@param p1 vim.Pos First position to compare.
+---@param p2 vim.Pos Second position to compare.
+---@return integer
+--- 1: a > b
+--- 0: a == b
+--- -1: a < b
+local function cmp_pos(p1, p2)
+  if p1[1] == p2[1] then
+    if p1[2] > p2[2] then
+      return 1
+    elseif p1[2] < p2[2] then
+      return -1
+    else
+      return 0
+    end
+  elseif p1[1] > p2[1] then
+    return 1
+  end
+
+  return -1
 end
 
 ---@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function M.__le(p1, p2)
-  return util.cmp_pos.le(p1[1], p1[2], p2[1], p2[2])
+function M.__lt(...)
+  return cmp_pos(...) == -1
 end
 
 ---@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function M.__eq(p1, p2)
-  return util.cmp_pos.eq(p1[1], p1[2], p2[1], p2[2])
+function M.__le(...)
+  return cmp_pos(...) ~= 1
+end
+
+---@private
+function M.__eq(...)
+  return cmp_pos(...) == 0
+end
+
+--- TODO(ofseed): Make it work for unloaded buffers. Check get_line() in vim.lsp.util.
+---@param buf integer
+---@param row integer
+local function get_line(buf, row)
+  return api.nvim_buf_get_lines(buf, row, row + 1, true)[1]
 end
 
 --- Converts |vim.Pos| to `lsp.Position`.
@@ -132,12 +156,19 @@ end
 --- ```
 ---@param pos vim.Pos
 ---@param position_encoding lsp.PositionEncodingKind
----@return lsp.Position
 function M.to_lsp(pos, position_encoding)
   validate('pos', pos, 'table')
   validate('position_encoding', position_encoding, 'string')
 
-  return util.to_lsp(pos.buf, pos[1], pos[2], position_encoding)
+  local buf, row, col = pos.buf, pos[1], pos[2]
+  -- When on the first character,
+  -- we can ignore the difference between byte and character.
+  if col > 0 then
+    col = vim.str_utfindex(get_line(buf, row), position_encoding, col, false)
+  end
+
+  ---@type lsp.Position
+  return { line = row, character = col }
 end
 
 --- Creates a new |vim.Pos| from `lsp.Position`.
@@ -154,185 +185,84 @@ end
 ---@param buf integer
 ---@param pos lsp.Position
 ---@param position_encoding lsp.PositionEncodingKind
----@return vim.Pos
 function M.lsp(buf, pos, position_encoding)
   validate('buf', buf, 'number')
   validate('pos', pos, 'table')
   validate('position_encoding', position_encoding, 'string')
 
-  local row, col = util.from_lsp(buf, pos, position_encoding)
+  if buf == 0 then
+    buf = api.nvim_get_current_buf()
+  end
+
+  local row, col = pos.line, pos.character
+  -- When on the first character,
+  -- we can ignore the difference between byte and character.
+  if col > 0 then
+    -- `strict_indexing` is disabled, because LSP responses are asynchronous,
+    -- and the buffer content may have changed, causing out-of-bounds errors.
+    col = vim.str_byteindex(get_line(buf, row), position_encoding, col, false)
+  end
+
   return M.new(buf, row, col)
 end
 
 --- Converts |vim.Pos| to cursor position (see |api-indexing|).
----
---- Example:
---- ```lua
---- local pos = vim.pos(0, 3, 5)
----
---- -- Convert to cursor position, you can call it in a method style.
---- local cursor_pos = pos:to_cursor()
---- vim.api.nvim_win_set_cursor(0, cursor_pos)
---- ```
 ---@param pos vim.Pos
----@return [integer, integer] (lnum, col) tuple
+---@return integer, integer
 function M.to_cursor(pos)
-  validate('pos', pos, 'table')
-  return { util.to_mark(pos[1], pos[2]) }
+  return pos[1] + 1, pos[2]
 end
 
 --- Creates a new |vim.Pos| from cursor position (see |api-indexing|).
----
---- If {pos} is omitted, the first argument is treated as {win} instead of {buf},
---- and the current cursor position of {win} is used. If {win} is also omitted,
---- it defaults to the current window.
----
---- Example:
---- ```lua
---- local buf = vim.api.nvim_win_get_buf(0)
---- local cursor_pos = vim.api.nvim_win_get_cursor(0)
---- local pos = vim.pos.cursor(buf, cursor_pos)
---- -- This is equivalent:
---- local pos = vim.pos.cursor(0)
---- ```
 ---@param buf integer
----@param pos [integer, integer] (lnum, col) tuple
----@return vim.Pos
----@overload fun(win?: integer): vim.Pos
+---@param pos [integer, integer]
 function M.cursor(buf, pos)
-  validate('pos', pos, 'table', true)
-
-  if pos then
-    validate('buf', buf, 'number')
-  else
-    local win = buf
-    validate('win', win, 'number', true)
-    if win == 0 or win == nil then
-      win = api.nvim_get_current_win()
-    end
-
-    buf = api.nvim_win_get_buf(win)
-    pos = api.nvim_win_get_cursor(win)
-  end
-
-  return M.new(buf, util.from_mark(pos[1], pos[2]))
-end
-
---- Converts |vim.Pos| to mark position (see |api-indexing|).
----
---- Example:
---- ```lua
---- local pos = vim.pos(0, 3, 5)
----
---- -- Convert to mark position, you can call it in a method style.
---- local lnum, col = pos:to_mark()
---- vim.api.nvim_buf_set_mark(0, 'M', lnum, col)
---- ```
----@param pos vim.Pos
----@return integer lnum, integer col
-function M.to_mark(pos)
-  validate('pos', pos, 'table')
-  return util.to_mark(pos[1], pos[2])
-end
-
---- Creates a new |vim.Pos| from mark position (see |api-indexing|).
----
---- Example:
---- ```lua
---- local mark_info = vim.api.nvim_get_mark('M')
---- local lnum, col, buf, name = unpack(mark_info)
----
---- if lnum == 0 and col == 0 and buf == 0 then
----   return -- mark 'M' is not set.
---- end
----
---- local pos = vim.pos.mark(buf, lnum, col)
---- ```
----@param buf integer
----@param lnum integer
----@param col integer
----@return vim.Pos
-function M.mark(buf, lnum, col)
-  validate('buf', buf, 'number')
-  validate('lnum', lnum, 'number')
-  validate('col', col, 'number')
-
-  return M.new(buf, util.from_mark(lnum, col))
+  return M.new(buf, pos[1] - 1, pos[2])
 end
 
 --- Converts |vim.Pos| to extmark position (see |api-indexing|).
----
---- Example:
---- ```lua
---- local pos = vim.pos(0, 3, 5)
----
---- -- Convert to extmark position, you can call it in a method style.
---- local extmark_pos = pos:to_extmark()
---- ```
 ---@param pos vim.Pos
----@return integer row, integer col
+---@return integer, integer
 function M.to_extmark(pos)
-  validate('pos', pos, 'table')
-  return pos[1], pos[2]
+  local line_count = api.nvim_buf_line_count(pos.buf)
+
+  local row, col = pos[1], pos[2]
+  if col == 0 and row == line_count then
+    row = row - 1
+    col = #get_line(pos.buf, row)
+  end
+
+  return row, col
 end
 
 --- Creates a new |vim.Pos| from extmark position (see |api-indexing|).
----
---- Example:
---- ```lua
---- local pos = vim.pos.extmark(0, 3, 5)
---- ```
 ---@param buf integer
 ---@param row integer
 ---@param col integer
----@return vim.Pos
 function M.extmark(buf, row, col)
-  validate('buf', buf, 'number')
-  validate('row', row, 'number')
-  validate('col', col, 'number')
+  if buf == 0 then
+    buf = api.nvim_get_current_buf()
+  end
 
   return M.new(buf, row, col)
 end
 
---- Converts |vim.Pos| to buffer (bytes) offset.
----
---- Example:
---- ```lua
---- local p1 = vim.pos(0, 3, 5)
---- local p2 = vim.pos(0, 4, 0)
----
---- -- Convert to buffer offset, you can call it in a method style.
---- local offset1 = p1:to_offset()
---- local offset2 = p2:to_offset()
---- -- Can be used to calculate the distance between two locations.
---- local distance = offset2 - offset1
---- ```
+--- Converts |vim.Pos| to buffer offset.
 ---@param pos vim.Pos
 ---@return integer
 function M.to_offset(pos)
-  validate('pos', pos, 'table')
   return api.nvim_buf_get_offset(pos.buf, pos[1]) + pos[2]
 end
 
---- Creates a new |vim.Pos| from buffer (bytes) offset.
----
---- Example:
---- ```lua
---- local offset = vim.api.nvim_buf_get_offset(0, vim.api.nvim_buf_line_count(0))
---- local pos = vim.pos.offset(0, offset)
---- ```
+--- Creates a new |vim.Pos| from buffer offset.
 ---@param buf integer
 ---@param offset integer
 ---@return vim.Pos
 function M.offset(buf, offset)
-  validate('buf', buf, 'number')
-  validate('offset', offset, 'number')
-
   local lnum = vim.list.bisect(
     setmetatable({}, {
-      --- @param idx integer
-      __index = function(_, idx)
-        return api.nvim_buf_get_offset(buf, idx - 1)
+      __index = function(_, lnum)
+        return api.nvim_buf_get_offset(buf, lnum - 1)
       end,
     }),
     offset,
@@ -350,6 +280,6 @@ setmetatable(M, {
     return M.new(...)
   end,
 })
----@cast M vim.Pos & fun(buf: integer, row: integer, col: integer): vim.Pos
+---@cast M +fun(buf: integer, row: integer, col: integer): vim.Pos
 
 return M

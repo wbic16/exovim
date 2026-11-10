@@ -124,8 +124,7 @@ func Test_screenpos()
   setlocal nonumber display=lastline so=0
   exe "normal G\<C-Y>\<C-Y>"
   redraw
-  let winbar_height = get(wininfo, 'winbar', 0)
-  call assert_equal({'row': winrow + winheight(winid) - 1 + winbar_height,
+  call assert_equal({'row': winrow + wininfo.height - 1,
 	\ 'col': wincol + 7,
 	\ 'curscol': wincol + 7,
 	\ 'endcol': wincol + 7}, winid->screenpos(line('$'), 8))

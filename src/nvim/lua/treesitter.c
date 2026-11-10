@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <tree_sitter/api.h>
 #include <uv.h>
 
 #include "nvim/os/time.h"
@@ -41,10 +42,6 @@
 #define TS_META_QUERY "treesitter_query"
 #define TS_META_QUERYCURSOR "treesitter_querycursor"
 #define TS_META_QUERYMATCH "treesitter_querymatch"
-
-#ifdef __EMSCRIPTEN__
-extern const TSLanguage *nvim_ts_get_parser(const char *lang);
-#endif
 
 typedef struct {
   LuaRef cb;
@@ -137,13 +134,6 @@ static int tslua_add_language_from_object(lua_State *L)
 static const TSLanguage *load_language_from_object(lua_State *L, const char *path,
                                                    const char *lang_name, const char *symbol)
 {
-#ifdef __EMSCRIPTEN__
-  const TSLanguage *static_lang = nvim_ts_get_parser(symbol);
-  if (static_lang != NULL) {
-    return static_lang;
-  }
-#endif
-
   uv_lib_t lib;
   if (uv_dlopen(path, &lib)) {
     xstrlcpy(IObuff, uv_dlerror(&lib), sizeof(IObuff));
@@ -524,33 +514,6 @@ static bool on_parser_progress(TSParseState *state)
   return parse_time >= payload->timeout_threshold_ns;
 }
 
-TSTree *nts_parser_parse_buf(TSParser *p, const TSTree *old_tree, int bufnr, uint64_t timeout_ns)
-{
-  buf_T *buf = handle_get_buffer(bufnr);
-
-  if (!buf) {
-    abort();
-  }
-
-  TSInput input = (TSInput){ (void *)buf, input_cb, TSInputEncodingUTF8, NULL };
-
-  if (timeout_ns == 0) {
-    return ts_parser_parse(p, old_tree, input);
-  }
-
-  TSLuaParserCallbackPayload payload = (TSLuaParserCallbackPayload){
-    .parse_start_time = os_hrtime(),
-    .timeout_threshold_ns = timeout_ns
-  };
-
-  TSParseOptions parse_options = {
-    .payload = &payload,
-    .progress_callback = on_parser_progress
-  };
-
-  return ts_parser_parse_with_options(p, old_tree, input, parse_options);
-}
-
 static int parser_parse(lua_State *L)
 {
   TSParser *p = parser_check(L, 1);
@@ -561,30 +524,47 @@ static int parser_parse(lua_State *L)
   }
 
   TSTree *new_tree = NULL;
+  size_t len;
+  const char *str;
+  handle_T bufnr;
+  buf_T *buf;
+  TSInput input;
 
   // This switch is necessary because of the behavior of lua_isstring, that
   // consider numbers as strings...
   switch (lua_type(L, 3)) {
-  case LUA_TSTRING: {
-    size_t len;
-    const char *str = lua_tolstring(L, 3, &len);
+  case LUA_TSTRING:
+    str = lua_tolstring(L, 3, &len);
     new_tree = ts_parser_parse_string(p, old_tree, str, (uint32_t)len);
     break;
-  }
-  case LUA_TNUMBER: {
-    handle_T bufnr = (handle_T)lua_tointeger(L, 3);
-    buf_T *buf = handle_get_buffer(bufnr);
+
+  case LUA_TNUMBER:
+    bufnr = (handle_T)lua_tointeger(L, 3);
+    buf = handle_get_buffer(bufnr);
 
     if (!buf) {
-      char ebuf[IOSIZE] = { 0 };
-      vim_snprintf(ebuf, IOSIZE, "invalid buffer handle: %d", bufnr);
+#define BUFSIZE 256
+      char ebuf[BUFSIZE] = { 0 };
+      vim_snprintf(ebuf, BUFSIZE, "invalid buffer handle: %d", bufnr);
       return luaL_argerror(L, 3, ebuf);
+#undef BUFSIZE
     }
 
-    uint64_t timeout_ns = lua_isnil(L, 5) ? 0 : (uint64_t)lua_tointeger(L, 5);
-    new_tree = nts_parser_parse_buf(p, old_tree, bufnr, timeout_ns);
+    input = (TSInput){ (void *)buf, input_cb, TSInputEncodingUTF8, NULL };
+    if (!lua_isnil(L, 5)) {
+      uint64_t timeout_ns = (uint64_t)lua_tointeger(L, 5);
+      TSLuaParserCallbackPayload payload =
+        (TSLuaParserCallbackPayload){ .parse_start_time = os_hrtime(),
+                                      .timeout_threshold_ns = timeout_ns };
+      TSParseOptions parse_options = { .payload = &payload,
+                                       .progress_callback = on_parser_progress };
+      new_tree = ts_parser_parse_with_options(p, old_tree, input, parse_options);
+    } else {
+      new_tree = ts_parser_parse(p, old_tree, input);
+    }
+
     break;
-  }
+
   default:
     return luaL_argerror(L, 3, "expected either string or buffer handle");
   }
@@ -1588,9 +1568,9 @@ static int tslua_parse_query(lua_State *L)
   TSQuery *query = ts_query_new(lang, src, (uint32_t)len, &error_offset, &error_type);
 
   if (!query) {
-    const CharBuf err = { (char[IOSIZE]){ 0 }, IOSIZE };
-    query_err_string(src, (int)error_offset, error_type, err);
-    return luaL_error(L, "%s", err.data);
+    char err_msg[IOSIZE];
+    query_err_string(src, (int)error_offset, error_type, err_msg, sizeof(err_msg));
+    return luaL_error(L, "%s", err_msg);
   }
 
   TSQuery **ud = lua_newuserdata(L, sizeof(TSQuery *));  // [udata]
@@ -1618,8 +1598,8 @@ static const char *query_err_to_string(TSQueryError error_type)
   }
 }
 
-static void query_err_string(const char *src, int error_offset, TSQueryError error_type,
-                             CharBuf err)
+static void query_err_string(const char *src, int error_offset, TSQueryError error_type, char *err,
+                             size_t errlen)
 {
   int line_start = 0;
   int row = 0;
@@ -1644,10 +1624,10 @@ static void query_err_string(const char *src, int error_offset, TSQueryError err
   int column = error_offset - line_start;
 
   const char *type_msg = query_err_to_string(error_type);
-  snprintf(err.data, err.size, "Query error at %d:%d. %s", row + 1, column + 1, type_msg);
-  size_t offset = strlen(err.data);
-  err.size -= offset;
-  err.data += offset;
+  snprintf(err, errlen, "Query error at %d:%d. %s", row + 1, column + 1, type_msg);
+  size_t offset = strlen(err);
+  errlen = errlen - offset;
+  err = err + offset;
 
   // Error types that report names
   if (error_type == TSQueryErrorNodeType
@@ -1674,18 +1654,18 @@ static void query_err_string(const char *src, int error_offset, TSQueryError err
         c = suffix[++suffix_len];
       }
     }
-    snprintf(err.data, err.size, "\"%.*s\":\n", suffix_len, suffix);
-    offset = strlen(err.data);
-    err.size -= offset;
-    err.data += offset;
+    snprintf(err, errlen, "\"%.*s\":\n", suffix_len, suffix);
+    offset = strlen(err);
+    errlen = errlen - offset;
+    err = err + offset;
   }
 
   if (!error_line) {
-    snprintf(err.data, err.size, "Unexpected EOF\n");
+    snprintf(err, errlen, "Unexpected EOF\n");
     return;
   }
 
-  snprintf(err.data, err.size, "%.*s\n%*s^\n", error_line_len, error_line, column, "");
+  snprintf(err, errlen, "%.*s\n%*s^\n", error_line_len, error_line, column, "");
 }
 
 static TSQuery *query_check(lua_State *L, int index)

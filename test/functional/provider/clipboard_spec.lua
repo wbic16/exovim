@@ -4,7 +4,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear, feed, insert = n.clear, n.feed, n.insert
 local expect, eq, eval, source = n.expect, t.eq, n.eval, n.source
 local command = n.command
@@ -204,27 +203,6 @@ describe('clipboard', function()
             \}]])
     eq('custom', eval('provider#clipboard#Executable()'))
     eq('', eval('provider#clipboard#Error()'))
-  end)
-
-  it('pbcopy/pbpaste use UTF-8 if $LANG has no codeset #11432', function()
-    t.skip(not t.is_os('mac'), 'N/A pbcopy provider is only used on macOS')
-    local dir = t.tmpname(false)
-    t.mkdir(dir)
-    t.finally(function()
-      n.rmdir(dir)
-    end)
-    local copied = dir .. '/copied'
-    local script = '#!/bin/sh\nprintf \'%%s\' "$LC_ALL:$LC_CTYPE"%s\n'
-    t.write_file(dir .. '/pbcopy', script:format(' > ' .. copied))
-    t.write_file(dir .. '/pbpaste', script:format(''))
-    vim.uv.fs_chmod(dir .. '/pbcopy', tonumber('755', 8))
-    vim.uv.fs_chmod(dir .. '/pbpaste', tonumber('755', 8))
-
-    clear({ env = { LANG = 'en_GB', LC_ALL = 'C', PATH = dir .. ':' .. os.getenv('PATH') } })
-    command("let g:clipboard = 'pbcopy'")
-    command("call setreg('+', 'x')")
-    eq(':UTF-8', t.read_file(copied))
-    eq(':UTF-8', eval("getreg('+')"))
   end)
 
   it('g:clipboard using Vimscript functions', function()

@@ -197,28 +197,14 @@ func Test_linebreak_reset_restore()
   call StopVimInTerminal(buf)
 endfunc
 
-func Test_visual_block()
+func Test_virtual_block()
   call s:test_windows('setl sbr=+')
   call setline(1, [
 \ "REMOVE: this not",
 \ "REMOVE: aaaaaaaaaaaaa",
 \ ])
-  set showcmd showcmdloc=tabline showtabline=2 tabline=%S
-  if has('gui')
-    set guioptions-=e
-  endif
   exe "norm! 1/^REMOVE:"
-  exe "norm! 0\<C-V>jf "
-  let lines = s:screen_lines([1, 4], winwidth(0))
-  let expect = [
-\ "2x8                 ",
-\ "REMOVE: this not    ",
-\ "REMOVE:             ",
-\ "+aaaaaaaaaaaaa      ",
-\ ]
-  call s:compare_lines(expect, lines)
-  norm! x
-  set showcmd& showcmdloc& showtabline& tabline& guioptions&
+  exe "norm! 0\<C-V>jf x"
   $put
   let lines = s:screen_lines([1, 4], winwidth(0))
   let expect = [
@@ -231,7 +217,7 @@ func Test_visual_block()
   call s:close_windows()
 endfunc
 
-func Test_visual_block_and_vbA()
+func Test_virtual_block_and_vbA()
   call s:test_windows()
   call setline(1, "long line: " . repeat("foobar ", 40) . "TARGET at end")
   exe "norm! $3B\<C-v>eAx\<Esc>"
@@ -252,7 +238,7 @@ func Test_visual_block_and_vbA()
   call s:close_windows()
 endfunc
 
-func Test_visual_char_and_block()
+func Test_virtual_char_and_block()
   call s:test_windows()
   call setline(1, "1111-1111-1111-11-1111-1111-1111")
   exe "norm! 0f-lv3lc2222\<Esc>bgj."
@@ -268,13 +254,11 @@ endfunc
 func Test_undo_after_block_visual()
   call s:test_windows()
   call setline(1, ["aaa", "aaa", "a"])
-  " Nvim: "." re-executes the captured keysequence ("<C-V>2jg~"), not an
-  " equal-size reselect (|visual-repeat|).
   exe "norm! gg\<C-V>2j~e."
   let lines = s:screen_lines([1, 3], winwidth(0))
   let expect = [
-\ "AAA                 ",
-\ "AAA                 ",
+\ "AaA                 ",
+\ "AaA                 ",
 \ "A                   ",
 \ ]
   call s:compare_lines(expect, lines)

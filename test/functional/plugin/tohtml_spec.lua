@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local exec = n.exec
 local exec_lua = n.exec_lua
@@ -405,24 +404,6 @@ describe(':TOhtml', function()
     exec('set foldtext=foldtext()')
     exec('%fo')
     run_tohtml_and_assert(screen)
-  end)
-
-  it('warns about highlighted foldtext from a Lua callback', function()
-    insert('line1\nline2')
-    exec_lua(function()
-      _G.warnings = {}
-      vim.notify = function(msg)
-        table.insert(_G.warnings, msg)
-      end
-      vim.o.foldtext = function()
-        return { { 'folded', 'Comment' } }
-      end
-    end)
-    exec('%fold')
-    exec_lua([[require('tohtml').tohtml(0)]])
-    eq({
-      'TOhtml: foldtext returning a table with highlights is not supported, HTML may be incorrect',
-    }, exec_lua('return _G.warnings'))
   end)
 
   it('statuscol', function()

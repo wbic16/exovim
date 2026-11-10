@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local api = n.api
 local fn = n.fn
 local clear = n.clear
@@ -71,23 +70,6 @@ describe('treesitter incremental-selection', function()
 
     treeselect('extend_prev')
     eq('foo,bar,baz', get_selected())
-
-    -- Operator-pending (|omap-info| textobj) does not clobber '< '>. #40949
-    exec_lua(function()
-      vim.keymap.set('o', 'an', function()
-        vim.treesitter.select('parent', vim.v.count1)
-      end)
-    end)
-    feed('<Esc>0v<Esc>')
-    local vmarks = { fn.getpos("'<"), fn.getpos("'>"), 'v' }
-    feed('fbyan')
-    eq('bar', fn.getreg('"'))
-    eq(vmarks, { fn.getpos("'<"), fn.getpos("'>"), fn.visualmode() }) -- '< '> are unchanged.
-
-    -- selection=exclusive: the cursor char is the start, like "inclusive".
-    api.nvim_set_option_value('selection', 'exclusive', {})
-    feed('f2yan')
-    eq('(1,foo,bar,baz,qux,2)', fn.getreg('"'))
   end)
 
   it('repeat', function()

@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local assert_alive = n.assert_alive
 local clear = n.clear
 local command = n.command
@@ -26,7 +25,7 @@ do
       matches(expected, pcall_err(command, 'ruby puts "foo"'))
       matches(expected, pcall_err(command, 'rubyfile foo'))
     end)
-    pending(string.format('N/A: Missing neovim RubyGem (%s)', reason), function() end)
+    pending(string.format('Missing neovim RubyGem (%s)', reason), function() end)
     return
   end
 end

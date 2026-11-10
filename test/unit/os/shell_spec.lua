@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe, before_each = t.describe, t.before_each
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 local cimported = t.cimport(
   './src/nvim/os/shell.h',
   './src/nvim/option_vars.h',

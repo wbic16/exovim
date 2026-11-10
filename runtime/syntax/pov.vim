@@ -3,7 +3,6 @@
 " Maintainer: David Necas (Yeti) <yeti@physics.muni.cz>
 " Last Change: 2011-04-23
 " 2025 Apr 21 by Vim Project (deprecate render and statistics #17177)
-" 2026 Aug 20 by Vim Project (allow nesting of different comments #21109)
 
 " Setup
 " quit when a syntax file was already loaded
@@ -71,10 +70,10 @@ syn match povConsts "\<[tuvxyz]\>"
 syn match povDotItem "\.\@<=\(blue\|green\|gray\|filter\|red\|transmit\|hf\|t\|u\|v\|x\|y\|z\)\>" display
 
 " Comments
-syn region povBlockComment start="/\*" end="\*/" contains=povTodo,povBlockComment
-syn match povLineComment "//.*" contains=povTodo
+syn region povComment start="/\*" end="\*/" contains=povTodo,povComment
+syn match povComment "//.*" contains=povTodo
 syn match povCommentError "\*/"
-syn sync ccomment povBlockComment
+syn sync ccomment povComment
 syn sync minlines=50
 syn keyword povTodo TODO FIXME XXX NOT contained
 syn cluster povPRIVATE add=povTodo
@@ -106,8 +105,7 @@ syn match povBraceError "}"
 syn match povNumber "\(^\|\W\)\@<=[+-]\=\(\d\+\)\=\.\=\d\+\([eE][+-]\=\d\+\)\="
 
 " Define the default highlighting
-hi def link povBlockComment Comment
-hi def link povLineComment Comment
+hi def link povComment Comment
 hi def link povTodo Todo
 hi def link povNumber Number
 hi def link povString String

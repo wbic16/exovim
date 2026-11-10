@@ -1,9 +1,7 @@
 local M = {}
 local s_err ---@type string?
-local s_host ---@type integer?
+local s_host ---@type string?
 
---- @param host { name: string, orig_name: string }
---- @return integer
 function M.require(host)
   local prog = M.detect()
   local args = { prog }
@@ -17,8 +15,6 @@ function M.require(host)
   return vim.fn['provider#Poll'](args, host.orig_name, '$NVIM_RUBY_LOG_FILE')
 end
 
----@param method string
----@param args any[]
 function M.call(method, args)
   if s_err then
     return
@@ -28,15 +24,12 @@ function M.call(method, args)
     local ok, result = pcall(vim.fn['remote#host#Require'], 'legacy-ruby-provider') ---@type any, any
     if not ok then
       s_err = result
-      vim.api.nvim_echo({ { result, 'WarningMsg' } }, true)
+      vim.api.nvim_echo({ { result, 'WarningMsg' } }, true, {})
       return
     end
-    --- @cast result integer
     s_host = result
   end
 
-  -- Handles host requests in the caller's scope (see eval_call_provider()).
-  ---@diagnostic disable-next-line: deprecated
   return vim.fn.rpcrequest(s_host, 'ruby_' .. method, unpack(args))
 end
 
@@ -60,7 +53,6 @@ function M.detect()
   return prog, err
 end
 
---- @param plugin_path string
 function M.start(plugin_path)
   vim.fn['remote#host#RegisterClone']('legacy-ruby-provider', 'ruby')
   vim.fn['remote#host#RegisterPlugin']('legacy-ruby-provider', plugin_path, {})

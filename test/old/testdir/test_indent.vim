@@ -32,7 +32,7 @@ func Test_preserveindent()
   call assert_equal("\t    \t    l", getline(1))
   set sw& et& pi&
 
-  bw!
+  close!
 endfunc
 
 " Test for indent()
@@ -45,7 +45,7 @@ func Test_indent_func()
   call assert_equal(4, indent(1))
   call setline(1, "    \t    abc")
   call assert_equal(12, indent(1))
-  bw!
+  close!
 endfunc
 
 " Test for reindenting a line using the '=' operator
@@ -59,7 +59,7 @@ func Test_reindent()
   call setline(1, ['foo', 'bar'])
   call feedkeys('ggVG=', 'xt')
   call assert_equal(['foo', 'bar'], getline(1, 2))
-  bw!
+  close!
 endfunc
 
 " Test indent operator creating one undo entry
@@ -106,7 +106,7 @@ func Test_preproc_indent()
   call assert_equal('#define FOO 1', getline(1))
   set cindent&
 
-  bw!
+  close!
 endfunc
 
 func Test_userlabel_indent()
@@ -119,7 +119,7 @@ func Test_userlabel_indent()
   normal GV=
   call assert_equal('läbél:', getline(2))
 
-  bw!
+  close!
 endfunc
 
 " Test that struct members are aligned
@@ -144,7 +144,7 @@ func Test_struct_indent()
   call setline(1, 'return (struct a) {')
   normal gg=G
   call assert_equal(getline(2), getline(3))
-  bw!
+  close!
 endfunc
 
 " Test for 'copyindent'
@@ -159,7 +159,7 @@ func Test_copyindent()
   call feedkeys("ol", 'xt')
   call assert_equal("    \t    l", getline(2))
   set sw& ai& et& ci&
-  bw!
+  close!
 endfunc
 
 " Test for changing multiple lines with lisp indent
@@ -169,7 +169,7 @@ func Test_lisp_indent_change_multiline()
   call setline(1, ['(if a', '  (if b', '    (return 5)))'])
   normal! jc2j(return 4))
   call assert_equal('  (return 4))', getline(2))
-  bw!
+  close!
 endfunc
 
 func Test_lisp_indent()
@@ -182,7 +182,7 @@ func Test_lisp_indent()
   normal! jostr1"
   normal! jostr2"
   call assert_equal(['  ;; comment', '  ;; comment', '  \ abc', '  \ abc', '', '  ;; ret', '  " str1\', '  str1"', '  " st\b', '  str2"'], getline(2, 11))
-  bw!
+  close!
 endfunc
 
 func Test_lisp_indent_quoted()
@@ -202,9 +202,9 @@ func Test_modeline_indent_expr()
   func GetIndent()
     return line('.') * 2
   endfunc
-  call writefile(['# vim: indentexpr=GetIndent()'], 'Xmlfile.txt', 'D')
+  call writefile(['# vim: indentexpr=GetIndent()'], 'Xfile.txt')
   set modelineexpr
-  new Xmlfile.txt
+  new Xfile.txt
   call assert_equal('GetIndent()', &indentexpr)
   exe "normal Oa\nb\n"
   call assert_equal(['  a', '    b'], getline(1, 2))
@@ -212,7 +212,8 @@ func Test_modeline_indent_expr()
   set modelineexpr&
   delfunc GetIndent
   let &modeline = modeline
-  bw!
+  close!
+  call delete('Xfile.txt')
 endfunc
 
 func Test_indent_func_with_gq()
@@ -325,7 +326,7 @@ func Test_indent_overflow_count()
   norm! V2147483647>
   " indents by INT_MAX
   call assert_equal(2147483647, indent(1))
-  bw!
+  close!
 endfunc
 
 func Test_indent_overflow_count2()

@@ -87,19 +87,16 @@ typedef struct {
   int row;
   int col_last;
   int current;
-  int current_hl_eol;  ///< "current" limited to ranges with "hl_eol"
   int eol_col;
 
   int conceal;
   schar_T conceal_char;
   int conceal_attr;
-  int conceal_slot_i;  ///< Slot index of the effective extmark-conceal range, or -1.
 
   TriState spell;
 
   bool running_decor_provider;
   bool itr_valid;
-  bool conceal_only;  ///< Measurement state: omit non-conceal and virtual-position ranges.
 } DecorState;
 
 EXTERN DecorState decor_state INIT( = { 0 });

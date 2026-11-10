@@ -3,9 +3,7 @@
 " Former Maintainer: Jakson Alves de Aquino <jalvesaq@gmail.com>
 " Former Repository: https://github.com/jalvesaq/R-Vim-runtime
 " Last Change: 2023 Dec 24  07:21AM
-"   2024 Feb 19 by Vim project (announce adoption)
-"   2026 Sep 29 by Vim project (fix typo in code block delimiter pattern)
-"   2026 Oct 11 by Vim project (fix code execution via fenced pattern)
+"   2024 Feb 19 by Vim Project (announce adoption)
 "
 "   For highlighting pandoc extensions to markdown like citations and TeX and
 "   many other advanced features like folding of markdown sections, it is
@@ -136,7 +134,7 @@ endif
 " Step_3: Highlight code blocks.
 
 syn region rmdCodeBlock matchgroup=rmdCodeDelim start="^\s*```\s*{.*}$" matchgroup=rmdCodeDelim end="^\s*```\ze\s*$" keepend
-syn region rmdCodeBlock matchgroup=rmdCodeDelim start="^\s*```.\+$" matchgroup=rmdCodeDelim end="^\s*```\ze\s*$" keepend
+syn region rmdCodeBlock matchgroup=rmdCodeDelim start="^\s*```.+$" matchgroup=rmdCodeDelim end="^```$" keepend
 hi link rmdCodeBlock Special
 
 " Now highlight chunks:
@@ -200,10 +198,9 @@ endfunction
 
 function s:CheckRmdFencedLanguages()
   let alines = getline(1, '$')
-  let pat = '^\w\+'
   call filter(alines, "v:val =~ '^```{'")
   call map(alines, "substitute(v:val, '^```{', '', '')")
-  call map(alines, "matchstr(v:val, pat)")
+  call map(alines, "substitute(v:val, '\\W.*', '', '')")
   for tpy in alines
     if len(tpy) == 0
       continue

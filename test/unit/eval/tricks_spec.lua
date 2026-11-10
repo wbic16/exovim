@@ -1,8 +1,7 @@
 local t = require('test.unit.testutil')
 local t_eval = require('test.unit.eval.testutil')
 
-local describe = t.describe
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local cimport = t.cimport
 local eq = t.eq

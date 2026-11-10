@@ -1,12 +1,18 @@
--- Defines all "vimfn" (builtin/"eval"/"Vimscript") functions.
+-- File containing table with all functions.
+--
+-- Keys:
 --
 --- @class vim.EvalFn
 --- @field name? string
---- @field args? integer|integer[] (default: 0) Number of arguments, list with maximum and minimum number of arguments or list with a minimum number of arguments only.
---- @field base? integer For methods: the argument to use as the base argument (1-indexed): base->method(). Defaults to BASE_NONE (function cannot be used as a method).
---- @field func? string (default: "f_{funcname}") C function which implements the vimfn.
---- @field func_float? string Floating-point C function. Sets func="float_op_wrapper".
---- @field func_lua? string Function name in `vim._core.vimfn.*` (e.g. "f_hostname"). Sets func="lua_wrapper".
+--- @field args? integer|integer[] Number of arguments, list with maximum and minimum number of arguments
+---       or list with a minimum number of arguments only. Defaults to zero
+---       arguments.
+--- @field base? integer For methods: the argument to use as the base argument (1-indexed):
+---       base->method()
+---       Defaults to BASE_NONE (function cannot be used as a method).
+--- @field func? string Name of the C function which implements the Vimscript function. Defaults to
+---       `f_{funcname}`.
+--- @field float_func? string
 --- @field fast? boolean Function can run in |api-fast| events. Defaults to false.
 --- @field deprecated? true
 --- @field returns? string|false
@@ -14,13 +20,9 @@
 --- @field generics? string[] Used to write `---@generic` annotations over a function.
 --- @field signature? string
 --- @field desc? string
---- @field params [string, string, string?][] Each entry is `{name, type, desc?}`; `desc` is only present in API-meta entries.
+--- @field params [string, string, string][]
 --- @field notes? string[]
 --- @field see? string[]
----
---- Recommended alternatives if calling from Lua.
---- `false` means there is no useful Lua replacement to suggest.
---- @field see_lua? string[]|false
 --- @field lua? false Do not render type information
 --- @field tags? string[] Extra tags
 --- @field data? string Used by gen_eval.lua
@@ -56,7 +58,6 @@ M.funcs = {
     params = { { 'expr', 'number' } },
     signature = 'abs({expr})',
     returns = 'number',
-    see_lua = { '|math.abs()|' },
   },
   acos = {
     args = 1,
@@ -75,12 +76,11 @@ M.funcs = {
       <	2.094395
 
     ]=],
-    func_float = 'acos',
+    float_func = 'acos',
     name = 'acos',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'acos({expr})',
-    see_lua = { '|math.acos()|' },
   },
   add = {
     args = 2,
@@ -102,7 +102,6 @@ M.funcs = {
     returns = 'any',
     returns_desc = [=[Resulting |List| or |Blob|, or 1 if {object} is not a |List| or a |Blob|.]=],
     signature = 'add({object}, {expr})',
-    see_lua = { '|table.insert()| for lists and `..` for blobs' },
   },
   ['and'] = {
     args = 2,
@@ -119,7 +118,6 @@ M.funcs = {
     params = { { 'expr', 'number' }, { 'expr', 'number' } },
     returns = 'integer',
     signature = 'and({expr}, {expr})',
-    see_lua = { '|bit.band()|' },
   },
   api_info = {
     desc = [=[
@@ -158,7 +156,6 @@ M.funcs = {
     params = { { 'lnum', 'integer|string' }, { 'text', 'string|string[]' } },
     returns = '0|1',
     signature = 'append({lnum}, {text})',
-    see_lua = { '|nvim_buf_set_lines()|' },
   },
   appendbufline = {
     args = 3,
@@ -189,7 +186,6 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'lnum', 'integer' }, { 'text', 'string' } },
     returns = '0|1',
     signature = 'appendbufline({buf}, {lnum}, {text})',
-    see_lua = { '|nvim_buf_set_lines()|' },
   },
   argc = {
     args = { 0, 1 },
@@ -280,12 +276,11 @@ M.funcs = {
       <	-0.523599
 
     ]=],
-    func_float = 'asin',
+    float_func = 'asin',
     name = 'asin',
     params = { { 'expr', 'any' } },
     returns = 'number',
     signature = 'asin({expr})',
-    see_lua = { '|math.asin()|' },
   },
   assert_beeps = {
     args = 1,
@@ -327,7 +322,6 @@ M.funcs = {
     params = { { 'expected', 'any' }, { 'actual', 'any' }, { 'msg', 'any' } },
     returns = '0|1',
     signature = 'assert_equal({expected}, {actual} [, {msg}])',
-    see_lua = { '|assert()| with |vim.deep_equal()|' },
   },
   assert_equalfile = {
     args = { 2, 3 },
@@ -365,7 +359,6 @@ M.funcs = {
     params = { { 'error', 'any' }, { 'msg', 'any' } },
     returns = '0|1',
     signature = 'assert_exception({error} [, {msg}])',
-    see_lua = false,
   },
   assert_fails = {
     args = { 1, 5 },
@@ -415,7 +408,6 @@ M.funcs = {
     },
     returns = '0|1',
     signature = 'assert_fails({cmd} [, {error} [, {msg} [, {lnum} [, {context}]]]])',
-    see_lua = false,
   },
   assert_false = {
     args = { 1, 2 },
@@ -436,7 +428,6 @@ M.funcs = {
     params = { { 'actual', 'any' }, { 'msg', 'any' } },
     returns = '0|1',
     signature = 'assert_false({actual} [, {msg}])',
-    see_lua = { '|assert()|' },
   },
   assert_inrange = {
     args = { 3, 4 },
@@ -458,7 +449,6 @@ M.funcs = {
     },
     returns = '0|1',
     signature = 'assert_inrange({lower}, {upper}, {actual} [, {msg}])',
-    see_lua = { '|assert()|' },
   },
   assert_match = {
     args = { 2, 3 },
@@ -561,7 +551,6 @@ M.funcs = {
     params = { { 'actual', 'any' }, { 'msg', 'string' } },
     returns = '0|1',
     signature = 'assert_true({actual} [, {msg}])',
-    see_lua = { '|assert()|' },
   },
   atan = {
     args = 1,
@@ -578,12 +567,11 @@ M.funcs = {
       <	-1.326405
 
     ]=],
-    func_float = 'atan',
+    float_func = 'atan',
     name = 'atan',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'atan({expr})',
-    see_lua = { '|math.atan()|' },
   },
   atan2 = {
     args = 2,
@@ -605,7 +593,6 @@ M.funcs = {
     params = { { 'expr1', 'number' }, { 'expr2', 'number' } },
     returns = 'number',
     signature = 'atan2({expr1}, {expr2})',
-    see_lua = { '|math.atan2()|' },
   },
   blob2list = {
     args = 1,
@@ -623,7 +610,6 @@ M.funcs = {
     params = { { 'blob', 'any' } },
     returns = 'any[]',
     signature = 'blob2list({blob})',
-    see_lua = false,
   },
   browse = {
     args = 4,
@@ -671,24 +657,23 @@ M.funcs = {
     args = 1,
     base = 1,
     desc = [=[
-      Adds buffer {name} to the |buffer-list| literally: no special
-      chars or expansion are applied (including "~"). Returns the
-      new (or existing matching) buffer number, or 0 on error.
-
-      The buffer is not loaded and 'buflisted' is not set. When
-      {name} is an empty string, a new buffer is always created.
-
-      Example (Lua): >lua
-      	local buf = vim.fn.bufadd(vim.fs.normalize('someName'))
-      	-- Set 'buflisted'; trigger BufReadPre/BufReadPost/FileType.
-      	vim.api.nvim_buf_call(buf, vim.cmd.edit)
-      <
+      Add a buffer to the buffer list with name {name} (must be a
+      String).
+      If a buffer for file {name} already exists, return that buffer
+      number.  Otherwise return the buffer number of the newly
+      created buffer.  When {name} is an empty string then a new
+      buffer is always created.
+      The buffer will not have 'buflisted' set and not be loaded
+      yet.  To add some text to the buffer use this: >vim
+      	let bufnr = bufadd('someName')
+      	call bufload(bufnr)
+      	call setbufline(bufnr, 1, ['some', 'text'])
+      <Returns 0 on error.
     ]=],
     name = 'bufadd',
     params = { { 'name', 'string' } },
     returns = 'integer',
     signature = 'bufadd({name})',
-    see_lua = false,
   },
   bufexists = {
     args = 1,
@@ -720,7 +705,6 @@ M.funcs = {
     params = { { 'buf', 'any' } },
     returns = '0|1',
     signature = 'bufexists({buf})',
-    see_lua = { '|nvim_buf_is_valid()| after resolving {buf} to a bufnr' },
   },
   buffer_exists = {
     args = 1,
@@ -734,7 +718,6 @@ M.funcs = {
     params = VARARGS,
     returns = '0|1',
     signature = 'buffer_exists({buf})',
-    see_lua = { '|nvim_buf_is_valid()| after resolving {buf} to a bufnr' },
   },
   buffer_name = {
     args = { 0, 1 },
@@ -748,7 +731,6 @@ M.funcs = {
     params = VARARGS,
     returns = 'string',
     signature = 'buffer_name([{buf}])',
-    see_lua = { '|nvim_buf_get_name()| after resolving {buf} to a bufnr' },
   },
   buffer_number = {
     args = { 0, 1 },
@@ -762,9 +744,6 @@ M.funcs = {
     params = VARARGS,
     returns = 'integer',
     signature = 'buffer_number([{buf} [, {create}]])',
-    see_lua = {
-      '|nvim_get_current_buf()| when omitted, or |nvim_create_buf()| with |nvim_buf_set_name()| for creating; name lookup, "$", "%", "#", and {create} semantics differ',
-    },
   },
   buflisted = {
     args = 1,
@@ -780,7 +759,6 @@ M.funcs = {
     params = { { 'buf', 'any' } },
     returns = '0|1',
     signature = 'buflisted({buf})',
-    see_lua = { '|vim.bo| or |nvim_get_option_value()| after resolving {buf} to a bufnr' },
   },
   bufload = {
     args = 1,
@@ -815,7 +793,6 @@ M.funcs = {
     params = { { 'buf', 'any' } },
     returns = '0|1',
     signature = 'bufloaded({buf})',
-    see_lua = { '|nvim_buf_is_loaded()| after resolving {buf} to a bufnr' },
   },
   bufname = {
     args = { 0, 1 },
@@ -823,9 +800,7 @@ M.funcs = {
     desc = [=[
       The result is the name of a buffer.  Mostly as it is displayed
       by the `:ls` command, but not using special names such as
-      "[No Name]".  If the buffer represents a directory, the name
-      ends with a path separator, unless it was changed by |:file| or
-      |nvim_buf_set_name()|.
+      "[No Name]".
       If {buf} is omitted the current buffer is used.
       If {buf} is a Number, that buffer number's name is given.
       Number zero is the alternate buffer for the current window.
@@ -857,7 +832,6 @@ M.funcs = {
     params = { { 'buf', 'integer|string' } },
     returns = 'string',
     signature = 'bufname([{buf}])',
-    see_lua = { '|nvim_buf_get_name()| after resolving {buf} to a bufnr' },
   },
   bufnr = {
     args = { 0, 2 },
@@ -885,9 +859,6 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'create', 'any' } },
     returns = 'integer',
     signature = 'bufnr([{buf} [, {create}]])',
-    see_lua = {
-      '|nvim_get_current_buf()| when omitted, or |nvim_create_buf()| with |nvim_buf_set_name()| for creating; name lookup, "$", "%", "#", and {create} semantics differ',
-    },
   },
   bufwinid = {
     args = 1,
@@ -908,9 +879,6 @@ M.funcs = {
     params = { { 'buf', 'any' } },
     returns = 'integer',
     signature = 'bufwinid({buf})',
-    see_lua = {
-      '|nvim_tabpage_list_wins()| with |nvim_win_get_buf()| after resolving {buf}; only the current tabpage is checked and no-match semantics differ',
-    },
   },
   bufwinnr = {
     args = 1,
@@ -931,9 +899,6 @@ M.funcs = {
     params = { { 'buf', 'any' } },
     returns = 'integer',
     signature = 'bufwinnr({buf})',
-    see_lua = {
-      '|nvim_tabpage_list_wins()| with |nvim_win_get_buf()| and |nvim_win_get_number()| after resolving {buf}; only the current tabpage is checked and no-match semantics differ',
-    },
   },
   byte2line = {
     args = 1,
@@ -998,9 +963,6 @@ M.funcs = {
     params = { { 'expr', 'any' }, { 'nr', 'integer' }, { 'utf16', 'any' } },
     returns = 'integer',
     signature = 'byteidx({expr}, {nr} [, {utf16}])',
-    see_lua = {
-      '|vim.str_byteindex()| for string input with `"utf-32"` or `"utf-16"` and `strict_indexing = false`; composing characters and out-of-range semantics differ',
-    },
   },
   byteidxcomp = {
     args = { 2, 3 },
@@ -1022,9 +984,6 @@ M.funcs = {
     params = { { 'expr', 'any' }, { 'nr', 'integer' }, { 'utf16', 'any' } },
     returns = 'integer',
     signature = 'byteidxcomp({expr}, {nr} [, {utf16}])',
-    see_lua = {
-      '|vim.str_byteindex()| with `"utf-32"` or `"utf-16"` and `strict_indexing = false`',
-    },
   },
   call = {
     args = { 2, 3 },
@@ -1044,7 +1003,6 @@ M.funcs = {
     returns = 'any',
     signature = 'call({func}, {arglist} [, {dict}])',
     tags = { 'E699' },
-    see_lua = false,
   },
   ceil = {
     args = 1,
@@ -1064,12 +1022,11 @@ M.funcs = {
       Returns 0.0 if {expr} is not a |Float| or a |Number|.
 
     ]=],
-    func_float = 'ceil',
+    float_func = 'ceil',
     name = 'ceil',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'ceil({expr})',
-    see_lua = { '|math.ceil()|' },
   },
   chanclose = {
     args = { 1, 2 },
@@ -1113,24 +1070,20 @@ M.funcs = {
       See |channel-bytes| for more information.
 
       {data} may be a string, string convertible, |Blob|, or a list.
-
       If {data} is a list, the items will be joined by newlines; any
-      newlines in an item will be sent as NUL; to send a final
-      newline, include a final empty string. |NL-used-for-Nul|
-
-      Example: >vim
+      newlines in an item will be sent as NUL. To send a final
+      newline, include a final empty string. Example: >vim
       	call chansend(id, ["abc", "123\n456", ""])
       <will send "abc<NL>123<NUL>456<NL>".
 
       chansend() writes raw data, not RPC messages.  If the channel
       was created with `"rpc":v:true` then the channel expects RPC
-      messages, use |vim.rpcnotify()| and |vim.rpcrequest()| instead.
+      messages, use |rpcnotify()| and |rpcrequest()| instead.
     ]=],
     name = 'chansend',
     params = { { 'id', 'number' }, { 'data', 'string|string[]' } },
-    returns = 'integer',
+    returns = '0|1',
     signature = 'chansend({id}, {data})',
-    see_lua = { '|nvim_chan_send()| for string (binary) data' },
   },
   char2nr = {
     args = { 1, 2 },
@@ -1156,7 +1109,6 @@ M.funcs = {
     params = { { 'string', 'string' }, { 'utf8', 'any' } },
     returns = '0|1',
     signature = 'char2nr({string} [, {utf8}])',
-    see_lua = { '|string.byte()|: only works with ASCII' },
   },
   charclass = {
     args = 1,
@@ -1195,9 +1147,6 @@ M.funcs = {
     params = { { 'expr', 'string|any[]' }, { 'winid', 'integer' } },
     returns = 'integer',
     signature = 'charcol({expr} [, {winid}])',
-    see_lua = {
-      '|nvim_win_get_cursor()| with |vim.str_utfindex()| for ".", or |nvim_get_current_line()| with |vim.str_utfindex()| for "$"; marks, list input, and window semantics differ',
-    },
   },
   charidx = {
     args = { 2, 4 },
@@ -1236,7 +1185,6 @@ M.funcs = {
       	echo charidx('a😊😊', 4, 0, 1)	" returns 2
       <
     ]=],
-    fast = true,
     name = 'charidx',
     params = {
       { 'string', 'string' },
@@ -1246,30 +1194,30 @@ M.funcs = {
     },
     returns = 'integer',
     signature = 'charidx({string}, {idx} [, {countcc} [, {utf16}]])',
-    see_lua = {
-      '|vim.str_utfindex()| for string input with `"utf-32"` or `"utf-16"` and `strict_indexing = false`; `countcc = false` and out-of-range semantics differ',
-    },
   },
   chdir = {
     args = { 1, 2 },
     base = 1,
     desc = [=[
-      Sets the |current-directory| of the given {scope}:
-          - "buffer"    Changes the buffer-local directory.  |:bcd|
-          - "window"    Changes the window-local directory.  |:lcd|
-          - "tabpage"   Changes the tabpage-local directory.  |:tcd|
-          - "global"    Changes the global directory.  |:cd|
+      Changes the current working directory to {dir}.  The scope of
+      the change is determined as follows:
+      If {scope} is not present, the current working directory is
+      changed to the scope of the current directory:
+          - If the window local directory (|:lcd|) is set, it
+            changes the current working directory for that scope.
+          - Otherwise, if the tabpage local directory (|:tcd|) is
+            set, it changes the current directory for that scope.
+          - Otherwise, changes the global directory for that scope.
 
-      If {scope} is not given it is decided as follows:
-          - If buffer-local directory (|:bcd|) is set, scope is
-            "buffer".
-          - If the window-local directory (|:lcd|) is set, scope is
-            "window".
-          - If the tabpage-local directory (|:tcd|) is set, scope is
-            "tabpage".
-          - Otherwise, scope is "global".
+      If {scope} is present, changes the current working directory
+      for the specified scope:
+          "window"	Changes the window local directory.  |:lcd|
+          "tabpage"	Changes the tabpage local directory.  |:tcd|
+          "global"	Changes the global directory.  |:cd|
 
-      If successful, returns the previous working directory.
+      {dir} must be a String.
+      If successful, returns the previous working directory.  Pass
+      this to another chdir() to restore the directory.
       On failure, returns an empty string.
 
       Example: >vim
@@ -1303,7 +1251,6 @@ M.funcs = {
     params = { { 'lnum', 'integer|string' } },
     returns = 'integer',
     signature = 'cindent({lnum})',
-    see_lua = false,
   },
   clearmatches = {
     args = { 0, 1 },
@@ -1394,9 +1341,6 @@ M.funcs = {
     params = { { 'expr', 'string|any[]' }, { 'winid', 'integer' } },
     returns = 'integer',
     signature = 'col({expr} [, {winid}])',
-    see_lua = {
-      '|nvim_win_get_cursor()| for "." (add 1), or Lua `#` on |nvim_get_current_line()| for "$"; marks, list input, and `virtualedit` differ',
-    },
   },
   complete = {
     args = 2,
@@ -1420,15 +1364,6 @@ M.funcs = {
       The match can be selected with CTRL-N and CTRL-P as usual with
       Insert mode completion.  The popup menu will appear if
       specified, see |ins-completion-menu|.
-      Unlike with other |ins-completion| modes, the CTRL-N and
-      CTRL-P keys can be mapped while this completion is active.
-      For example, to make CTRL-N move the selection without
-      inserting the match: >vim
-
-      inoremap <expr> <C-N> complete_info().mode ==# 'eval'
-      			\ ? '<Down>' : '<C-N>'
-      <
-
       Example: >vim
 
       inoremap <F5> <C-R>=ListMonths()<CR>
@@ -1489,23 +1424,12 @@ M.funcs = {
       Returns a |Dictionary| with information about Insert mode
       completion.  See |ins-completion|.
       The items are:
-         auto		|TRUE| when Vim started this completion by
-      		itself, which is what 'autocomplete' does,
-      		and |FALSE| when a key asked for it, such as
-      		|i_CTRL-X_CTRL-O|.  A |complete-functions|
-      		function can read this to tell the two apart.
-      		Returned only when asked for in {what}.
          completed	Return a dictionary containing the entries of
       		the currently selected index item.
          items	List of all completion candidates.  Each item
       		is a dictionary containing the entries "word",
-      		"abbr", "menu", "kind", "info",
-      		"abbr_hlgroup", "kind_hlgroup" and
-      		"user_data". The highlight group entries hold
-      		the name that the item was added with,
-      		or an empty string.
-      		"equal", "preselect" and "commit_chars" are
-      		included only for items that set them.
+      		"abbr", "menu", "kind", "info" and
+      		"user_data".
       		See |complete-items|.
          matches	Same as "items", but only returns items that
       		are matching current query.  If both "matches"
@@ -1658,7 +1582,6 @@ M.funcs = {
     params = { { 'expr', 'T' } },
     returns = 'T',
     signature = 'copy({expr})',
-    see_lua = { '|vim.deepcopy()|; deeper than Vimscript |copy()|' },
   },
   cos = {
     args = 1,
@@ -1674,12 +1597,11 @@ M.funcs = {
       <	-0.646043
 
     ]=],
-    func_float = 'cos',
+    float_func = 'cos',
     name = 'cos',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'cos({expr})',
-    see_lua = { '|math.cos()|' },
   },
   cosh = {
     args = 1,
@@ -1693,15 +1615,14 @@ M.funcs = {
       	echo cosh(0.5)
       <	1.127626 >vim
       	echo cosh(-0.5)
-      <	1.127626
+      <	-1.127626
 
     ]=],
-    func_float = 'cosh',
+    float_func = 'cosh',
     name = 'cosh',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'cosh({expr})',
-    see_lua = { '|math.cosh()|' },
   },
   count = {
     args = { 2, 4 },
@@ -1731,13 +1652,67 @@ M.funcs = {
     returns = 'integer',
     signature = 'count({comp}, {expr} [, {ic} [, {start}]])',
   },
+  ctxget = {
+    args = { 0, 1 },
+    desc = [=[
+      Returns a |Dictionary| representing the |context| at {index}
+      from the top of the |context-stack| (see |context-dict|).
+      If {index} is not given, it is assumed to be 0 (i.e.: top).
+    ]=],
+    name = 'ctxget',
+    params = { { 'index', 'integer' } },
+    returns = 'table',
+    signature = 'ctxget([{index}])',
+  },
+  ctxpop = {
+    desc = [=[
+      Pops and restores the |context| at the top of the
+      |context-stack|.
+    ]=],
+    name = 'ctxpop',
+    params = {},
+    signature = 'ctxpop()',
+  },
+  ctxpush = {
+    args = { 0, 1 },
+    desc = [=[
+      Pushes the current editor state (|context|) on the
+      |context-stack|.
+      If {types} is given and is a |List| of |String|s, it specifies
+      which |context-types| to include in the pushed context.
+      Otherwise, all context types are included.
+    ]=],
+    name = 'ctxpush',
+    params = { { 'types', 'string[]' } },
+    signature = 'ctxpush([{types}])',
+  },
+  ctxset = {
+    args = { 1, 2 },
+    desc = [=[
+      Sets the |context| at {index} from the top of the
+      |context-stack| to that represented by {context}.
+      {context} is a Dictionary with context data (|context-dict|).
+      If {index} is not given, it is assumed to be 0 (i.e.: top).
+    ]=],
+    name = 'ctxset',
+    params = { { 'context', 'table' }, { 'index', 'integer' } },
+    returns = 'integer',
+    signature = 'ctxset({context} [, {index}])',
+  },
+  ctxsize = {
+    desc = [=[
+      Returns the size of the |context-stack|.
+    ]=],
+    name = 'ctxsize',
+    params = {},
+    signature = 'ctxsize()',
+  },
   cursor = {
     args = { 1, 3 },
     base = 1,
     name = 'cursor',
     params = { { 'lnum', 'integer|string' }, { 'col', 'integer' }, { 'off', 'integer' } },
     signature = 'cursor({lnum}, {col} [, {off}])',
-    see_lua = false, -- see cursor__1
   },
   cursor__1 = {
     args = { 1, 3 },
@@ -1778,9 +1753,6 @@ M.funcs = {
     name = 'cursor',
     params = { { 'list', 'integer[]' } },
     signature = 'cursor({list})',
-    see_lua = {
-      '|nvim_win_set_cursor()| with `{lnum, col - 1}`; `off`, `curswant`, and failure semantics differ',
-    },
   },
   debugbreak = {
     args = { 1, 1 },
@@ -1798,9 +1770,6 @@ M.funcs = {
     name = 'debugbreak',
     params = { { 'pid', 'integer' } },
     signature = 'debugbreak({pid})',
-    see_lua = {
-      '|uv.kill()| with `"sigtrap"` (or `"sigint"` outside MS-Windows); exact semantics differ',
-    },
   },
   deepcopy = {
     args = { 1, 2 },
@@ -1832,12 +1801,13 @@ M.funcs = {
     params = { { 'expr', 'T' }, { 'noref', 'boolean' } },
     returns = 'T',
     signature = 'deepcopy({expr} [, {noref}])',
-    see_lua = { '|vim.deepcopy()|' },
   },
   delete = {
     args = { 1, 2 },
     base = 1,
     desc = [=[
+      Lua: see |vim.fs.rm()|.
+
       Without {flags} or with {flags} empty: Deletes the file by the
       name {fname}.
 
@@ -1861,7 +1831,6 @@ M.funcs = {
     params = { { 'fname', 'string' }, { 'flags', 'string' } },
     returns = 'integer',
     signature = 'delete({fname} [, {flags}])',
-    see_lua = { '|vim.fs.rm()|' },
   },
   deletebufline = {
     args = { 2, 3 },
@@ -1888,7 +1857,6 @@ M.funcs = {
       { 'last', 'integer|string' },
     },
     signature = 'deletebufline({buf}, {first} [, {last}])',
-    see_lua = { '|nvim_buf_set_lines()|' },
   },
   dictwatcheradd = {
     args = 3,
@@ -1935,7 +1903,6 @@ M.funcs = {
     name = 'dictwatcheradd',
     params = { { 'dict', 'table' }, { 'pattern', 'string' }, { 'callback', 'function' } },
     signature = 'dictwatcheradd({dict}, {pattern}, {callback})',
-    see_lua = false,
   },
   dictwatcherdel = {
     args = 3,
@@ -1947,7 +1914,6 @@ M.funcs = {
     name = 'dictwatcherdel',
     params = { { 'dict', 'any' }, { 'pattern', 'string' }, { 'callback', 'function' } },
     signature = 'dictwatcherdel({dict}, {pattern}, {callback})',
-    see_lua = false,
   },
   did_filetype = {
     desc = [=[
@@ -1979,12 +1945,8 @@ M.funcs = {
       display but don't exist in the buffer.
       {lnum} is used like with |getline()|.  Thus "." is the current
       line, "'m" mark m, etc.
+      Returns 0 if the current window is not in diff mode.
 
-      To get the filler lines after the last buffer line, use: >vim
-      	echo diff_filler(line('$')+1)
-      <
-      Returns 0 if the current window is not in diff mode or filler
-      lines have been disabled using 'diffopt'.
     ]=],
     name = 'diff_filler',
     params = { { 'lnum', 'integer|string' } },
@@ -2123,7 +2085,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'integer',
     signature = 'empty({expr})',
-    see_lua = { 'plain Lua emptiness checks, or |vim.tbl_isempty()| for tables' },
   },
   environ = {
     desc = [=[
@@ -2136,11 +2097,9 @@ M.funcs = {
       <
     ]=],
     fast = true,
-    func_lua = 'f_environ',
     name = 'environ',
     params = {},
     signature = 'environ()',
-    see_lua = { '|uv.os_environ()| for the full environment table; |vim.env| for keyed access' },
   },
   escape = {
     args = 2,
@@ -2174,7 +2133,6 @@ M.funcs = {
     name = 'eval',
     params = { { 'string', 'string' } },
     signature = 'eval({string})',
-    see_lua = false,
   },
   eventhandler = {
     desc = [=[
@@ -2270,7 +2228,6 @@ M.funcs = {
     },
     returns = 'string',
     signature = 'execute({command} [, {silent}])',
-    see_lua = { '|nvim_exec()|', '|vim.cmd()|' },
   },
   exepath = {
     args = 1,
@@ -2401,11 +2358,10 @@ M.funcs = {
       <	0.367879
 
     ]=],
-    func_float = 'exp',
+    float_func = 'exp',
     name = 'exp',
     params = { { 'expr', 'number' } },
     signature = 'exp({expr})',
-    see_lua = { '|math.exp()|' },
   },
   expand = {
     args = { 1, 3 },
@@ -2517,7 +2473,7 @@ M.funcs = {
     name = 'expand',
     params = {
       { 'string', 'string' },
-      { 'nosuf', 'boolean?' },
+      { 'nosuf', 'boolean' },
       { 'list', 'true|number|string|table' },
     },
     returns = 'string|string[]',
@@ -2531,10 +2487,6 @@ M.funcs = {
       like with |expand()|, and environment variables, anywhere in
       {string}.  "~user" and "~/path" are only expanded at the
       start.
-      The expansion is done in two steps: the special keywords are
-      evaluated first, then "~" and environment variables are
-      expanded in the result.  Thus `expand('%:~')` keeps the "~",
-      while `expandcmd('%:~')` returns the full path.
 
       The following items are supported in the {options} Dict
       argument:
@@ -2601,9 +2553,6 @@ M.funcs = {
     name = 'extend',
     params = { { 'expr1', 'table' }, { 'expr2', 'table' }, { 'expr3', 'table' } },
     signature = 'extend({expr1}, {expr2} [, {expr3}])',
-    see_lua = {
-      '|vim.list_extend()| for lists, or |vim.tbl_extend()| and |vim.tbl_deep_extend()| for dicts; insertion and keep/force/error behavior differ',
-    },
   },
   extendnew = {
     args = { 2, 3 },
@@ -2616,9 +2565,6 @@ M.funcs = {
     name = 'extendnew',
     params = { { 'expr1', 'table' }, { 'expr2', 'table' }, { 'expr3', 'table' } },
     signature = 'extendnew({expr1}, {expr2} [, {expr3}])',
-    see_lua = {
-      '|vim.list_extend()| on a copy for lists, or |vim.tbl_extend()| and |vim.tbl_deep_extend()| for dicts; insertion and keep/force/error behavior differ',
-    },
   },
   feedkeys = {
     args = { 1, 2 },
@@ -2644,8 +2590,6 @@ M.funcs = {
       wait-for-character without doing anything.
 
       {mode} is a String, which can contain these character flags:
-
-      Flag	Meaning ~
       'm'	Remap keys.  This is default.  If {mode} is absent,
       	keys are remapped.
       'n'	Do not remap keys.
@@ -2675,7 +2619,6 @@ M.funcs = {
     name = 'feedkeys',
     params = { { 'string', 'string' }, { 'mode', 'string' } },
     signature = 'feedkeys({string} [, {mode}])',
-    see_lua = { '|nvim_feedkeys()|' },
   },
   file_readable = {
     args = 1,
@@ -2688,7 +2631,6 @@ M.funcs = {
     name = 'file_readable',
     params = { { 'file', 'string' } },
     signature = 'file_readable({file})',
-    see_lua = { '|uv.fs_access()| with `"R"` and |uv.fs_stat()| to exclude directories' },
   },
   filecopy = {
     args = 2,
@@ -2706,7 +2648,6 @@ M.funcs = {
     params = { { 'from', 'string' }, { 'to', 'string' } },
     returns = '0|1',
     signature = 'filecopy({from}, {to})',
-    see_lua = { '|uv.fs_copyfile()| with `{ excl = true }`; return semantics differ' },
   },
   filereadable = {
     args = 1,
@@ -2734,7 +2675,6 @@ M.funcs = {
     params = { { 'file', 'string' } },
     returns = '0|1',
     signature = 'filereadable({file})',
-    see_lua = { '|uv.fs_access()| with `"R"` and |uv.fs_stat()| to exclude directories' },
   },
   filewritable = {
     args = 1,
@@ -2751,9 +2691,6 @@ M.funcs = {
     params = { { 'file', 'string' } },
     returns = '0|1',
     signature = 'filewritable({file})',
-    see_lua = {
-      '|uv.fs_access()| with `"W"` and |uv.fs_stat()| if you need Vim\'s `2` return for directories',
-    },
   },
   filter = {
     args = 2,
@@ -2788,7 +2725,6 @@ M.funcs = {
       If {expr2} is a |Funcref| it must take two arguments:
       	1. the key or the index of the current item.
       	2. the value of the current item.
-
       The function must return |TRUE| if the item should be kept.
       Example that keeps the odd items of a list: >vim
       	func Odd(idx, val)
@@ -2816,7 +2752,6 @@ M.funcs = {
     name = 'filter',
     params = { { 'expr1', 'string|table' }, { 'expr2', 'string|function' } },
     signature = 'filter({expr1}, {expr2})',
-    see_lua = { '|vim.tbl_filter()| for lists; dicts, strings, and blobs differ' },
   },
   finddir = {
     args = { 1, 3 },
@@ -2844,9 +2779,6 @@ M.funcs = {
     params = { { 'name', 'string' }, { 'path', 'string' }, { 'count', 'integer' } },
     returns = 'string|string[]',
     signature = 'finddir({name} [, {path} [, {count}]])',
-    see_lua = {
-      "|vim.fs.find()| with `type = 'directory'`; `path`, `count`, and return semantics differ",
-    },
   },
   findfile = {
     args = { 1, 3 },
@@ -2864,9 +2796,6 @@ M.funcs = {
     params = { { 'name', 'string' }, { 'path', 'string' }, { 'count', 'integer' } },
     returns = 'string|string[]',
     signature = 'findfile({name} [, {path} [, {count}]])',
-    see_lua = {
-      "|vim.fs.find()|; `path`, `count`, return semantics, and |'suffixesadd'| handling differ",
-    },
   },
   flatten = {
     args = { 1, 2 },
@@ -2895,9 +2824,6 @@ M.funcs = {
     params = { { 'list', 'any[]' }, { 'maxdepth', 'integer' } },
     returns = 'any[]|0',
     signature = 'flatten({list} [, {maxdepth}])',
-    see_lua = {
-      '`vim.iter(list):flatten():totable()` for a new flattened list; in-place updates and `maxdepth` differ',
-    },
   },
   flattennew = {
     args = { 1, 2 },
@@ -2909,9 +2835,6 @@ M.funcs = {
     params = { { 'list', 'any[]' }, { 'maxdepth', 'integer' } },
     returns = 'any[]|0',
     signature = 'flattennew({list} [, {maxdepth}])',
-    see_lua = {
-      '`vim.iter(list):flatten():totable()` for a new flattened list; `maxdepth` differs',
-    },
   },
   float2nr = {
     args = 1,
@@ -2942,7 +2865,6 @@ M.funcs = {
     name = 'float2nr',
     params = { { 'expr', 'number' } },
     signature = 'float2nr({expr})',
-    see_lua = { '|math.modf()| (first return value)' },
   },
   floor = {
     args = 1,
@@ -2961,11 +2883,10 @@ M.funcs = {
       <	4.0
 
     ]=],
-    func_float = 'floor',
+    float_func = 'floor',
     name = 'floor',
     params = { { 'expr', 'number' } },
     signature = 'floor({expr})',
-    see_lua = { '|math.floor()|' },
   },
   fmod = {
     args = 2,
@@ -2990,20 +2911,15 @@ M.funcs = {
     name = 'fmod',
     params = { { 'expr1', 'number' }, { 'expr2', 'number' } },
     signature = 'fmod({expr1}, {expr2})',
-    see_lua = { '|math.fmod()|' },
   },
   fnameescape = {
     args = 1,
     base = 1,
     desc = [=[
-      Escapes {filepath} for use as a command argument.
-
-      (Note: To open a literal filepath programmatically use
-      `bufadd(vim.fs.normalize(…))`, see |open-file|.)
-
-      All characters that have a special meaning, such as `'%'` and
-      `'|'` are escaped with a backslash. For most systems the
-      characters escaped are: >
+      Escape {string} for use as file name command argument.  All
+      characters that have a special meaning, such as `'%'` and `'|'`
+      are escaped with a backslash. For most systems the characters
+      escaped are: >
       	\t\n *?[{`$\\%#'\"|!<
       <For systems where a backslash appears in a filename, it
       depends on the value of 'isfname'. A leading '+' and '>' is
@@ -3019,9 +2935,9 @@ M.funcs = {
     ]=],
     fast = true,
     name = 'fnameescape',
-    params = { { 'filepath', 'string' } },
+    params = { { 'string', 'string' } },
     returns = 'string',
-    signature = 'fnameescape({filepath})',
+    signature = 'fnameescape({string})',
   },
   fnamemodify = {
     args = 2,
@@ -3049,9 +2965,6 @@ M.funcs = {
     params = { { 'fname', 'string' }, { 'mods', 'string' } },
     returns = 'string',
     signature = 'fnamemodify({fname}, {mods})',
-    see_lua = {
-      '|vim.fs.dirname()|, |vim.fs.basename()|, |vim.fs.abspath()|, and |vim.fs.normalize()| for common path modifiers; modifier coverage differs',
-    },
   },
   foldclosed = {
     args = 1,
@@ -3175,7 +3088,6 @@ M.funcs = {
       If {expr2} is a |Funcref| it must take two arguments:
       	1. the key or the index of the current item.
       	2. the value of the current item.
-
       With a lambda you don't get an error if it only accepts one
       argument.
       If the function returns a value, it is ignored.
@@ -3190,7 +3102,6 @@ M.funcs = {
     params = { { 'expr1', 'string|table' }, { 'expr2', 'string|function' } },
     returns = 'string|table',
     signature = 'foreach({expr1}, {expr2})',
-    see_lua = { '|pairs()|', '|ipairs()|' },
   },
   foreground = {
     args = 0,
@@ -3209,16 +3120,9 @@ M.funcs = {
       Returns an empty string if a command doesn't exist or if it's
       ambiguous (for user-defined commands).
 
-      Note: Command validation is not performed.  Results depend on
-      Vim's internal command-specific identification rules.
-      Examples:
-      >vim
-        echo [fullcommand('s')]		|" ['substitute']
-        echo [fullcommand('sub')]		|" ['substitute']
-        echo [fullcommand(': mark word')]	|" ['mark']
-        echo [fullcommand(': markword')]	|" ['']
-        echo [fullcommand('en')]		|" ['endif']
-      <
+      For example `fullcommand('s')`, `fullcommand('sub')`,
+      `fullcommand(':%substitute')` all return "substitute".
+
     ]=],
     name = 'fullcommand',
     params = { { 'name', 'string' } },
@@ -3244,7 +3148,6 @@ M.funcs = {
     name = 'funcref',
     params = { { 'name', 'string' }, { 'arglist', 'any' }, { 'dict', 'any' } },
     signature = 'funcref({name} [, {arglist}] [, {dict}])',
-    see_lua = false,
   },
   ['function'] = {
     args = { 1, 3 },
@@ -3336,7 +3239,6 @@ M.funcs = {
     params = { { 'name', 'string' }, { 'arglist', 'any' }, { 'dict', 'any' } },
     signature = 'function({name} [, {arglist}] [, {dict}])',
     tags = { 'partial', 'E700', 'E923' },
-    see_lua = false,
   },
   garbagecollect = {
     args = { 0, 1 },
@@ -3363,7 +3265,6 @@ M.funcs = {
     name = 'garbagecollect',
     params = { { 'atexit', 'boolean' } },
     signature = 'garbagecollect([{atexit}])',
-    see_lua = false,
   },
   get = {
     args = { 2, 3 },
@@ -3377,7 +3278,6 @@ M.funcs = {
     params = { { 'list', 'any[]' }, { 'idx', 'integer' }, { 'default', 'any' } },
     signature = 'get({list}, {idx} [, {default}])',
     tags = { 'get()-list' },
-    see_lua = false,
   },
   get__1 = {
     args = { 2, 3 },
@@ -3391,7 +3291,6 @@ M.funcs = {
     params = { { 'blob', 'string' }, { 'idx', 'integer' }, { 'default', 'any' } },
     signature = 'get({blob}, {idx} [, {default}])',
     tags = { 'get()-blob' },
-    see_lua = false,
   },
   get__2 = {
     args = { 2, 3 },
@@ -3408,7 +3307,6 @@ M.funcs = {
     params = { { 'dict', 'table<string,any>' }, { 'key', 'string' }, { 'default', 'any' } },
     signature = 'get({dict}, {key} [, {default}])',
     tags = { 'get()-dict' },
-    see_lua = false,
   },
   get__3 = {
     args = { 2, 3 },
@@ -3440,7 +3338,6 @@ M.funcs = {
     returns = 'any',
     signature = 'get({func}, {what})',
     tags = { 'get()-func' },
-    see_lua = false,
   },
   getbufinfo = {
     args = { 0, 1 },
@@ -3462,8 +3359,6 @@ M.funcs = {
       When the argument is a |Dictionary| only the buffers matching
       the specified criteria are returned.  The following keys can
       be specified in {dict}:
-
-      	Key		Description ~
       	buflisted	include only listed buffers.
       	bufloaded	include only loaded buffers.
       	bufmodified	include only modified buffers.
@@ -3562,7 +3457,6 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'lnum', 'integer' }, { 'end', 'integer' } },
     returns = 'string[]',
     signature = 'getbufline({buf}, {lnum} [, {end}])',
-    see_lua = { '|nvim_buf_get_lines()|' },
   },
   getbufoneline = {
     args = 2,
@@ -3575,31 +3469,27 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'lnum', 'integer' } },
     signature = 'getbufoneline({buf}, {lnum})',
     returns = 'string',
-    see_lua = { '|nvim_buf_get_lines()|' },
   },
   getbufvar = {
     args = { 2, 3 },
     base = 1,
     desc = [=[
-      Gets the value of a buffer-local variable or option {varname}
-      in buffer {buf}.
-
-      {varname} is a string:
-      - Name of the variable (without "b:").
-      - If empty, gets a |Dictionary| of all buffer-local variables.
-      - If "&", gets a |Dictionary| of all buffer-local options.
-      - If it starts with "&", gets the value of a buffer-local
-        option.
-
-      {buf} has the same form as in |bufname()|.
-
-      Also works for a global or buffer-local option. But not for
-      a global variable, window-local variable or window-local
-      option.
-
-      When the buffer or variable doesn't exist, {def} or an empty
-      string is returned; there is no error.
-
+      The result is the value of option or local buffer variable
+      {varname} in buffer {buf}.  Note that the name without "b:"
+      must be used.
+      The {varname} argument is a string.
+      When {varname} is empty returns a |Dictionary| with all the
+      buffer-local variables.
+      When {varname} is equal to "&" returns a |Dictionary| with all
+      the buffer-local options.
+      Otherwise, when {varname} starts with "&" returns the value of
+      a buffer-local option.
+      This also works for a global or buffer-local option, but it
+      doesn't work for a global variable, window-local variable or
+      window-local option.
+      For the use of {buf}, see |bufname()| above.
+      When the buffer or variable doesn't exist {def} or an empty
+      string is returned, there is no error message.
       Examples: >vim
       	let bufmodified = getbufvar(1, "&mod")
       	echo "todo myvar = " .. getbufvar("todo", "myvar")
@@ -3608,9 +3498,6 @@ M.funcs = {
     name = 'getbufvar',
     params = { { 'buf', 'integer|string' }, { 'varname', 'string' }, { 'def', 'any' } },
     signature = 'getbufvar({buf}, {varname} [, {def}])',
-    see_lua = {
-      '|nvim_buf_get_var()| or |vim.b| after resolving {buf} to a bufnr; option names use |nvim_get_option_value()| or |vim.bo|',
-    },
   },
   getcellwidths = {
     desc = [=[
@@ -3774,11 +3661,12 @@ M.funcs = {
     args = 1,
     base = 1,
     desc = [=[
-      Same as |getpos()|, except the column-number is
-      character-indexed (UTF-8) instead of byte-indexed.
-
-      If |getpos()| returns |v:maxcol|, then getcharpos() returns
-      the index of the last character.
+      Get the position for String {expr}.  Same as |getpos()| but the
+      column number in the returned List is a character index
+      instead of a byte index.
+      If |getpos()| returns a very large column number, equal to
+      |v:maxcol|, then getcharpos() will return the character index
+      of the last character.
 
       Example:
       With the cursor on '세' in line 5 with text "여보세요": >vim
@@ -3796,7 +3684,6 @@ M.funcs = {
       Return the current character search information as a {dict}
       with the following entries:
 
-          Key		Description ~
           char	character previously used for a character
       		search (|t|, |f|, |T|, or |F|); empty string
       		if no character search has been performed
@@ -4057,9 +3944,9 @@ M.funcs = {
     base = 1,
     desc = [=[
       Get the position of the cursor.  This is like getpos('.'), but
-      includes an extra "curswant" item in the list: >
-          [0, lnum, col, off, curswant]
-      <The "curswant" number is the preferred column when moving the
+      includes an extra "curswant" item in the list:
+          [0, lnum, col, off, curswant] ~
+      The "curswant" number is the preferred column when moving the
       cursor vertically.  After |$| command it will be a very large
       number equal to |v:maxcol|.  Also see |getcursorcharpos()| and
       |getpos()|.
@@ -4085,9 +3972,6 @@ M.funcs = {
     params = { { 'winid', 'integer' } },
     returns = '[integer, integer, integer, integer, integer]',
     signature = 'getcurpos([{winid}])',
-    see_lua = {
-      '|nvim_win_get_cursor()|; return shape, 0-based column, and `curswant`/invalid-window semantics differ',
-    },
   },
   getcursorcharpos = {
     args = { 0, 1 },
@@ -4107,46 +3991,32 @@ M.funcs = {
     signature = 'getcursorcharpos([{winid}])',
   },
   getcwd = {
-    args = { 0, 3 },
+    args = { 0, 2 },
     base = 1,
     desc = [=[
-      Without arguments, returns the effective |current-directory|.
-      With {winnr} (|window-number| or |window-ID|), {tabnr} or
-      {bufnr} the working directory of that scope is returned,
-      ignoring 'autochdir'.
+      With no arguments, returns the name of the effective
+      |current-directory|. With {winnr} or {tabnr} the working
+      directory of that scope is returned, and 'autochdir' is
+      ignored. Tabs and windows are identified by their respective
+      numbers, 0 means current tab or window. Missing tab number
+      implies 0. Thus the following are equivalent: >vim
+      	getcwd(0)
+      	getcwd(0, 0)
+      <If {winnr} is -1 it is ignored, only the tab is resolved.
+      {winnr} is a |window-number| or |window-ID|.
+      If both {winnr} and {tabnr} are -1 the global working
+      directory is returned.
+      Note: When {tabnr} is -1 Vim returns an empty string to
+      signal that it is invalid, whereas Nvim returns either the
+      global working directory if {winnr} is -1 or the working
+      directory of the window indicated by {winnr}.
+      Throw error if the arguments are invalid. |E5000| |E5001| |E5002|
 
-      - If {winnr} is -1: gets the tabpage directory.
-      - If {winnr} and {tabnr} are both -1: gets the global
-        directory.
-        - Note: Vim returns an empty string when {tabnr} is -1.
-      - If {bufnr} is given: gets the buffer-local directory.
-        ({winnr} and {tabnr} must be -1.)
-      - An argument may be -1 only if preceding args are -1. *E5001*
-
-      Tabs, windows and buffers are identified by their respective
-      numbers, 0 means current tab/window/buffer. Missing {tabnr}
-      implies 0 (missing {bufnr} does not; see below). Thus the
-      following are equivalent: >vim
-          getcwd(0)
-          getcwd(0, 0)
-      <
-      Each form reports its own scope or "wider", so e.g. {winnr}
-      never reports a buffer-local directory.  The {bufnr} form
-      falls back to the global directory, because a buffer belongs
-      to no particular window or tabpage.
-
-      Examples: >vim
-            getcwd(-1, -1, 0)  " Get current buffer's directory
-            getcwd(-1, -1, 3)  " Get directory of buffer 3
-            getcwd(-1, -1, -1) " Get global directory
-            getcwd(-1, -1)     " Get global directory
-      <
     ]=],
     name = 'getcwd',
-    params = { { 'winnr', 'integer' }, { 'tabnr', 'integer' }, { 'bufnr', 'integer' } },
+    params = { { 'winnr', 'integer' }, { 'tabnr', 'integer' } },
     returns = 'string',
-    signature = 'getcwd([{winnr} [, {tabnr} [, {bufnr}]]])',
-    tags = { 'E5000', 'E5002', 'E5006', 'E5007' },
+    signature = 'getcwd([{winnr} [, {tabnr}]])',
   },
   getenv = {
     args = 1,
@@ -4161,12 +4031,10 @@ M.funcs = {
       See also |expr-env|.
 
     ]=],
-    fast = true,
     name = 'getenv',
     params = { { 'name', 'string' } },
     returns = 'string',
     signature = 'getenv({name})',
-    see_lua = { '|vim.env|' },
   },
   getfontname = {
     args = { 0, 1 },
@@ -4211,7 +4079,6 @@ M.funcs = {
     params = { { 'fname', 'string' } },
     returns = 'string',
     signature = 'getfperm({fname})',
-    see_lua = { '|uv.fs_stat()|' },
   },
   getfsize = {
     args = 1,
@@ -4229,7 +4096,6 @@ M.funcs = {
     params = { { 'fname', 'string' } },
     returns = 'integer',
     signature = 'getfsize({fname})',
-    see_lua = { '|uv.fs_stat()|' },
   },
   getftime = {
     args = 1,
@@ -4247,7 +4113,6 @@ M.funcs = {
     params = { { 'fname', 'string' } },
     returns = 'integer',
     signature = 'getftime({fname})',
-    see_lua = { '|uv.fs_stat()|' },
   },
   getftype = {
     args = 1,
@@ -4278,7 +4143,6 @@ M.funcs = {
     params = { { 'fname', 'string' } },
     returns = "'file'|'dir'|'link'|'bdev'|'cdev'|'socket'|'fifo'|'other'",
     signature = 'getftype({fname})',
-    see_lua = { '|uv.fs_stat()|' },
   },
   getjumplist = {
     args = { 0, 2 },
@@ -4308,9 +4172,6 @@ M.funcs = {
     params = { { 'winnr', 'integer' }, { 'tabnr', 'integer' } },
     signature = 'getjumplist([{winnr} [, {tabnr}]])',
     returns = 'vim.fn.getjumplist.ret',
-    see_lua = {
-      '|nvim_get_context()| for current jump history; window/tab arguments and return shape differ',
-    },
   },
   getline = {
     args = { 1, 2 },
@@ -4326,17 +4187,6 @@ M.funcs = {
       <When {lnum} is a number smaller than 1 or bigger than the
       number of lines in the buffer, an empty string is returned.
 
-    ]=],
-    name = 'getline',
-    params = { { 'lnum', 'integer|string' } },
-    signature = 'getline({lnum})',
-    returns = 'string',
-    see_lua = { '|nvim_get_current_line()|', '|nvim_buf_get_lines()|' },
-  },
-  getline__1 = {
-    args = { 2 },
-    base = 1,
-    desc = [=[
       When {end} is given the result is a |List| where each item is
       a line from the current buffer in the range {lnum} to {end},
       including line {end}.
@@ -4352,10 +4202,16 @@ M.funcs = {
       |getbufoneline()|
     ]=],
     name = 'getline',
-    params = { { 'lnum', 'integer|string' }, { 'end', 'integer|string' } },
-    signature = 'getline({lnum}, {end})',
-    returns = 'string[]',
-    see_lua = { '|nvim_buf_get_lines()|' },
+    params = { { 'lnum', 'integer|string' }, { 'end', 'nil|false' } },
+    signature = 'getline({lnum} [, {end}])',
+    returns = 'string',
+  },
+  getline__1 = {
+    args = { 2 },
+    base = 1,
+    name = 'getline',
+    params = { { 'lnum', 'integer|string' }, { 'end', 'true|number|string|table' } },
+    returns = 'string|string[]',
   },
   getloclist = {
     args = { 1, 2 },
@@ -4367,15 +4223,7 @@ M.funcs = {
       For a location list window, the displayed location list is
       returned.  For an invalid {nr}, an empty list is returned.
       Otherwise, same as |getqflist()|.
-    ]=],
-    name = 'getloclist',
-    params = { { 'nr', 'integer' } },
-    returns = 'vim.fn.getqflist.ret.item[]',
-    signature = 'getloclist({nr})',
-  },
-  getloclist__1 = {
-    args = { 2 },
-    desc = [=[
+
       If the optional {what} dictionary argument is supplied, then
       returns the items listed in {what} as a dictionary.  Refer to
       |getqflist()| for the supported items in {what}.
@@ -4400,9 +4248,8 @@ M.funcs = {
       <
     ]=],
     name = 'getloclist',
-    params = { { 'nr', 'integer' }, { 'what', 'vim.fn.getloclist.what' } },
-    returns = 'vim.fn.getloclist.ret',
-    signature = 'getloclist({nr}, {what})',
+    params = { { 'nr', 'integer' }, { 'what', 'table' } },
+    signature = 'getloclist({nr} [, {what}])',
   },
   getmarklist = {
     args = { 0, 1 },
@@ -4414,8 +4261,7 @@ M.funcs = {
       If the optional {buf} argument is specified, returns the
       local marks defined in buffer {buf}.  For the use of {buf},
       see |bufname()|.  If {buf} is invalid, an empty list is
-      returned.  For a |prompt-buffer| the result includes the
-      |':| mark.
+      returned.
 
       Each item in the returned List is a |Dict| with the following:
           mark   name of the mark prefixed by "'"
@@ -4519,7 +4365,6 @@ M.funcs = {
     params = {},
     returns = 'integer',
     signature = 'getpid()',
-    see_lua = { '|uv.os_getpid()|' },
   },
   getpos = {
     args = 1,
@@ -4531,7 +4376,7 @@ M.funcs = {
           'x	    Position of mark x (if the mark is not set, 0 is
       	    returned for all values).
           w0	    First line visible in current window (one if the
-      	    display isn't updated, e.g. in |silent-mode|).
+      	    display isn't updated, e.g. in silent Ex mode).
           w$	    Last line visible in current window (this is one
       	    less than "w0" if no lines are visible).
           v	    End of the current Visual selection (unlike |'<|
@@ -4590,9 +4435,6 @@ M.funcs = {
     params = { { 'expr', 'string' } },
     returns = '[integer, integer, integer, integer]',
     signature = 'getpos({expr})',
-    see_lua = {
-      '|nvim_win_get_cursor()| for "." or |nvim_buf_get_mark()| for marks; return shape, `off`, and special-position semantics differ',
-    },
   },
   getqflist = {
     args = { 0, 1 },
@@ -4615,8 +4457,8 @@ M.funcs = {
       	type	type of the error, 'E', '1', etc.
       	valid	|TRUE|: recognized error message
       	user_data
-      		any type.  This entry is present only when
-      		user data was set for this item.
+      		custom data associated with the item, can be
+      		any type.
 
       When there is no error list or it's empty, an empty list is
       returned.  Quickfix list entries with a non-existing buffer
@@ -4631,15 +4473,6 @@ M.funcs = {
       	   echo bufname(d.bufnr) ':' d.lnum '=' d.text
       	endfor
       <
-    ]=],
-    name = 'getqflist',
-    params = {},
-    returns = 'vim.fn.getqflist.ret.item[]',
-    signature = 'getqflist()',
-  },
-  getqflist__1 = {
-    args = { 1 },
-    desc = [=[
       If the optional {what} dictionary argument is supplied, then
       returns only the items listed in {what} as a dictionary.  The
       following string items are supported in {what}:
@@ -4667,11 +4500,6 @@ M.funcs = {
       	qfbufnr number of the buffer displayed in the quickfix
       		window.  Returns 0 if the quickfix buffer is
       		not present.  See |quickfix-buffer|.
-      	quickfixtextfunc
-      		function to get the text to display in the
-      		quickfix window.  Returns an empty string if
-      		this function is not set for the list.  See
-      		|quickfix-window-function|.
       	size	number of entries in the quickfix list
       	title	get the list title |quickfix-title|
       	winid	get the quickfix |window-ID|
@@ -4703,9 +4531,6 @@ M.funcs = {
       		0
       	qfbufnr	number of the buffer displayed in the quickfix
       		window.  If not present, set to 0.
-      	quickfixtextfunc
-      		'quickfixtextfunc' setting of the list.  If
-      		not present, set to "".
       	size	number of entries in the quickfix list.  If
       		not present, set to 0.
       	title	quickfix list title text.  If not present, set
@@ -4719,9 +4544,8 @@ M.funcs = {
       <
     ]=],
     name = 'getqflist',
-    params = { { 'what', 'vim.fn.getqflist.what' } },
-    returns = 'vim.fn.getqflist.ret',
-    signature = 'getqflist({what})',
+    params = { { 'what', 'table' } },
+    signature = 'getqflist([{what}])',
   },
   getreg = {
     args = { 0, 3 },
@@ -4768,11 +4592,9 @@ M.funcs = {
     desc = [=[
       Returns detailed information about register {regname} as a
       Dictionary with the following entries:
-
-      	Key		Description ~
       	regcontents	List of lines contained in register
       			{regname}, like
-      			getreg({regname}, 1, 1), see |getreg()|.
+      			getreg({regname}, 1, 1).
       	regtype		the type of register {regname}, as in
       			|getregtype()|.
       	isunnamed	Boolean flag, v:true if this register
@@ -4872,7 +4694,7 @@ M.funcs = {
       describing the buffer text segments bound by {pos1} and
       {pos2}.
       The segments are a pair of positions for every line: >
-      	[[{startpos}, {endpos}], ...]
+      	[[{start_pos}, {end_pos}], ...]
       <
       The position is a |List| with four numbers:
           [bufnum, lnum, col, off]
@@ -4904,37 +4726,12 @@ M.funcs = {
       			beyond the end of a line, a "col"
       			value of 0 is used for both positions.
       			(default: |FALSE|)
-
-      	bounds		If |TRUE|, return only the outer
-      			bounds of the region as a single
-      			pair: >
-      				[[{startpos}, {endpos}]]
-      <			{startpos} is the start position on
-      			the first line of the region and
-      			{endpos} the end position on its last
-      			line.  The lines in between are not
-      			visited, which is much faster for a
-      			large region.
-      			(default: |FALSE|)
-
-      Using "bounds" with the same {opts} is equivalent to taking
-      the outer positions of the full result: >vim
-      	let full = getregionpos(pos1, pos2, opts)
-      	let bounds = [[full[0][0], full[-1][1]]]
-      <When the full result is empty, e.g. because {pos1} and {pos2}
-      are in different buffers, the result is empty as well.
-      Note that the two positions then come from different lines, so
-      they describe a diagonal of the region and not its shape.  For
-      a blockwise region they are the start of the first line and
-      the end of the last line, not the corners of the block.
-      Likewise, when the first line is empty and "eol" is |FALSE|,
-      {startpos} has a "col" of 0 while {endpos} may not.
     ]=],
     name = 'getregionpos',
     params = {
       { 'pos1', '[integer, integer, integer, integer]' },
       { 'pos2', '[integer, integer, integer, integer]' },
-      { 'opts', '{type?:string, exclusive?:boolean, eol?:boolean, bounds?:boolean}' },
+      { 'opts', '{type?:string, exclusive?:boolean, eol?:boolean}' },
     },
     returns = '[ [integer, integer, integer, integer], [integer, integer, integer, integer] ][]',
     signature = 'getregionpos({pos1}, {pos2} [, {opts}])',
@@ -4968,8 +4765,6 @@ M.funcs = {
 
       The optional Dict argument {opts} supports the following
       optional items:
-
-          Key		Description ~
           name	Script name match pattern.  If specified,
       		and "sid" is not specified, information about
       		scripts with a name that match the pattern
@@ -5011,8 +4806,6 @@ M.funcs = {
       Returns the current stack trace of Vim scripts.
       Stack trace is a |List|, of which each item is a |Dictionary|
       with the following items:
-
-          Key		Description ~
           funcref	The funcref if the stack is at a function,
       		otherwise this item is omitted.
           event	The string of the event description if the
@@ -5025,7 +4818,6 @@ M.funcs = {
     params = {},
     returns = 'table[]',
     signature = 'getstacktrace()',
-    see_lua = { '|debug.traceback()|' },
   },
   gettabinfo = {
     args = { 0, 1 },
@@ -5038,8 +4830,6 @@ M.funcs = {
       page does not exist an empty List is returned.
 
       Each List item is a |Dictionary| with the following entries:
-
-      	Key		Description ~
       	tabnr		|tabpage-number|
       	variables	a reference to the dictionary with
       			tabpage-local variables
@@ -5067,40 +4857,34 @@ M.funcs = {
     name = 'gettabvar',
     params = { { 'tabnr', 'integer' }, { 'varname', 'string' }, { 'def', 'any' } },
     signature = 'gettabvar({tabnr}, {varname} [, {def}])',
-    see_lua = { '|nvim_tabpage_get_var()|', '|vim.t|' },
   },
   gettabwinvar = {
     args = { 3, 4 },
     base = 1,
     desc = [=[
-      Gets the value of window-local variable {varname} in {winnr}
-      (|window-number| or |window-ID|) in |tabpage-number| {tabnr}.
-
-      {varname} is a string:
-      - Name of the variable (without "w:").
-      - If empty, gets a dictionary with all window-local variables.
-      - If "&", gets the values of all window-local options in
-        a |Dictionary|.
-      - If it starts with "&", gets the value of a window-local
-        option.
-
-      To get window-local variables in the current tabpage use
-      |getwinvar()|.
-
+      Get the value of window-local variable {varname} in window
+      {winnr} in tabpage {tabnr}.
+      The {varname} argument is a string.  When {varname} is empty a
+      dictionary with all window-local variables is returned.
+      When {varname} is equal to "&" get the values of all
+      window-local options in a |Dictionary|.
+      Otherwise, when {varname} starts with "&" get the value of a
+      window-local option.
+      Note that {varname} must be the name without "w:".
+      Tabs are numbered starting with one.  For the current tabpage
+      use |getwinvar()|.
+      {winnr} is a |window-number| or |window-ID|.
       When {winnr} is zero the current window is used.
-
-      Also works for a global option, buffer-local option,
-      window-local option, and tab-local option ('cmdheight').
-      But not for a global variable or buffer-local variable.
-
-      When the tab, window or variable doesn't exist, {def} or an
-      empty string is returned; there is no error.
-
+      This also works for a global option, buffer-local option and
+      window-local option, but it doesn't work for a global variable
+      or buffer-local variable.
+      When the tab, window or variable doesn't exist {def} or an
+      empty string is returned, there is no error message.
       Examples: >vim
       	let list_is_on = gettabwinvar(1, 2, '&list')
       	echo "myvar = " .. gettabwinvar(3, 1, 'myvar')
       <
-      To get all window-local variables: >vim
+      To obtain all window-local variables use: >vim
       	gettabwinvar({tabnr}, {winnr}, '&')
       <
     ]=],
@@ -5112,9 +4896,6 @@ M.funcs = {
       { 'def', 'any' },
     },
     signature = 'gettabwinvar({tabnr}, {winnr}, {varname} [, {def}])',
-    see_lua = {
-      '|nvim_win_get_var()| or |vim.w| after resolving {tabnr} and {winnr} to a winid; option names use |nvim_get_option_value()| or |vim.wo|',
-    },
   },
   gettagstack = {
     args = { 0, 1 },
@@ -5126,8 +4907,6 @@ M.funcs = {
       When window {winnr} doesn't exist, an empty Dict is returned.
 
       The returned dictionary contains the following entries:
-
-      	Key		Description ~
       	curidx		Current index in the stack.  When at
       			top of the stack, set to (length + 1).
       			Index of bottom of the stack is 1.
@@ -5138,8 +4917,6 @@ M.funcs = {
 
       Each item in the stack is a dictionary with the following
       entries:
-
-      	Key		Description ~
       	bufnr		buffer number of the current jump
       	from		cursor position before the tag jump.
       			See |getpos()| for the format of the
@@ -5189,8 +4966,6 @@ M.funcs = {
       tabpages is returned.
 
       Each List item is a |Dictionary| with the following entries:
-
-      	Key		Description ~
       	botline		last complete displayed buffer line
       	bufnr		number of buffer in the window
       	height		window height (excluding winbar)
@@ -5287,9 +5062,6 @@ M.funcs = {
     name = 'getwinvar',
     params = { { 'winnr', 'integer' }, { 'varname', 'string' }, { 'def', 'any' } },
     signature = 'getwinvar({winnr}, {varname} [, {def}])',
-    see_lua = {
-      '|nvim_win_get_var()| or |vim.w| after resolving {winnr}; option names use |nvim_get_option_value()| or |vim.wo|',
-    },
   },
   glob = {
     args = { 1, 4 },
@@ -5506,21 +5278,18 @@ M.funcs = {
     params = { { 'dict', 'table' }, { 'key', 'string' } },
     returns = '0|1',
     signature = 'has_key({dict}, {key})',
-    see_lua = { '`dict[key] ~= nil`' },
   },
   haslocaldir = {
-    args = { 0, 3 },
+    args = { 0, 2 },
     base = 1,
     desc = [=[
-      Checks whether the tabpage, window or buffer has set a local
-      working directory.  Returns 1 when the window has set a local
-      path via |:lcd|, or when {winnr} is -1 and the tabpage has set
-      a local path via |:tcd|, or when {winnr} and {tabnr} are -1
-      and {bufnr} has set a local path via |:bcd|, otherwise 0.
+      Checks whether the window or tabpage has set a local working
+      directory.  Returns 1 when the window has set a local path
+      via |:lcd| or when {winnr} is -1 and the tabpage has set a
+      local path via |:tcd|, otherwise 0.
 
-      Tabs, windows and buffers are identified by their respective
-      numbers, 0 means current tab/window/buffer. Missing {winnr}
-      or {tabnr} implies 0 (missing {bufnr} does not; see below).
+      Tabs and windows are identified by their respective numbers,
+      0 means current tab or window. Missing argument implies 0.
       Thus the following are equivalent: >vim
       	echo haslocaldir()
       	echo haslocaldir(0)
@@ -5529,20 +5298,13 @@ M.funcs = {
       With {winnr} and {tabnr} use the window in that tabpage.
       {winnr} is a |window-number| or |window-ID|.
       If {winnr} is -1 it is ignored, only the tab is resolved.
-      If {bufnr} is provided, {winnr} and {tabnr} must be -1 and
-      only the buffer is resolved.  An argument may be -1 only if
-      all preceding arguments are -1.
-      Examples of buffer usage: >vim
-        haslocaldir(-1, -1, 0) " Current buf has a local directory?
-        haslocaldir(-1, -1, 3) " Buf #3 has a local directory?
-      <Throw error if the arguments are invalid.
-      |E5000| |E5001| |E5002| |E5006| |E5007|
+      Throw error if the arguments are invalid. |E5000| |E5001| |E5002|
 
     ]=],
     name = 'haslocaldir',
-    params = { { 'winnr', 'integer' }, { 'tabnr', 'integer' }, { 'bufnr', 'integer' } },
+    params = { { 'winnr', 'integer' }, { 'tabnr', 'integer' } },
     returns = '0|1',
-    signature = 'haslocaldir([{winnr} [, {tabnr} [, {bufnr} ]]])',
+    signature = 'haslocaldir([{winnr} [, {tabnr}]])',
   },
   hasmapto = {
     args = { 1, 3 },
@@ -5593,7 +5355,6 @@ M.funcs = {
     func = 'f_hlID',
     params = { { 'name', 'string' } },
     signature = 'highlightID({name})',
-    see_lua = { '|nvim_get_hl()|' },
   },
   highlight_exists = {
     args = 1,
@@ -5603,9 +5364,8 @@ M.funcs = {
       Obsolete name for |hlexists()|.
     ]=],
     func = 'f_hlexists',
-    params = { { 'name', 'string|number|boolean|nil' } },
+    params = { { 'name', 'string' } },
     signature = 'highlight_exists({name})',
-    see_lua = { '|nvim_get_hl()|' },
   },
   histadd = {
     args = 2,
@@ -5737,7 +5497,6 @@ M.funcs = {
     params = { { 'name', 'string' } },
     returns = 'integer',
     signature = 'hlID({name})',
-    see_lua = { '|nvim_get_hl()|' },
   },
   hlexists = {
     args = 1,
@@ -5750,23 +5509,21 @@ M.funcs = {
 
     ]=],
     name = 'hlexists',
-    params = { { 'name', 'string|number|boolean|nil' } },
+    params = { { 'name', 'string' } },
     returns = '0|1',
     signature = 'hlexists({name})',
-    see_lua = { '|nvim_get_hl()|' },
   },
   hostname = {
     desc = [=[
       Returns the hostname of the machine on which the Nvim server
-      (not the UI client) is currently running.
+      (not the UI client) is currently running.  Names greater than
+      256 characters long are truncated.
     ]=],
     fast = true,
-    func_lua = 'f_hostname',
     name = 'hostname',
     params = {},
     returns = 'string',
     signature = 'hostname()',
-    see_lua = { '|uv.os_gethostname()|' },
   },
   iconv = {
     args = 3,
@@ -5789,7 +5546,6 @@ M.funcs = {
     params = { { 'string', 'string' }, { 'from', 'string' }, { 'to', 'string' } },
     returns = 'string',
     signature = 'iconv({string}, {from}, {to})',
-    see_lua = { '|vim.iconv()|' },
   },
   id = {
     args = 1,
@@ -5802,9 +5558,9 @@ M.funcs = {
       `v:_null_blob` have the same `id()` with different types
       because they are internally represented as NULL pointers.
       `id()` returns a hexadecimal representation of the pointers to
-      the containers (i.e. like `0x994a40`), same as
-      `printf("%p", {expr})`, but it is advised against counting on
-      the exact format of the return value.
+      the containers (i.e. like `0x994a40`), same as `printf("%p",
+      {expr})`, but it is advised against counting on the exact
+      format of the return value.
 
       It is not guaranteed that `id(no_longer_existing_container)`
       will not be equal to some other `id()`: new containers may
@@ -5814,7 +5570,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'string',
     signature = 'id({expr})',
-    see_lua = false,
   },
   indent = {
     args = 1,
@@ -5870,9 +5625,6 @@ M.funcs = {
     params = { { 'object', 'any' }, { 'expr', 'any' }, { 'start', 'integer' }, { 'ic', 'boolean' } },
     returns = 'integer',
     signature = 'index({object}, {expr} [, {start} [, {ic}]])',
-    see_lua = {
-      '|vim.iter()| with |Iter:enumerate()| and |Iter:find()| for lists; result is 1-based, and `start`, `ic`, and Blob semantics differ',
-    },
   },
   indexof = {
     args = { 2, 3 },
@@ -5900,7 +5652,6 @@ M.funcs = {
       If {expr} is a |Funcref| it must take two arguments:
       	1. the key or the index of the current item.
       	2. the value of the current item.
-
       The function must return |TRUE| if the item is found and the
       search should stop.
 
@@ -5922,9 +5673,6 @@ M.funcs = {
     params = { { 'object', 'any' }, { 'expr', 'any' }, { 'opts', 'table' } },
     returns = 'integer',
     signature = 'indexof({object}, {expr} [, {opts}])',
-    see_lua = {
-      '|vim.iter()| with |Iter:enumerate()| and |Iter:find()| for list predicates; result is 1-based, and `startidx` and Blob semantics differ',
-    },
   },
   input = {
     args = { 1, 3 },
@@ -5934,7 +5682,6 @@ M.funcs = {
     params = { { 'prompt', 'string' }, { 'text', 'string' }, { 'completion', 'string' } },
     returns = 'string',
     signature = 'input({prompt} [, {text} [, {completion}]])',
-    see_lua = { '|vim.ui.input()| for callback-based input' },
   },
   input__1 = {
     args = { 1, 3 },
@@ -6055,7 +5802,6 @@ M.funcs = {
     params = { { 'opts', 'table' } },
     returns = 'string',
     signature = 'input({opts})',
-    see_lua = { '|vim.ui.input()| for callback-based input' },
   },
   inputdialog = {
     args = { 1, 3 },
@@ -6066,7 +5812,6 @@ M.funcs = {
     ]=],
     params = VARARGS,
     signature = 'input(...)',
-    see_lua = { '|vim.ui.input()| for callback-based input' },
   },
   inputlist = {
     args = 1,
@@ -6092,9 +5837,6 @@ M.funcs = {
     name = 'inputlist',
     params = { { 'textlist', 'string[]' } },
     signature = 'inputlist({textlist})',
-    see_lua = {
-      '|vim.ui.select()| for simple selection menus; callback, returned item, and out-of-range semantics differ',
-    },
   },
   inputrestore = {
     desc = [=[
@@ -6167,7 +5909,6 @@ M.funcs = {
     name = 'insert',
     params = { { 'object', 'any' }, { 'item', 'any' }, { 'idx', 'integer' } },
     signature = 'insert({object}, {item} [, {idx}])',
-    see_lua = { '|table.insert()| for lists; blob insertion and negative indexes differ' },
   },
   interrupt = {
     args = 0,
@@ -6188,7 +5929,6 @@ M.funcs = {
     name = 'interrupt',
     params = {},
     signature = 'interrupt()',
-    see_lua = false,
   },
   invert = {
     args = 1,
@@ -6203,7 +5943,6 @@ M.funcs = {
     params = { { 'expr', 'integer' } },
     returns = 'integer',
     signature = 'invert({expr})',
-    see_lua = { '|bit.bnot()|' },
   },
   isabsolutepath = {
     args = 1,
@@ -6244,7 +5983,6 @@ M.funcs = {
     params = { { 'directory', 'string' } },
     returns = '0|1',
     signature = 'isdirectory({directory})',
-    see_lua = { '|uv.fs_stat()| and check `type == "directory"`' },
   },
   isinf = {
     args = 1,
@@ -6262,7 +6000,6 @@ M.funcs = {
     params = { { 'expr', 'number' } },
     returns = '1|0|-1',
     signature = 'isinf({expr})',
-    see_lua = { '`expr == math.huge and 1 or expr == -math.huge and -1 or 0`' },
   },
   islocked = {
     args = 1,
@@ -6287,7 +6024,6 @@ M.funcs = {
     returns = '0|1',
     signature = 'islocked({expr})',
     tags = { 'E786' },
-    see_lua = false,
   },
   isnan = {
     args = 1,
@@ -6302,7 +6038,6 @@ M.funcs = {
     params = { { 'expr', 'number' } },
     returns = '0|1',
     signature = 'isnan({expr})',
-    see_lua = { '`expr ~= expr`' },
   },
   items = {
     args = 1,
@@ -6330,7 +6065,6 @@ M.funcs = {
     name = 'items',
     params = { { 'expr', 'table|string' } },
     signature = 'items({expr})',
-    see_lua = { '|pairs()|', '|ipairs()|' },
   },
   jobclose = {
     args = { 1, 2 },
@@ -6351,7 +6085,6 @@ M.funcs = {
     params = { { 'job', 'integer' } },
     returns = 'integer',
     signature = 'jobpid({job})',
-    see_lua = { '|vim.system()| object `.pid`; |job-id| and channel semantics differ' },
   },
   jobresize = {
     args = 3,
@@ -6373,11 +6106,12 @@ M.funcs = {
     func = 'f_chansend',
     params = VARARGS,
     signature = 'jobsend({id}, {data})',
-    see_lua = { '|nvim_chan_send()| for string data; list input and the return value differ' },
   },
   jobstart = {
     args = { 1, 2 },
     desc = [=[
+      Lua: Prefer |vim.system()| (unless using `rpc`, `pty`, or `term`).
+
       Spawns {cmd} as a job.
       If {cmd} is a List it runs directly (no 'shell').
       If {cmd} is a String it runs in the 'shell', like this: >vim
@@ -6393,8 +6127,8 @@ M.funcs = {
       Returns |job-id| on success, 0 on invalid arguments (or job
       table is full), -1 if {cmd}[0] or 'shell' is not executable.
       The returned job-id is a valid |channel-id| representing the
-      job's stdio streams. Use |chansend()| (or |vim.rpcnotify()| and
-      |vim.rpcrequest()| if "rpc" was enabled) to send data to stdin and
+      job's stdio streams. Use |chansend()| (or |rpcnotify()| and
+      |rpcrequest()| if "rpc" was enabled) to send data to stdin and
       |chanclose()| to close the streams without stopping the job.
 
       See |job-control| and |RPC|.
@@ -6442,11 +6176,7 @@ M.funcs = {
         pty:	      (boolean) Connect the job to a new pseudo
       	      terminal, and its streams to the master file
       	      descriptor. `on_stdout` receives all output,
-      	      `on_stderr` is ignored. Note: if the child writes
-      	      a query (DA1, OSC, …), it may hang or timeout waiting
-      	      for a response! To avoid that, `on_stdout` should
-      	      reply via |nvim_chan_send()| on the child's stdin.
-      	      See |terminal-start| |terminal-concepts|
+      	      `on_stderr` is ignored. |terminal-start|
         rpc:	      (boolean) Use |msgpack-rpc| to communicate with
       	      the job over stdio. Then `on_stdout` is ignored,
       	      but `on_stderr` can still be used.
@@ -6457,12 +6187,11 @@ M.funcs = {
         stdin:      (string) Either "pipe" (default) to connect the
       	      job's stdin to a channel or "null" to disconnect
       	      stdin.
-        term:       (boolean) Spawns {cmd} in a new pseudo-terminal
-      	      session connected to the current (unmodified) buffer.
-      	      Implies "pty". Defaults "height" and "width" to the
-      	      current window dimensions. Defaults $TERM to
-      	      "xterm-256color".
-        width:      (number) Width of the `pty` pseudo-terminal.
+        term:	    (boolean) Spawns {cmd} in a new pseudo-terminal session
+                connected to the current (unmodified) buffer. Implies "pty".
+                Default "height" and "width" are set to the current window
+                dimensions. |jobstart()|. Defaults $TERM to "xterm-256color".
+        width:      (number) Width of the `pty` terminal.
 
       {opts} is passed as |self| dictionary to the callback; the
       caller may set other keys to pass application-specific data.
@@ -6477,9 +6206,6 @@ M.funcs = {
     params = { { 'cmd', 'string|string[]' }, { 'opts', 'table' } },
     returns = 'integer',
     signature = 'jobstart({cmd} [, {opts}])',
-    see_lua = {
-      '|vim.system()| for simple processes; |RPC|, PTY/term, streaming callbacks, and shell-string behavior differ',
-    },
   },
   jobstop = {
     args = 1,
@@ -6497,7 +6223,6 @@ M.funcs = {
     params = { { 'id', 'integer' } },
     returns = 'integer',
     signature = 'jobstop({id})',
-    see_lua = { '|SystemObj:kill()| on a |vim.system()| object; |job-id| semantics differ' },
   },
   jobwait = {
     args = { 1, 2 },
@@ -6526,9 +6251,6 @@ M.funcs = {
     params = { { 'jobs', 'integer[]' }, { 'timeout', 'integer' } },
     returns = 'integer[]',
     signature = 'jobwait({jobs} [, {timeout}])',
-    see_lua = {
-      '|SystemObj:wait()| on a |vim.system()| object; list input and status values differ',
-    },
   },
   join = {
     args = { 1, 2 },
@@ -6549,7 +6271,6 @@ M.funcs = {
     params = { { 'list', 'any[]' }, { 'sep', 'string' } },
     returns = 'string',
     signature = 'join({list} [, {sep}])',
-    see_lua = { '|table.concat()| for string lists; non-string values stringify differently' },
   },
   json_decode = {
     args = 1,
@@ -6573,7 +6294,6 @@ M.funcs = {
     name = 'json_decode',
     params = { { 'expr', 'any' } },
     signature = 'json_decode({expr})',
-    see_lua = { '|vim.json.decode()|' },
   },
   json_encode = {
     args = 1,
@@ -6595,7 +6315,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'string',
     signature = 'json_encode({expr})',
-    see_lua = { '|vim.json.encode()|' },
   },
   keys = {
     args = 1,
@@ -6609,7 +6328,6 @@ M.funcs = {
     params = { { 'dict', 'table' } },
     returns = 'string[]',
     signature = 'keys({dict})',
-    see_lua = { '|vim.tbl_keys()|' },
   },
   keytrans = {
     args = 1,
@@ -6622,7 +6340,6 @@ M.funcs = {
       <	<C-Home>
 
     ]=],
-    fast = true,
     name = 'keytrans',
     params = { { 'string', 'string' } },
     returns = 'string',
@@ -6656,7 +6373,6 @@ M.funcs = {
     returns = 'integer',
     signature = 'len({expr})',
     tags = { 'E701' },
-    see_lua = { 'Lua `#` operator for strings and lists', '`#vim.tbl_keys(expr)` for dicts' },
   },
   libcall = {
     args = 3,
@@ -6708,7 +6424,6 @@ M.funcs = {
     params = { { 'libname', 'string' }, { 'funcname', 'string' }, { 'argument', 'any' } },
     signature = 'libcall({libname}, {funcname}, {argument})',
     tags = { 'E364', 'E368' },
-    see_lua = { '|package.loadlib()|', '`ffi.load()`' },
   },
   libcallnr = {
     args = 3,
@@ -6725,7 +6440,6 @@ M.funcs = {
     name = 'libcallnr',
     params = { { 'libname', 'string' }, { 'funcname', 'string' }, { 'argument', 'any' } },
     signature = 'libcallnr({libname}, {funcname}, {argument})',
-    see_lua = { '|package.loadlib()|', '`ffi.load()`' },
   },
   line = {
     args = { 1, 2 },
@@ -6755,9 +6469,6 @@ M.funcs = {
     params = { { 'expr', 'string|integer[]' }, { 'winid', 'integer' } },
     returns = 'integer',
     signature = 'line({expr} [, {winid}])',
-    see_lua = {
-      '|nvim_win_get_cursor()| for "." or |nvim_buf_line_count()| for "$"; marks, lists, and other position expressions differ',
-    },
   },
   line2byte = {
     args = 1,
@@ -6780,9 +6491,6 @@ M.funcs = {
     params = { { 'lnum', 'integer|string' } },
     returns = 'integer',
     signature = 'line2byte({lnum})',
-    see_lua = {
-      "|nvim_buf_get_offset()| with `lnum - 1`; 'fileformat' and invalid-line semantics differ",
-    },
   },
   lispindent = {
     args = 1,
@@ -6818,14 +6526,13 @@ M.funcs = {
     params = { { 'list', 'any[]' } },
     returns = 'string',
     signature = 'list2blob({list})',
-    see_lua = false,
   },
   list2str = {
     args = { 1, 2 },
     base = 1,
     desc = [=[
-      Converts each codepoint in {list} to a UTF-8 character and
-      returns the concatenated string.  Examples: >vim
+      Convert each number in {list} to a character string can
+      concatenate them all.  Examples: >vim
       	echo list2str([32])		" returns " "
       	echo list2str([65, 66, 67])	" returns "ABC"
       <The same can be done (slowly) with: >vim
@@ -6844,7 +6551,6 @@ M.funcs = {
     params = { { 'list', 'any[]' }, { 'utf8', 'boolean' } },
     returns = 'string',
     signature = 'list2str({list} [, {utf8}])',
-    see_lua = false,
   },
   localtime = {
     desc = [=[
@@ -6855,7 +6561,6 @@ M.funcs = {
     params = {},
     returns = 'integer',
     signature = 'localtime()',
-    see_lua = { '|os.time()|' },
   },
   log = {
     args = 1,
@@ -6872,12 +6577,11 @@ M.funcs = {
       <	5.0
 
     ]=],
-    func_float = 'log',
+    float_func = 'log',
     name = 'log',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'log({expr})',
-    see_lua = { '|math.log()|' },
   },
   log10 = {
     args = 1,
@@ -6893,12 +6597,11 @@ M.funcs = {
       <	-2.0
 
     ]=],
-    func_float = 'log10',
+    float_func = 'log10',
     name = 'log10',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'log10({expr})',
-    see_lua = { '|math.log10()|' },
   },
   luaeval = {
     args = { 1, 2 },
@@ -6914,7 +6617,6 @@ M.funcs = {
     name = 'luaeval',
     params = { { 'expr', 'string' }, { 'expr', 'any[]' } },
     signature = 'luaeval({expr} [, {expr}])',
-    see_lua = { 'plain Lua expressions and values directly' },
   },
   map = {
     args = 2,
@@ -6944,12 +6646,11 @@ M.funcs = {
       Note that {expr2} is the result of an expression and is then
       used as an expression again.  Often it is good to use a
       |literal-string| to avoid having to double backslashes.  You
-      still have to double single (') quotes, though.
+      still have to double ' quotes
 
       If {expr2} is a |Funcref| it is called with two arguments:
       	1. The key or the index of the current item.
       	2. the value of the current item.
-
       The function must return the new value of the item.  Example
       that changes each value by "key-value": >vim
       	func KeyValue(key, val)
@@ -6978,9 +6679,6 @@ M.funcs = {
     name = 'map',
     params = { { 'expr1', 'string|table|any[]' }, { 'expr2', 'string|function' } },
     signature = 'map({expr1}, {expr2})',
-    see_lua = {
-      '|vim.tbl_map()| for array-like tables; dict, string, blob, and in-place behavior differ',
-    },
   },
   maparg = {
     args = { 1, 4 },
@@ -7093,7 +6791,7 @@ M.funcs = {
       A match happens with a mapping that starts with {name} and
       with a mapping which is equal to the start of {name}.
 
-         matches mapping	"a"	"ab"	"abc" ~
+      	matches mapping "a"	"ab"	"abc" ~
          mapcheck("a")	yes	yes	 yes
          mapcheck("abc")	yes	yes	 yes
          mapcheck("ax")	yes	no	 no
@@ -7173,9 +6871,6 @@ M.funcs = {
     name = 'mapnew',
     params = { { 'expr1', 'any' }, { 'expr2', 'any' } },
     signature = 'mapnew({expr1}, {expr2})',
-    see_lua = {
-      '|vim.tbl_map()| for tables; string, blob, and `v:key` callback behavior differ',
-    },
   },
   mapset = {
     args = { 1, 3 },
@@ -7509,7 +7204,7 @@ M.funcs = {
       { 'dict', 'table' },
     },
     signature = 'matchbufline({buf}, {pat}, {lnum}, {end}, [, {dict}])',
-    returns = 'table',
+    returns = 'string[]',
   },
   matchdelete = {
     args = { 1, 2 },
@@ -7570,8 +7265,6 @@ M.funcs = {
 
       The optional {dict} argument always supports the following
       items:
-
-          Key		Description ~
           matchseq	When this item is present return only matches
       		that contain the characters in {str} in the
       		given sequence.
@@ -7580,8 +7273,6 @@ M.funcs = {
 
       If {list} is a list of dictionaries, then the optional {dict}
       argument supports the following additional items:
-
-          Key		Description ~
           key		Key of the item which is fuzzy matched against
       		{str}.  The value of this item should be a
       		string.
@@ -7592,15 +7283,15 @@ M.funcs = {
       		use for fuzzy matching.
 
       {str} is treated as a literal string and regular expression
-      matching is NOT supported.  Only the first 1024 characters of
-      {str} and of each item in {list} are used for matching;
-      characters beyond that are ignored.
+      matching is NOT supported.  The maximum supported {str} length
+      is 256.
 
       When {str} has multiple words each separated by white space,
       then the list of strings that have all the words is returned.
 
       If there are no matching strings or there is an error, then an
-      empty list is returned.
+      empty list is returned.  If length of {str} is greater than
+      256, then returns an empty list.
 
       When {limit} is given, matchfuzzy() will find up to this
       number of matches in {list} and return them in sorted order.
@@ -7730,8 +7421,6 @@ M.funcs = {
           submatches	include submatch information (|/\(|)
 
       For each match, a |Dict| with the following items is returned:
-
-          Key		Description ~
           byteidx	starting byte index of the match.
           idx		index in {list} of the match.
           text	matched string
@@ -7811,9 +7500,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'number',
     signature = 'max({expr})',
-    see_lua = {
-      '|math.max()| with `unpack(expr)` for lists; dict values and empty inputs need custom handling',
-    },
   },
   menu_get = {
     args = { 1, 2 },
@@ -7963,9 +7649,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'number',
     signature = 'min({expr})',
-    see_lua = {
-      '|math.min()| with `unpack(expr)` for lists; dict values and empty inputs need custom handling',
-    },
   },
   mkdir = {
     args = { 1, 3 },
@@ -7977,8 +7660,6 @@ M.funcs = {
       has no effect.
 
       {flags} can contain these character flags:
-
-       Flag	Meaning ~
        "p"	intermediate directories will be created as necessary
        "D"	{name} will be deleted at the end of the current
       	function, but not recursively |:defer|
@@ -8017,9 +7698,6 @@ M.funcs = {
     returns = 'integer',
     signature = 'mkdir({name} [, {flags} [, {prot}]])',
     tags = { 'E739' },
-    see_lua = {
-      '|vim.fs.mkdir()|; `"D"`, `"R"`, and return semantics differ',
-    },
   },
   mode = {
     args = { 0, 1 },
@@ -8063,7 +7741,8 @@ M.funcs = {
          Rvx	    Virtual Replace mode |i_CTRL-X| completion
          c	    Command-line editing
          cr	    Command-line editing overstrike mode |c_<Insert>|
-         cv	    Non-interactive Ex mode |-es|
+         cv	    Vim Ex mode |gQ|
+         cvr	    Vim Ex mode while in overstrike mode |c_<Insert>|
          r	    Hit-enter prompt
          rm	    The -- more -- prompt
          r?	    A |:confirm| query of some sort
@@ -8081,9 +7760,6 @@ M.funcs = {
     name = 'mode',
     params = { { 'expr', 'any' } },
     signature = 'mode([{expr}])',
-    see_lua = {
-      '|nvim_get_mode()|; use the `.mode` field. It always returns the full mode string, unlike |mode()| without a non-zero {expr}',
-    },
   },
   msgpackdump = {
     args = { 1, 2 },
@@ -8109,9 +7785,6 @@ M.funcs = {
     name = 'msgpackdump',
     params = { { 'list', 'any' }, { 'type', 'any' } },
     signature = 'msgpackdump({list} [, {type}])',
-    see_lua = {
-      '|vim.mpack.encode()|; list wrapping, return shape, and special-dict semantics differ',
-    },
   },
   msgpackparse = {
     args = 1,
@@ -8186,7 +7859,6 @@ M.funcs = {
     name = 'msgpackparse',
     params = { { 'data', 'any' } },
     signature = 'msgpackparse({data})',
-    see_lua = { '|vim.mpack.decode()|; input and special-dict semantics differ' },
   },
   nextnonblank = {
     args = 1,
@@ -8210,10 +7882,11 @@ M.funcs = {
     args = { 1, 2 },
     base = 1,
     desc = [=[
-      Gets a UTF-8 string for a single codepoint {expr}.
-      Examples: >vim
+      Return a string with a single character, which has the number
+      value {expr}.  Examples: >vim
       	echo nr2char(64)		" returns '@'
       	echo nr2char(32)		" returns ' '
+      <Example for "utf-8": >vim
       	echo nr2char(300)		" returns I with bow character
       <
       UTF-8 encoding is always used, {utf8} option has no effect,
@@ -8224,12 +7897,10 @@ M.funcs = {
       string, thus results in an empty string.
 
     ]=],
-    fast = true,
     name = 'nr2char',
     params = { { 'expr', 'integer' }, { 'utf8', 'boolean' } },
     returns = 'string',
     signature = 'nr2char({expr} [, {utf8}])',
-    see_lua = { '|string.char()|: only works with ASCII' },
   },
   nvim_api__ = {
     args = 1,
@@ -8250,7 +7921,6 @@ M.funcs = {
     params = VARARGS,
     signature = 'nvim_...({...})',
     tags = { 'E5555', 'eval-api' },
-    see_lua = { '|vim.api|' },
   },
   ['or'] = {
     args = 2,
@@ -8270,7 +7940,6 @@ M.funcs = {
     name = 'or',
     params = { { 'expr', 'number' }, { 'expr', 'number' } },
     signature = 'or({expr}, {expr})',
-    see_lua = { '|bit.bor()|' },
   },
   pathshorten = {
     args = { 1, 2 },
@@ -8282,11 +7951,11 @@ M.funcs = {
       If {len} is omitted or smaller than 1 then 1 is used (single
       letters).  Leading '~' and '.' characters are kept.  Examples: >vim
       	echo pathshorten('~/.config/nvim/autoload/file1.vim')
-      	~/.c/n/a/file1.vim
+      <	~/.c/n/a/file1.vim ~
       >vim
       	echo pathshorten('~/.config/nvim/autoload/file2.vim', 2)
-      	~/.co/nv/au/file2.vim
-      <It doesn't matter if the path exists or not.
+      <	~/.co/nv/au/file2.vim ~
+      It doesn't matter if the path exists or not.
       Returns an empty string on error.
 
     ]=],
@@ -8338,7 +8007,6 @@ M.funcs = {
     params = { { 'x', 'number' }, { 'y', 'number' } },
     returns = 'number',
     signature = 'pow({x}, {y})',
-    see_lua = { '|math.pow()|' },
   },
   preinserted = {
     desc = [=[
@@ -8377,9 +8045,9 @@ M.funcs = {
       Return a String with {fmt}, where "%" items are replaced by
       the formatted form of their respective arguments.  Example: >vim
       	echo printf("%4d: E%d %.30s", lnum, errno, msg)
-      <May result in: >
-      	"  99: E42 asdfasdfasdfasdfasdfasdfasdfas"
-      <
+      <May result in:
+      	"  99: E42 asdfasdfasdfasdfasdfasdfasdfas" ~
+
       When used as a |method| the base is passed as the second
       argument: >vim
       	Compute()->printf("result: %d")
@@ -8387,8 +8055,6 @@ M.funcs = {
       You can use `call()` to pass the items as a list.
 
       Often used items are:
-
-        Item	Meaning ~
         %s	string
         %6S	string right-aligned in 6 display cells
         %6s	string right-aligned in 6 bytes
@@ -8445,7 +8111,7 @@ M.funcs = {
       	      numeric conversion (d, o, x, and X), the 0 flag
       	      is ignored.
 
-          `-`	      A negative field width flag; the converted value
+          -	      A negative field width flag; the converted value
       	      is to be left adjusted on the field boundary.
       	      The converted value is padded on the right with
       	      blanks, rather than on the left with blanks or
@@ -8524,7 +8190,6 @@ M.funcs = {
       	Generally, these modifiers are not useful.  They are
       	ignored when type is known from the argument.
 
-      Type	Meaning ~
       i	alias for d
       D	alias for ld
       U	alias for lu
@@ -8639,7 +8304,7 @@ M.funcs = {
       <      1.41
 
       You will get an overflow error |E1510|, when the field-width
-      or precision will result in a string longer than 1 MiB
+      or precision will result in a string longer than 1 MB
       (1024*1024 = 1048576) chars.
 
       					*E1500*
@@ -8705,7 +8370,6 @@ M.funcs = {
     params = { { 'fmt', 'string' }, { 'expr1', 'any' } },
     signature = 'printf({fmt}, {expr1} ...)',
     returns = 'string',
-    see_lua = { '|string.format()|' },
   },
   prompt_appendbuf = {
     args = 2,
@@ -8938,7 +8602,6 @@ M.funcs = {
     name = 'rand',
     params = { { 'expr', 'number' } },
     signature = 'rand([{expr}])',
-    see_lua = { '|math.random()|' },
   },
   range = {
     args = { 1, 3 },
@@ -8953,8 +8616,6 @@ M.funcs = {
       When the maximum is one before the start the result is an
       empty list.  When the maximum is more than one before the
       start this is an error.
-      The list can have at most 2147483647 items and {stride} must
-      fit in a 32 bit number, otherwise |E1510| is given.
       Examples: >vim
       	echo range(4)		" [0, 1, 2, 3]
       	echo range(2, 4)	" [2, 3, 4]
@@ -8999,9 +8660,6 @@ M.funcs = {
     name = 'readblob',
     params = { { 'fname', 'string' }, { 'offset', 'integer' }, { 'size', 'integer' } },
     signature = 'readblob({fname} [, {offset} [, {size}]])',
-    see_lua = {
-      '|io.open()| with `:read("*a")` in binary mode for whole-file reads; offset, size, and Blob return differ',
-    },
   },
   readdir = {
     args = { 1, 2 },
@@ -9022,7 +8680,7 @@ M.funcs = {
       Each time {expr} is evaluated |v:val| is set to the entry name.
       When {expr} is a function the name is passed as the argument.
       For example, to get a list of files ending in ".txt": >vim
-        echo readdir(dirname, {n -> n =~ '\.txt$'})
+        echo readdir(dirname, {n -> n =~ '.txt$'})
       <To skip hidden and backup files: >vim
         echo readdir(dirname, {n -> n !~ '^\.\|\~$'})
 
@@ -9040,7 +8698,6 @@ M.funcs = {
     name = 'readdir',
     params = { { 'directory', 'string' }, { 'expr', 'integer|string|fun(name: string): integer' } },
     signature = 'readdir({directory} [, {expr}])',
-    see_lua = { '|vim.fs.dir()| as an iterator, then collect and filter results as needed' },
   },
   readfile = {
     args = { 1, 3 },
@@ -9059,7 +8716,6 @@ M.funcs = {
       - CR characters that appear before a NL are removed.
       - Whether the last line ends in a NL or not does not matter.
       - Any UTF-8 byte order mark is removed from the text.
-
       When {max} is given this specifies the maximum number of lines
       to be read.  Useful if you only want to check the first ten
       lines of a file: >vim
@@ -9084,9 +8740,6 @@ M.funcs = {
     params = { { 'fname', 'string' }, { 'type', 'string' }, { 'max', 'integer' } },
     returns = 'string[]',
     signature = 'readfile({fname} [, {type} [, {max}]])',
-    see_lua = {
-      '|io.open()| with `:read("*a")`, then split lines as needed; `{type}`, `{max}`, and Blob return differ',
-    },
   },
   reduce = {
     args = { 2, 3 },
@@ -9119,7 +8772,6 @@ M.funcs = {
     },
     returns = 'T',
     signature = 'reduce({object}, {func} [, {initial}])',
-    see_lua = { '|Iter:fold()|' },
   },
   reg_executing = {
     desc = [=[
@@ -9193,7 +8845,6 @@ M.funcs = {
     name = 'reltime',
     params = { { 'start', 'any' }, { 'end', 'any' } },
     signature = 'reltime({start}, {end})',
-    see_lua = { '|uv.hrtime()|' },
   },
   reltimefloat = {
     args = 1,
@@ -9214,7 +8865,6 @@ M.funcs = {
     name = 'reltimefloat',
     params = { { 'time', 'any' } },
     signature = 'reltimefloat({time})',
-    see_lua = { '|uv.hrtime()| with `(finish - start) / 1e9` for elapsed seconds' },
   },
   reltimestr = {
     args = 1,
@@ -9245,7 +8895,6 @@ M.funcs = {
     name = 'remove',
     params = { { 'list', 'any' }, { 'idx', 'integer' } },
     signature = 'remove({list}, {idx})',
-    see_lua = { '|table.remove()|' },
   },
   remove__1 = {
     args = { 2, 3 },
@@ -9310,9 +8959,6 @@ M.funcs = {
     name = 'remove',
     params = { { 'dict', 'any' }, { 'key', 'string' } },
     signature = 'remove({dict}, {key})',
-    see_lua = {
-      '`local value = dict[key]; dict[key] = nil` for dicts; missing-key behavior differs',
-    },
   },
   rename = {
     args = 2,
@@ -9330,7 +8976,6 @@ M.funcs = {
     params = { { 'from', 'string' }, { 'to', 'string' } },
     returns = 'integer',
     signature = 'rename({from}, {to})',
-    see_lua = { '|uv.fs_rename()|', '|os.rename()|' },
   },
   ['repeat'] = {
     args = 2,
@@ -9350,7 +8995,6 @@ M.funcs = {
     name = 'repeat',
     params = { { 'expr', 'any' }, { 'count', 'integer' } },
     signature = 'repeat({expr}, {count})',
-    see_lua = { '|string.rep()| for strings; lists need manual repetition' },
   },
   resolve = {
     args = 1,
@@ -9395,9 +9039,6 @@ M.funcs = {
     params = { { 'object', 'T[]' } },
     returns = 'T[]',
     signature = 'reverse({object})',
-    see_lua = {
-      '`vim.iter(list):rev():totable()` for lists; strings, blobs, and in-place behavior differ',
-    },
   },
   round = {
     args = 1,
@@ -9417,20 +9058,20 @@ M.funcs = {
       <	-5.0
 
     ]=],
-    func_float = 'round',
+    float_func = 'round',
     name = 'round',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'round({expr})',
-    see_lua = {
-      '`expr >= 0 and math.floor(expr + 0.5) or math.ceil(expr - 0.5)` for half-away-from-zero rounding',
-    },
   },
   rpcnotify = {
     args = { 2 },
-    deprecated = true,
     desc = [=[
-      Use |vim.rpcnotify()| instead.
+      Sends {event} to {channel} via |RPC| and returns immediately.
+      If {channel} is 0, the event is broadcast to all channels.
+      Example: >vim
+      	au VimLeave call rpcnotify(0, "leaving")
+      <
     ]=],
     name = 'rpcnotify',
     params = { { 'channel', 'integer' }, { 'event', 'string' }, { '...', 'any' } },
@@ -9439,9 +9080,12 @@ M.funcs = {
   },
   rpcrequest = {
     args = { 2 },
-    deprecated = true,
     desc = [=[
-      Use |vim.rpcrequest()| instead.
+      Sends a request to {channel} to invoke {method} via
+      |RPC| and blocks until a response is received.
+      Example: >vim
+      	let result = rpcrequest(rpc_chan, "func", 1, 2, 3)
+      <
     ]=],
     name = 'rpcrequest',
     params = { { 'channel', 'integer' }, { 'method', 'string' }, { '...', 'any' } },
@@ -9727,9 +9371,9 @@ M.funcs = {
       under or after the cursor.  Because of the 'p' flag, it
       returns 1, 2, or 3 depending on which keyword is found, or 0
       if the search fails.  With the cursor on the first word of the
-      line: >
-          if (foo == 0) | let foo = foo + 1 | endif
-      <the function returns 1.  Without the 'c' flag, the function
+      line:
+          if (foo == 0) | let foo = foo + 1 | endif ~
+      the function returns 1.  Without the 'c' flag, the function
       finds the "endif" and returns 3.  The same thing happens
       without the 'e' flag if the cursor is on the "f" of "if".
       The 'n' flag tells the function not to move the cursor.
@@ -9838,7 +9482,6 @@ M.funcs = {
       	call searchcount()
       <
       {options} must be a |Dictionary|.  It can contain:
-
         key		type		meaning ~
         recompute	|Boolean|	if |TRUE|, recompute the count
       				like |n| or |N| was executed.
@@ -10071,24 +9714,13 @@ M.funcs = {
                 will also be returned. (default: |FALSE|)
                 Not supported on Windows yet.
 
-        info  : If |TRUE|, return a list of Dicts with detailed info
-                instead of addresses. Implies `peer=true`. Each Dict
-                has the following items:
-                  addr          (string)  Server address.
-                  pid           (number)  PID of the Nvim process.
-                  own           (bool)    Whether this server belongs to
-                                          the current Nvim instance.
-                  active        (number)  |v:useractive| of the server.
-                (default: |FALSE|)
-
       Example: >vim
       	echo serverlist()
-      	echo serverlist(#{info: v:true})
       <
     ]=],
     name = 'serverlist',
     params = { { 'opts', 'table' } },
-    returns = 'string[]|vim.ServerInfo[]',
+    returns = 'string[]',
     signature = 'serverlist([{opts}])',
   },
   serverstart = {
@@ -10113,13 +9745,12 @@ M.funcs = {
       < >
       	=> /tmp/nvim.bram/oknANW/nvim.15430.5
       <
-
       Example bash command to list all Nvim servers: >bash
       	ls ${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0
 
       <Example named pipe: >vim
       	if has('win32')
-      	  echo serverstart('//./pipe/nvim-pipe-1234')
+      	  echo serverstart('\\.\pipe\nvim-pipe-1234')
       	else
       	  echo serverstart('nvim.sock')
       	endif
@@ -10179,22 +9810,19 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'lnum', 'integer' }, { 'text', 'string|string[]' } },
     returns = 'integer',
     signature = 'setbufline({buf}, {lnum}, {text})',
-    see_lua = { '|nvim_buf_set_lines()|' },
   },
   setbufvar = {
     args = 3,
     base = 3,
     desc = [=[
-      Set option or local variable {varname} (string, without "b:")
-      in buffer {buf} to {val}. Also works for a global or
-      window-local option (not variable). A window-local option is
-      set in a window of the current tabpage that displays {buf},
-      and the global value is unchanged. When no window in the
-      current tabpage displays {buf} the option is not set and no
-      error is given; use |setwinvar()| or |win_execute()| for that.
-
+      Set option or local variable {varname} in buffer {buf} to
+      {val}.
+      This also works for a global or local window option, but it
+      doesn't work for a global or local window variable.
+      For a local window option the global value is unchanged.
       For the use of {buf}, see |bufname()| above.
-
+      The {varname} argument is a string.
+      Note that the variable name without "b:" must be used.
       Examples: >vim
       	call setbufvar(1, "&mod", 1)
       	call setbufvar("todo", "myvar", "foobar")
@@ -10204,9 +9832,6 @@ M.funcs = {
     name = 'setbufvar',
     params = { { 'buf', 'integer|string' }, { 'varname', 'string' }, { 'val', 'any' } },
     signature = 'setbufvar({buf}, {varname}, {val})',
-    see_lua = {
-      '|nvim_buf_set_var()| or |vim.b| after resolving {buf} to a bufnr; option names use |nvim_set_option_value()|',
-    },
   },
   setcellwidths = {
     args = 1,
@@ -10244,8 +9869,6 @@ M.funcs = {
       through the text to check if the cell widths of your terminal
       match with what Vim knows about each emoji.  If it doesn't
       look right you need to adjust the {list} argument.
-
-      |getcellwidths()| can be used to get the overrides later.
     ]=],
     name = 'setcellwidths',
     params = { { 'list', 'any[]' } },
@@ -10269,9 +9892,6 @@ M.funcs = {
     name = 'setcharpos',
     params = { { 'expr', 'string' }, { 'list', 'integer[]' } },
     signature = 'setcharpos({expr}, {list})',
-    see_lua = {
-      '|nvim_win_set_cursor()| or |nvim_buf_set_mark()| with |vim.str_byteindex()|; special positions, `off`, and `curswant` differ',
-    },
   },
   setcharsearch = {
     args = 1,
@@ -10280,7 +9900,6 @@ M.funcs = {
       Set the current character search information to {dict},
       which contains one or more of the following entries:
 
-          Key		Description ~
           char	character which will be used for a subsequent
       		|,| or |;| command; an empty string clears the
       		character search
@@ -10347,9 +9966,6 @@ M.funcs = {
     name = 'setcursorcharpos',
     params = { { 'lnum', 'integer|string' }, { 'col', 'integer' }, { 'off', 'integer' } },
     signature = 'setcursorcharpos({lnum}, {col} [, {off}])',
-    see_lua = {
-      '|nvim_win_set_cursor()| with |vim.str_byteindex()|; `off`, return values, and special line forms differ',
-    },
   },
   setcursorcharpos__1 = {
     args = { 1, 3 },
@@ -10370,9 +9986,6 @@ M.funcs = {
     name = 'setcursorcharpos',
     params = { { 'list', 'integer[]' } },
     signature = 'setcursorcharpos({list})',
-    see_lua = {
-      '|nvim_win_set_cursor()| with |vim.str_byteindex()|; list shape, `off`, and return values differ',
-    },
   },
   setenv = {
     args = 2,
@@ -10388,7 +10001,6 @@ M.funcs = {
     name = 'setenv',
     params = { { 'name', 'string' }, { 'val', 'string' } },
     signature = 'setenv({name}, {val})',
-    see_lua = { '|vim.env|' },
   },
   setfperm = {
     args = 2,
@@ -10414,7 +10026,6 @@ M.funcs = {
     name = 'setfperm',
     params = { { 'fname', 'string' }, { 'mode', 'string' } },
     signature = 'setfperm({fname}, {mode})',
-    see_lua = { '|uv.fs_chmod()|' },
   },
   setline = {
     args = 2,
@@ -10451,7 +10062,6 @@ M.funcs = {
     name = 'setline',
     params = { { 'lnum', 'integer|string' }, { 'text', 'any' } },
     signature = 'setline({lnum}, {text})',
-    see_lua = { '|nvim_set_current_line()|', '|nvim_buf_set_lines()|' },
   },
   setloclist = {
     args = { 2, 4 },
@@ -10502,8 +10112,6 @@ M.funcs = {
     base = 2,
     desc = [=[
       Set the position for String {expr}.  Possible values:
-
-      	Value	Position ~
       	.	the cursor
       	'x	mark x
 
@@ -10560,9 +10168,6 @@ M.funcs = {
     name = 'setpos',
     params = { { 'expr', 'string' }, { 'list', 'integer[]' } },
     signature = 'setpos({expr}, {list})',
-    see_lua = {
-      '|nvim_win_set_cursor()| for "." or |nvim_buf_set_mark()| for marks; special positions, `off`, and `curswant` differ',
-    },
   },
   setqflist = {
     args = { 1, 3 },
@@ -10626,13 +10231,8 @@ M.funcs = {
       	clear the list: >vim
       		call setqflist([], 'r')
       <
-
-      Action	Meaning ~
       'u'	Like 'r', but tries to preserve the current selection
-      	in the quickfix list.  The entry nearest to the
-      	previously selected one becomes the current entry.
-      	Proximity is determined by comparing the file, then
-      	the line number and then the column number.
+      	in the quickfix list.
       'f'	All the quickfix lists in the quickfix stack are
       	freed.
 
@@ -10777,7 +10377,6 @@ M.funcs = {
     name = 'settabvar',
     params = { { 'tabnr', 'integer' }, { 'varname', 'string' }, { 'val', 'any' } },
     signature = 'settabvar({tabnr}, {varname}, {val})',
-    see_lua = { '|nvim_tabpage_set_var()|', '|vim.t|' },
   },
   settabwinvar = {
     args = 4,
@@ -10807,9 +10406,6 @@ M.funcs = {
       { 'val', 'any' },
     },
     signature = 'settabwinvar({tabnr}, {winnr}, {varname}, {val})',
-    see_lua = {
-      '|nvim_win_set_var()| or |vim.w| after resolving {tabnr} and {winnr} to a winid; option names use |nvim_set_option_value()|',
-    },
   },
   settagstack = {
     args = { 2, 3 },
@@ -10865,9 +10461,6 @@ M.funcs = {
     name = 'setwinvar',
     params = { { 'nr', 'integer' }, { 'varname', 'string' }, { 'val', 'any' } },
     signature = 'setwinvar({nr}, {varname}, {val})',
-    see_lua = {
-      '|nvim_win_set_var()| or |vim.w| after resolving {nr} to a winid; option names use |nvim_set_option_value()|',
-    },
   },
   sha256 = {
     args = 1,
@@ -10923,9 +10516,6 @@ M.funcs = {
     params = { { 'string', 'string' }, { 'special', 'boolean' } },
     returns = 'string',
     signature = 'shellescape({string} [, {special}])',
-    see_lua = {
-      '|vim.system()| with list args to avoid shell escaping; `:!` and {special} semantics differ',
-    },
   },
   shiftwidth = {
     args = { 0, 1 },
@@ -10956,9 +10546,6 @@ M.funcs = {
     params = { { 'col', 'integer' } },
     signature = 'shiftwidth([{col}])',
     returns = 'integer',
-    see_lua = {
-      "|vim.bo| for simple cases: `vim.bo.shiftwidth > 0 and vim.bo.shiftwidth or vim.bo.tabstop`; `{col}` and 'vartabstop' semantics differ",
-    },
   },
   sign_define = {
     args = { 1, 2 },
@@ -10967,7 +10554,6 @@ M.funcs = {
     params = { { 'name', 'string' }, { 'dict', 'vim.fn.sign_define.dict' } },
     signature = 'sign_define({name} [, {dict}])',
     returns = '0|-1',
-    see_lua = false,
   },
   sign_define__1 = {
     args = { 1, 2 },
@@ -10982,8 +10568,6 @@ M.funcs = {
       The {name} can be a String or a Number.  The optional {dict}
       argument specifies the sign attributes.  The following values
       are supported:
-
-         Key		Description ~
          icon		full path to the bitmap file for the sign.
          linehl	highlight group used for the whole line the
       		sign is placed in.
@@ -11025,7 +10609,6 @@ M.funcs = {
     params = { { 'list', 'vim.fn.sign_define.dict[]' } },
     signature = 'sign_define({list})',
     returns = '(0|-1)[]',
-    see_lua = false,
   },
   sign_getdefined = {
     args = { 0, 1 },
@@ -11040,8 +10623,6 @@ M.funcs = {
 
       Each list item in the returned value is a dictionary with the
       following entries:
-
-         Key		Description ~
          icon		full path to the bitmap file of the sign
          linehl	highlight group used for the whole line the
       		sign is placed in; not present if not set.
@@ -11073,7 +10654,6 @@ M.funcs = {
     params = { { 'name', 'string' } },
     signature = 'sign_getdefined([{name}])',
     returns = 'vim.fn.sign_getdefined.ret.item[]',
-    see_lua = false,
   },
   sign_getplaced = {
     args = { 0, 2 },
@@ -11099,8 +10679,6 @@ M.funcs = {
 
       Each list item in the returned value is a dictionary with the
       following entries:
-
-      	Key	Description ~
       	bufnr	number of the buffer with the sign
       	signs	list of signs placed in {bufnr}.  Each list
       		item is a dictionary with the below listed
@@ -11145,7 +10723,6 @@ M.funcs = {
     params = { { 'buf', 'integer|string' }, { 'dict', 'vim.fn.sign_getplaced.dict' } },
     signature = 'sign_getplaced([{buf} [, {dict}]])',
     returns = 'vim.fn.sign_getplaced.ret.item[]',
-    see_lua = false,
   },
   sign_jump = {
     args = 3,
@@ -11170,7 +10747,6 @@ M.funcs = {
     params = { { 'id', 'integer' }, { 'group', 'string' }, { 'buf', 'integer|string' } },
     signature = 'sign_jump({id}, {group}, {buf})',
     returns = 'integer',
-    see_lua = false,
   },
   sign_place = {
     args = { 4, 5 },
@@ -11192,8 +10768,6 @@ M.funcs = {
       values, see |bufname()|.
 
       The optional {dict} argument supports the following entries:
-
-      	Key		Description ~
       	lnum		line number in the file or buffer
       			{buf} where the sign is to be placed.
       			For the accepted values, see |line()|.
@@ -11236,7 +10810,6 @@ M.funcs = {
     },
     signature = 'sign_place({id}, {group}, {name}, {buf} [, {dict}])',
     returns = 'integer',
-    see_lua = false,
   },
   sign_placelist = {
     args = 1,
@@ -11305,7 +10878,6 @@ M.funcs = {
     params = { { 'list', 'vim.fn.sign_placelist.list.item[]' } },
     signature = 'sign_placelist({list})',
     returns = 'integer[]',
-    see_lua = false,
   },
   sign_undefine = {
     args = { 0, 1 },
@@ -11314,7 +10886,6 @@ M.funcs = {
     params = { { 'name', 'string' } },
     signature = 'sign_undefine([{name}])',
     returns = '0|-1',
-    see_lua = false,
   },
   sign_undefine__1 = {
     args = { 0, 1 },
@@ -11346,7 +10917,6 @@ M.funcs = {
     params = { { 'list', 'string[]' } },
     signature = 'sign_undefine({list})',
     returns = 'integer[]',
-    see_lua = false,
   },
   sign_unplace = {
     args = { 1, 2 },
@@ -11398,7 +10968,6 @@ M.funcs = {
     params = { { 'group', 'string' }, { 'dict', 'vim.fn.sign_unplace.dict' } },
     signature = 'sign_unplace({group} [, {dict}])',
     returns = '0|-1',
-    see_lua = false,
   },
   sign_unplacelist = {
     args = 1,
@@ -11409,8 +10978,6 @@ M.funcs = {
 
       The {list} argument specifies the List of signs to remove.
       Each list item is a dict with the following sign attributes:
-
-          Key		Description ~
           buffer	buffer name or number.  For the accepted
       		values, see |bufname()|.  If not specified,
       		then the specified sign is removed from all
@@ -11438,7 +11005,6 @@ M.funcs = {
     params = { { 'list', 'vim.fn.sign_unplacelist.list.item' } },
     signature = 'sign_unplacelist({list})',
     returns = '(0|-1)[]',
-    see_lua = false,
   },
   simplify = {
     args = 1,
@@ -11465,9 +11031,6 @@ M.funcs = {
     params = { { 'filename', 'string' } },
     returns = 'string',
     signature = 'simplify({filename})',
-    see_lua = {
-      '|vim.fs.normalize()|; `~`/$VAR expansion and leading `./` or trailing `/` handling differ',
-    },
   },
   sin = {
     args = 1,
@@ -11483,12 +11046,11 @@ M.funcs = {
       <	0.763301
 
     ]=],
-    func_float = 'sin',
+    float_func = 'sin',
     name = 'sin',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'sin({expr})',
-    see_lua = { '|math.sin()|' },
   },
   sinh = {
     args = 1,
@@ -11505,11 +11067,10 @@ M.funcs = {
       <	-1.026517
 
     ]=],
-    func_float = 'sinh',
+    float_func = 'sinh',
     name = 'sinh',
     params = { { 'expr', 'number' } },
     signature = 'sinh({expr})',
-    see_lua = { '|math.sinh()|' },
   },
   slice = {
     args = { 2, 3 },
@@ -11544,16 +11105,14 @@ M.funcs = {
 
       Returns a |channel| ID. Close the socket with |chanclose()|.
       Use |chansend()| to send data over a bytes socket, and
-      |vim.rpcrequest()| and |vim.rpcnotify()| to communicate with a RPC
+      |rpcrequest()| and |rpcnotify()| to communicate with a RPC
       socket.
 
       {opts} is an optional dictionary with these keys:
-        - |on_data|: Callback invoked when data is read from socket.
-        - data_buffered: Read socket data in |channel-buffered| mode.
-        - rpc: Use |msgpack-rpc| to communicate over the socket.
-        - trust: Trust the peer: allow its incoming |RPC| |API|
-          calls. |nvim_chan_set()|
-
+        |on_data| : callback invoked when data was read from socket
+        data_buffered : read socket data in |channel-buffered| mode.
+        rpc     : If set, |msgpack-rpc| will be used to communicate
+      	    over the socket.
       Returns:
         - The channel ID on success (greater than zero)
         - 0 on invalid arguments or connection failure.
@@ -11590,13 +11149,13 @@ M.funcs = {
       	" ö is sorted similarly to o with English locale.
       	language collate en_US.UTF8
       	echo sort(['n', 'o', 'O', 'ö', 'p', 'z'], 'l')
-      	['n', 'o', 'O', 'ö', 'p', 'z']
+      <	['n', 'o', 'O', 'ö', 'p', 'z'] ~
       >vim
       	" ö is sorted after z with Swedish locale.
       	language collate sv_SE.UTF8
       	echo sort(['n', 'o', 'O', 'ö', 'p', 'z'], 'l')
-      	['n', 'o', 'O', 'p', 'z', 'ö']
-      <This does not work properly on Mac.
+      <	['n', 'o', 'O', 'p', 'z', 'ö'] ~
+      This does not work properly on Mac.
 
       When {how} is given and it is 'n' then all items will be
       sorted numerical (Implementation detail: this uses the
@@ -11644,9 +11203,6 @@ M.funcs = {
     params = { { 'list', 'T[]' }, { 'how', 'string|function' }, { 'dict', 'any' } },
     returns = 'T[]',
     signature = 'sort({list} [, {how} [, {dict}]])',
-    see_lua = {
-      "|table.sort()| with a custom comparator; it is not stable and Vim's `i`/`l`/`n`/`N`/`f` modes differ",
-    },
   },
   soundfold = {
     args = 1,
@@ -11687,8 +11243,7 @@ M.funcs = {
       	"caps"		word should start with Capital
       Example: >vim
       	echo spellbadword("the quik brown fox")
-      	" ['quik', 'bad']
-      <
+      <	['quik', 'bad'] ~
 
       The spelling information for the current window and the value
       of 'spelllang' are used.
@@ -11697,9 +11252,6 @@ M.funcs = {
     name = 'spellbadword',
     params = { { 'sentence', 'string' } },
     signature = 'spellbadword([{sentence}])',
-    see_lua = {
-      '|vim.spell.check()| for string input; it returns all matches with positions, not just the first one or cursor-moving behavior',
-    },
   },
   spellsuggest = {
     args = { 1, 3 },
@@ -11764,7 +11316,6 @@ M.funcs = {
     params = { { 'string', 'string' }, { 'pattern', 'string' }, { 'keepempty', 'boolean' } },
     returns = 'string[]',
     signature = 'split({string} [, {pattern} [, {keepempty}]])',
-    see_lua = { '|vim.split()|' },
   },
   sqrt = {
     args = 1,
@@ -11783,11 +11334,10 @@ M.funcs = {
       NaN may be different, it depends on system libraries.
 
     ]=],
-    func_float = 'sqrt',
+    float_func = 'sqrt',
     name = 'sqrt',
     params = { { 'expr', 'number' } },
     signature = 'sqrt({expr})',
-    see_lua = { '|math.sqrt()|' },
   },
   srand = {
     args = { 0, 1 },
@@ -11810,7 +11360,6 @@ M.funcs = {
     name = 'srand',
     params = { { 'expr', 'number' } },
     signature = 'srand([{expr}])',
-    see_lua = { '|math.randomseed()|' },
   },
   state = {
     args = { 0, 1 },
@@ -11835,8 +11384,6 @@ M.funcs = {
       <
       These characters indicate the state, generally indicating that
       something is busy:
-
-          Char	Meaning ~
           m	halfway a mapping, :normal command, |feedkeys()| or
       	stuffed command
           o	operator pending, e.g. after |d|
@@ -11860,7 +11407,7 @@ M.funcs = {
       handled by this function, see |v:stderr|.
 
       Close the stdio handles with |chanclose()|. Use |chansend()|
-      to send data to stdout, and |vim.rpcrequest()| and |vim.rpcnotify()|
+      to send data to stdout, and |rpcrequest()| and |rpcnotify()|
       to communicate over RPC.
 
       {opts} is a dictionary with these keys:
@@ -11952,9 +11499,6 @@ M.funcs = {
     name = 'str2float',
     params = { { 'string', 'string' }, { 'quoted', 'boolean' } },
     signature = 'str2float({string} [, {quoted}])',
-    see_lua = {
-      '|tonumber()| for simple numbers; quoted digits, hex forms, and trailing text differ',
-    },
   },
   str2list = {
     args = { 1, 2 },
@@ -11972,7 +11516,6 @@ M.funcs = {
       	echo str2list("á")		" returns [97, 769]
       <
     ]=],
-    fast = true,
     name = 'str2list',
     params = { { 'string', 'string' }, { 'utf8', 'boolean' } },
     signature = 'str2list({string} [, {utf8}])',
@@ -12003,9 +11546,6 @@ M.funcs = {
     name = 'str2nr',
     params = { { 'string', 'string' }, { 'base', 'integer' } },
     signature = 'str2nr({string} [, {base}])',
-    see_lua = {
-      '|tonumber()| for simple numbers; quoted digits, base prefixes, and trailing text differ',
-    },
   },
   strcharlen = {
     args = 1,
@@ -12020,7 +11560,6 @@ M.funcs = {
       Also see |strlen()|, |strdisplaywidth()| and |strwidth()|.
 
     ]=],
-    fast = true,
     name = 'strcharlen',
     params = { { 'string', 'string' } },
     returns = 'integer',
@@ -12087,12 +11626,10 @@ M.funcs = {
           endif
       <
     ]=],
-    fast = true,
     name = 'strchars',
     params = { { 'string', 'string' }, { 'skipcc', '0|1|boolean' } },
     returns = 'integer',
     signature = 'strchars({string} [, {skipcc}])',
-    see_lua = { '|vim.str_utfindex()| for codepoint counts; `skipcc` handling differs' },
   },
   strdisplaywidth = {
     args = { 1, 2 },
@@ -12115,14 +11652,10 @@ M.funcs = {
       Also see |strlen()|, |strwidth()| and |strchars()|.
 
     ]=],
-    fast = true,
     name = 'strdisplaywidth',
     params = { { 'string', 'string' }, { 'col', 'integer' } },
     returns = 'integer',
     signature = 'strdisplaywidth({string} [, {col}])',
-    see_lua = {
-      '|nvim_strwidth()| when `{col}` is 0; Tab expansion and window-option semantics differ',
-    },
   },
   strftime = {
     args = { 1, 2 },
@@ -12148,7 +11681,6 @@ M.funcs = {
     params = { { 'format', 'string' }, { 'time', 'number' } },
     returns = 'string',
     signature = 'strftime({format} [, {time}])',
-    see_lua = { '|os.date()|' },
   },
   strgetchar = {
     args = 2,
@@ -12163,7 +11695,6 @@ M.funcs = {
       Also see |strcharpart()| and |strchars()|.
 
     ]=],
-    fast = true,
     name = 'strgetchar',
     params = { { 'str', 'string' }, { 'index', 'integer' } },
     returns = 'integer',
@@ -12197,9 +11728,6 @@ M.funcs = {
     params = { { 'haystack', 'string' }, { 'needle', 'string' }, { 'start', 'integer' } },
     returns = 'integer',
     signature = 'stridx({haystack}, {needle} [, {start}])',
-    see_lua = {
-      '|string.find()| with `plain = true` and `start + 1`, then subtract 1; missing matches return nil instead of -1',
-    },
   },
   string = {
     args = 1,
@@ -12236,7 +11764,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'string',
     signature = 'string({expr})',
-    see_lua = { '|vim.inspect()| for tables, or |tostring()| for scalars' },
   },
   strlen = {
     args = 1,
@@ -12250,12 +11777,10 @@ M.funcs = {
       Also see |len()|, |strdisplaywidth()| and |strwidth()|.
 
     ]=],
-    fast = true,
     name = 'strlen',
     params = { { 'string', 'string' } },
     returns = 'integer',
     signature = 'strlen({string})',
-    see_lua = { '|string.len()|' },
   },
   strpart = {
     args = { 2, 4 },
@@ -12297,7 +11822,6 @@ M.funcs = {
     },
     returns = 'string',
     signature = 'strpart({src}, {start} [, {len} [, {chars}]])',
-    see_lua = { '|string.sub()| for byte slices; negative `start` and the `chars` flag differ' },
   },
   strptime = {
     args = 2,
@@ -12360,16 +11884,13 @@ M.funcs = {
     },
     returns = 'integer',
     signature = 'strridx({haystack}, {needle} [, {start}])',
-    see_lua = {
-      '|string.find()| in a loop with `plain = true`, then subtract 1; empty-needle and missing-match semantics differ',
-    },
   },
   strtrans = {
     args = 1,
     base = 1,
     desc = [=[
       Translates all unprintable characters in {string} into
-      printable characters, like they are shown in a
+      printable characters 'isprint', like they are shown in a
       window.  Example: >vim
       	echo strtrans(@a)
       <This displays a newline in register a as "^@" instead of
@@ -12411,7 +11932,6 @@ M.funcs = {
     params = { { 'string', 'string' }, { 'countcc', '0|1' } },
     returns = 'integer',
     signature = 'strutf16len({string} [, {countcc}])',
-    see_lua = { '|vim.str_utfindex()| with `"utf-16"`; `countcc = false` semantics differ' },
   },
   strwidth = {
     args = 1,
@@ -12432,7 +11952,6 @@ M.funcs = {
     params = { { 'string', 'string' } },
     returns = 'integer',
     signature = 'strwidth({string})',
-    see_lua = { '|nvim_strwidth()|' },
   },
   submatch = {
     args = { 1, 2 },
@@ -12535,9 +12054,6 @@ M.funcs = {
     },
     returns = 'string',
     signature = 'substitute({string}, {pat}, {sub}, {flags})',
-    see_lua = {
-      '|string.gsub()| for common substitutions; Vim patterns, flags, and replacement semantics differ',
-    },
   },
   swapfilelist = {
     desc = [=[
@@ -12774,6 +12290,8 @@ M.funcs = {
     base = 1,
     tags = { 'E677' },
     desc = [=[
+      Lua: Prefer |vim.system()|.
+
       Gets the output of {cmd} as a |string| (|systemlist()| returns
       a |List|) and sets |v:shell_error| to the error code.
       {cmd} is treated as in |jobstart()|:
@@ -12828,9 +12346,6 @@ M.funcs = {
     },
     returns = 'string',
     signature = 'system({cmd} [, {input}])',
-    see_lua = {
-      '`vim.system(...):wait().stdout` for string output; string commands use the shell in Vimscript, not by default in Lua',
-    },
   },
   systemlist = {
     args = { 1, 3 },
@@ -12860,9 +12375,6 @@ M.funcs = {
     -- returns = "string[]|''",
     returns = 'string[]',
     signature = 'systemlist({cmd} [, {input} [, {keepempty}]])',
-    see_lua = {
-      '`vim.system(...):wait().stdout` split into lines; string commands use the shell in Vimscript, not by default in Lua',
-    },
   },
   tabpagebuflist = {
     args = { 0, 1 },
@@ -12884,9 +12396,6 @@ M.funcs = {
     name = 'tabpagebuflist',
     params = { { 'arg', 'integer' } },
     signature = 'tabpagebuflist([{arg}])',
-    see_lua = {
-      '|nvim_tabpage_list_wins()| with |nvim_win_get_buf()|; invalid tabpages error instead of returning 0',
-    },
   },
   tabpagenr = {
     args = { 0, 1 },
@@ -12905,9 +12414,6 @@ M.funcs = {
     params = { { 'arg', "'$'|'#'" } },
     returns = 'integer',
     signature = 'tabpagenr([{arg}])',
-    see_lua = {
-      '|nvim_tabpage_get_number()| with |nvim_get_current_tabpage()| for the current tab, or `#vim.api.nvim_list_tabpages()` for "$"; "#" differs',
-    },
   },
   tabpagewinnr = {
     args = { 1, 2 },
@@ -12920,7 +12426,6 @@ M.funcs = {
         the window which will be used when going to this tabpage.
       - When "$" the number of windows is returned.
       - When "#" the previous window nr is returned.
-
       Useful examples: >vim
           tabpagewinnr(1)	    " current window of tabpage 1
           tabpagewinnr(4, '$')    " number of windows in tabpage 4
@@ -12931,9 +12436,6 @@ M.funcs = {
     params = { { 'tabarg', 'integer' }, { 'arg', "'$'|'#'" } },
     returns = 'integer',
     signature = 'tabpagewinnr({tabarg} [, {arg}])',
-    see_lua = {
-      '|nvim_win_get_number()| with |nvim_tabpage_get_win()| for the current window, or the length of |nvim_tabpage_list_wins()| for "$"; "#" and invalid-tab behavior differ',
-    },
   },
   tagfiles = {
     desc = [=[
@@ -13011,12 +12513,11 @@ M.funcs = {
       <	-1.181502
 
     ]=],
-    func_float = 'tan',
+    float_func = 'tan',
     name = 'tan',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'tan({expr})',
-    see_lua = { '|math.tan()|' },
   },
   tanh = {
     args = 1,
@@ -13033,12 +12534,11 @@ M.funcs = {
       <	-0.761594
 
     ]=],
-    func_float = 'tanh',
+    float_func = 'tanh',
     name = 'tanh',
     params = { { 'expr', 'number' } },
     returns = 'number',
     signature = 'tanh({expr})',
-    see_lua = { '|math.tanh()|' },
   },
   tempname = {
     desc = [=[
@@ -13053,9 +12553,6 @@ M.funcs = {
     params = {},
     returns = 'string',
     signature = 'tempname()',
-    see_lua = {
-      "|os.tmpname()| for a temporary name; Nvim's |tempdir| and nonexistence are not guaranteed",
-    },
   },
   termopen = {
     deprecated = true,
@@ -13167,9 +12664,6 @@ M.funcs = {
     name = 'timer_start',
     params = { { 'time', 'number' }, { 'callback', 'string|function' }, { 'options', 'table' } },
     signature = 'timer_start({time}, {callback} [, {options}])',
-    see_lua = {
-      '|vim.defer_fn()| for one-shot timers, or |uv.new_timer()| for repeating timers; callback and handle semantics differ',
-    },
   },
   timer_stop = {
     args = 1,
@@ -13183,9 +12677,6 @@ M.funcs = {
     name = 'timer_stop',
     params = { { 'timer', 'integer' } },
     signature = 'timer_stop({timer})',
-    see_lua = {
-      '|uv.timer_stop()| and |uv.close()| on a stored |uv.new_timer()| handle; timer IDs differ',
-    },
   },
   timer_stopall = {
     args = 0,
@@ -13211,7 +12702,6 @@ M.funcs = {
     params = { { 'expr', 'string' } },
     returns = 'string',
     signature = 'tolower({expr})',
-    see_lua = { '|string.lower()|' },
   },
   toupper = {
     args = 1,
@@ -13226,7 +12716,6 @@ M.funcs = {
     params = { { 'expr', 'string' } },
     returns = 'string',
     signature = 'toupper({expr})',
-    see_lua = { '|string.upper()|' },
   },
   tr = {
     args = 3,
@@ -13246,7 +12735,6 @@ M.funcs = {
       <returns "{blob}"
 
     ]=],
-    fast = true,
     name = 'tr',
     params = { { 'src', 'string' }, { 'fromstr', 'string' }, { 'tostr', 'string' } },
     returns = 'string',
@@ -13284,12 +12772,10 @@ M.funcs = {
       <returns "  vim"
 
     ]=],
-    fast = true,
     name = 'trim',
     params = { { 'text', 'string' }, { 'mask', 'string' }, { 'dir', '0|1|2' } },
     returns = 'string',
     signature = 'trim({text} [, {mask} [, {dir}]])',
-    see_lua = { '|vim.trim()|' },
   },
   trunc = {
     args = 1,
@@ -13308,12 +12794,11 @@ M.funcs = {
       <	4.0
 
     ]=],
-    func_float = 'trunc',
+    float_func = 'trunc',
     name = 'trunc',
     params = { { 'expr', 'number' } },
     returns = 'integer',
     signature = 'trunc({expr})',
-    see_lua = { '|math.modf()| (first return value)' },
   },
   type = {
     args = 1,
@@ -13352,7 +12837,6 @@ M.funcs = {
     params = { { 'expr', 'any' } },
     returns = 'integer',
     signature = 'type({expr})',
-    see_lua = { '|lua-type()| for most Lua type checks; Vim type IDs differ' },
   },
   undofile = {
     args = 1,
@@ -13400,8 +12884,6 @@ M.funcs = {
 
       The first item in the "entries" list is the oldest undo item.
       Each List item is a |Dictionary| with these items:
-
-        Key		Description ~
         "seq"		Undo sequence number.  Same as what appears in
       		|:undolist|.
         "time"	Timestamp when the change happened.  Use
@@ -13433,6 +12915,8 @@ M.funcs = {
     base = 1,
     tags = { 'E882' },
     desc = [=[
+      Lua: Prefer |vim.list.unique()|.
+
       Remove second and succeeding copies of repeated adjacent
       {list} items in-place.  Returns {list}.  If you want a list
       to remain unmodified make a copy first: >vim
@@ -13448,7 +12932,6 @@ M.funcs = {
     params = { { 'list', 'any' }, { 'func', 'any' }, { 'dict', 'any' } },
     returns = 'any[]|0',
     signature = 'uniq({list} [, {func} [, {dict}]])',
-    see_lua = { '|vim.list.unique()|' },
   },
   utf16idx = {
     args = { 2, 4 },
@@ -13482,7 +12965,6 @@ M.funcs = {
       	echo utf16idx('a😊😊', 9)	" returns -1
       <
     ]=],
-    fast = true,
     name = 'utf16idx',
     params = {
       { 'string', 'string' },
@@ -13492,9 +12974,6 @@ M.funcs = {
     },
     returns = 'integer',
     signature = 'utf16idx({string}, {idx} [, {countcc} [, {charidx}]])',
-    see_lua = {
-      '|vim.str_utfindex()| with `"utf-16"` and `strict_indexing = false`; `countcc` and `charidx` semantics differ',
-    },
   },
   values = {
     args = 1,
@@ -13508,7 +12987,6 @@ M.funcs = {
     name = 'values',
     params = { { 'dict', 'any' } },
     signature = 'values({dict})',
-    see_lua = { '|vim.tbl_values()|' },
   },
   virtcol = {
     args = { 1, 3 },
@@ -13644,7 +13122,6 @@ M.funcs = {
     name = 'wait',
     params = { { 'timeout', 'integer' }, { 'condition', 'any' }, { 'interval', 'number' } },
     signature = 'wait({timeout}, {condition} [, {interval}])',
-    see_lua = { '|vim.wait()|' },
   },
   wildmenumode = {
     desc = [=[
@@ -13710,7 +13187,6 @@ M.funcs = {
     name = 'win_execute',
     params = { { 'id', 'integer' }, { 'command', 'string' }, { 'silent', 'boolean' } },
     signature = 'win_execute({id}, {command} [, {silent}])',
-    see_lua = { '|nvim_win_call()|' },
   },
   win_findbuf = {
     args = 1,
@@ -13724,7 +13200,6 @@ M.funcs = {
     params = { { 'bufnr', 'integer' } },
     returns = 'integer[]',
     signature = 'win_findbuf({bufnr})',
-    see_lua = { '|nvim_list_wins()| with |nvim_win_get_buf()|' },
   },
   win_getid = {
     args = { 0, 2 },
@@ -13742,26 +13217,27 @@ M.funcs = {
     params = { { 'win', 'integer' }, { 'tab', 'integer' } },
     returns = 'integer',
     signature = 'win_getid([{win} [, {tab}]])',
-    see_lua = {
-      '|nvim_get_current_win()| when omitted, or |nvim_tabpage_list_wins()| with |nvim_win_get_number()| after resolving {tab}; invalid windows return 0 in Vimscript',
-    },
   },
   win_gettype = {
     args = { 0, 1 },
     base = 1,
     desc = [=[
-      Gets the type of the given window, or current window if {nr}
-      is omitted:
-      - (empty)     Normal window
-      - "autocmd"   Internal "context-switch" window.
-      - "command"   Command-line window |cmdwin|
-      - "loclist"   |location-list-window|
-      - "popup"     Floating window |api-floatwin|
-      - "preview"   Preview window |preview-window|
-      - "quickfix"  |quickfix-window|
-      - "unknown"   Window {nr} not found
+      Return the type of the window:
+      	"autocmd"	autocommand window.  Temporary window
+      			used to execute autocommands.
+      	"command"	command-line window |cmdwin|
+      	(empty)		normal window
+      	"loclist"	|location-list-window|
+      	"popup"		floating window |api-floatwin|
+      	"preview"	preview window |preview-window|
+      	"quickfix"	|quickfix-window|
+      	"unknown"	window {nr} not found
 
-      See also the 'buftype' option.
+      When {nr} is omitted return the type of the current window.
+      When {nr} is given (|window-number| or |window-ID|) return the
+      type of that window.
+
+      Also see the 'buftype' option.
 
     ]=],
     name = 'win_gettype',
@@ -13782,7 +13258,6 @@ M.funcs = {
     params = { { 'expr', 'integer' } },
     returns = '0|1',
     signature = 'win_gotoid({expr})',
-    see_lua = { '|nvim_set_current_win()|; invalid IDs error instead of returning FALSE' },
   },
   win_id2tabwin = {
     args = 1,
@@ -13796,9 +13271,6 @@ M.funcs = {
     name = 'win_id2tabwin',
     params = { { 'expr', 'integer' } },
     signature = 'win_id2tabwin({expr})',
-    see_lua = {
-      '|nvim_win_get_tabpage()| and |nvim_win_get_number()| for valid windows; invalid IDs error instead of returning `[0, 0]`',
-    },
   },
   win_id2win = {
     args = 1,
@@ -13812,9 +13284,6 @@ M.funcs = {
     params = { { 'expr', 'integer' } },
     returns = 'integer',
     signature = 'win_id2win({expr})',
-    see_lua = {
-      '|nvim_win_get_number()| for valid windows; windows outside the current tabpage and invalid IDs differ',
-    },
   },
   win_move_separator = {
     args = 2,
@@ -13873,9 +13342,6 @@ M.funcs = {
     name = 'win_screenpos',
     params = { { 'nr', 'integer' } },
     signature = 'win_screenpos({nr})',
-    see_lua = {
-      '|nvim_win_get_position()| and add 1 to row and col; invalid-window semantics differ',
-    },
   },
   win_splitmove = {
     args = { 2, 3 },
@@ -13892,8 +13358,6 @@ M.funcs = {
       Returns zero for success, non-zero for failure.
 
       {options} is a |Dictionary| with the following optional entries:
-
-        Key		Description ~
         "vertical"	When TRUE, the split is created vertically,
       		like with |:vsplit|.
         "rightbelow"	When TRUE, the split is made below or to the
@@ -13924,7 +13388,6 @@ M.funcs = {
     params = { { 'nr', 'integer' } },
     returns = 'integer',
     signature = 'winbufnr({nr})',
-    see_lua = { '|nvim_win_get_buf()|' },
   },
   wincol = {
     desc = [=[
@@ -13968,7 +13431,6 @@ M.funcs = {
     params = { { 'nr', 'integer' } },
     returns = 'integer',
     signature = 'winheight({nr})',
-    see_lua = false,
   },
   winlayout = {
     args = { 0, 1 },
@@ -14066,9 +13528,6 @@ M.funcs = {
     params = { { 'arg', 'string|integer' } },
     returns = 'integer',
     signature = 'winnr([{arg}])',
-    see_lua = {
-      '|nvim_win_get_number()| with |nvim_get_current_win()| for the current window, or |nvim_tabpage_list_wins()| with |nvim_get_current_tabpage()| for "$"; "#", motion args, and hidden windows differ',
-    },
   },
   winrestcmd = {
     desc = [=[
@@ -14103,8 +13562,6 @@ M.funcs = {
       (yes, that is 5), while all other settings will remain the
       same.  This is useful, if you set the cursor position
       manually.
-      A different "topline" resets "skipcol" and "topfill", unless
-      {dict} contains them.
 
       If you have changed the values the result is unpredictable.
       If the window size changed the result won't be the same.
@@ -14171,7 +13628,6 @@ M.funcs = {
     params = { { 'nr', 'integer' } },
     returns = 'integer',
     signature = 'winwidth({nr})',
-    see_lua = false,
   },
   wordcount = {
     desc = [=[
@@ -14271,7 +13727,6 @@ M.funcs = {
     params = { { 'expr', 'integer' }, { 'expr', 'integer' } },
     returns = 'integer',
     signature = 'xor({expr}, {expr})',
-    see_lua = { '|bit.bxor()|' },
   },
 }
 

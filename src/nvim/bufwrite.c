@@ -17,8 +17,6 @@
 #include "nvim/buffer_defs.h"
 #include "nvim/bufwrite.h"
 #include "nvim/change.h"
-#include "nvim/context.h"
-#include "nvim/dialog.h"
 #include "nvim/drawscreen.h"
 #include "nvim/errors.h"
 #include "nvim/eval/typval_defs.h"
@@ -31,6 +29,7 @@
 #include "nvim/globals.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/iconv_defs.h"
+#include "nvim/input.h"
 #include "nvim/macros_defs.h"
 #include "nvim/mbyte.h"
 #include "nvim/memline.h"
@@ -43,7 +42,6 @@
 #include "nvim/os/fs_defs.h"
 #include "nvim/os/input.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/os/time.h"
 #include "nvim/path.h"
 #include "nvim/pos_defs.h"
 #include "nvim/sha256.h"
@@ -267,7 +265,8 @@ static int buf_write_convert(struct bw_info *ip, char **bufp, int *lenp)
   return wlen;
 }
 
-/// Writes bytes to the file, converting from UTF-8 to 'fileencoding'.
+/// Call write() to write a number of bytes to the file.
+/// Handles 'encoding' conversion.
 ///
 /// @return  FAIL for failure, OK otherwise.
 static int buf_write_bytes(struct bw_info *ip)
@@ -356,7 +355,7 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
   linenr_T old_line_count = buf->b_ml.ml_line_count;
   int msg_save = msg_scroll;
 
-  CtxSwitch aco = { 0 };
+  aco_save_T aco;
   bool did_cmd = false;
   bool nofile_err = false;
   bool empty_memline = buf->b_ml.ml_mfp == NULL;
@@ -373,7 +372,7 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
   bool buf_fname_s = *fnamep == buf->b_sfname;
 
   // Set curwin/curbuf to buf and save a few things.
-  ctx_switch(&aco, NULL, NULL, buf, 0);
+  aucmd_prepbuf(&aco, buf);
   set_bufref(&bufref, buf);
 
   if (append) {
@@ -422,7 +421,7 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
   }
 
   // restore curwin/curbuf and a few other things
-  ctx_restore(&aco);
+  aucmd_restbuf(&aco);
 
   // In three situations we return here and don't write the file:
   // 1. the autocommands deleted or unloaded the buffer.
@@ -467,7 +466,7 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
         }
       }
       if (reset_changed && buf->b_changed && !append
-          && (overwriting || vim_strchr(p_cpo, kCpoPlus) != NULL)) {
+          && (overwriting || vim_strchr(p_cpo, CPO_PLUS) != NULL)) {
         // Buffer still changed, the autocommands didn't work properly.
         return FAIL;
       }
@@ -500,19 +499,18 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
   }
 
   // The autocommands may have changed the name of the buffer, which may
-  // be kept in fname, ffname and sfname. A CWD change may also clear b_sfname;
-  // use b_fname, which falls back to the full name when there is no short name.
+  // be kept in fname, ffname and sfname.
   if (buf_ffname) {
     *ffnamep = buf->b_ffname;
   }
   if (buf_sfname) {
-    *sfnamep = buf->b_fname;
+    *sfnamep = buf->b_sfname;
   }
   if (buf_fname_f) {
     *fnamep = buf->b_ffname;
   }
   if (buf_fname_s) {
-    *fnamep = buf->b_fname;
+    *fnamep = buf->b_sfname;
   }
   return NOTDONE;
 }
@@ -520,13 +518,13 @@ static int buf_write_do_autocmds(buf_T *buf, char **fnamep, char **sfnamep, char
 static void buf_write_do_post_autocmds(buf_T *buf, char *fname, exarg_T *eap, bool append,
                                        bool filtering, bool reset_changed, bool whole)
 {
-  CtxSwitch aco = { 0 };
+  aco_save_T aco;
 
   curbuf->b_no_eol_lnum = 0;      // in case it was set by the previous read
 
   // Apply POST autocommands.
   // Careful: The autocommands may call buf_write() recursively!
-  ctx_switch(&aco, NULL, NULL, buf, 0);
+  aucmd_prepbuf(&aco, buf);
 
   if (append) {
     apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname,
@@ -543,7 +541,7 @@ static void buf_write_do_post_autocmds(buf_T *buf, char *fname, exarg_T *eap, bo
   }
 
   // restore curwin/curbuf and a few other things
-  ctx_restore(&aco);
+  aucmd_restbuf(&aco);
 }
 
 static inline Error_T set_err_num(const char *num, const char *msg)
@@ -561,32 +559,25 @@ static inline Error_T set_err_arg(const char *msg, int arg)
   return (Error_T){ .num = NULL, .msg = (char *)msg, .arg = arg };
 }
 
-/// Shows a write error msg.  IObuff must hold the quoted file name.
-///
-/// @param msg_id  Ends the progress-message with "failed" status. NULL to show a plain error msg.
-static void emit_err(Error_T *e, char *msg_id)
+static void emit_err(Error_T *e)
 {
-  char errmsg[IOSIZE];
-  if (e->num != NULL && e->arg != 0) {
-    vim_snprintf(errmsg, IOSIZE, "%s: %s%s: %s", e->num, IObuff, e->msg, os_strerror(e->arg));
-  } else if (e->num != NULL) {
-    vim_snprintf(errmsg, IOSIZE, "%s: %s%s", e->num, IObuff, e->msg);
+  if (e->num != NULL) {
+    if (e->arg != 0) {
+      semsg("%s: %s%s: %s", e->num, IObuff, e->msg, os_strerror(e->arg));
+    } else {
+      semsg("%s: %s%s", e->num, IObuff, e->msg);
+    }
   } else if (e->arg != 0) {
-    vim_snprintf(errmsg, IOSIZE, e->msg, os_strerror(e->arg));
+    semsg(e->msg, os_strerror(e->arg));
   } else {
-    xstrlcpy(errmsg, e->msg, IOSIZE);
-  }
-  if (msg_id != NULL) {
-    msg_progress(errmsg, msg_id, "failed", -1, HLF_E, false, false, true);
-  } else {
-    emsg(errmsg);
+    emsg(e->msg);
   }
   if (e->alloc) {
     xfree(e->msg);
   }
 }
 
-#ifdef UNIX
+#if defined(UNIX)
 
 static int get_fileinfo_os(char *fname, FileInfo *file_info_old, bool overwriting, int *perm,
                            bool *device, bool *newfile, Error_T *err)
@@ -672,7 +663,7 @@ static int get_fileinfo(buf_T *buf, char *fname, bool overwriting, bool forceit,
     *readonly = !os_file_is_writable(fname);
 
     if (!forceit && *readonly) {
-      if (vim_strchr(p_cpo, kCpoFwrite) != NULL) {
+      if (vim_strchr(p_cpo, CPO_FWRITE) != NULL) {
         *err = set_err_num("E504", _(err_readonly));
       } else {
         *err = set_err_num("E505", _("is read-only (add ! to override)"));
@@ -744,17 +735,16 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
         || !os_fileinfo_id_equal(&file_info, file_info_old)) {
       *backup_copyp = true;
     } else {
-      // Check if we can create a file and set the owner/group/mode to
+      // Check if we can create a file and set the owner/group to
       // the ones from the original file.
-      // First find a file name that doesn't exist yet.  Use the
-      // conventional hidden swap file name so that this short-lived
-      // probe is covered by standard Vim ignore patterns.
+      // First find a file name that doesn't exist yet (use some
+      // arbitrary numbers).
       size_t dirlen = (size_t)(path_tail(fname) - fname);
       assert(dirlen < MAXPATHL);
       char tmp_fname[MAXPATHL];
       xmemcpyz(tmp_fname, fname, dirlen);
       for (int i = 4913;; i += 123) {
-        snprintf(tmp_fname + dirlen, sizeof(tmp_fname) - dirlen, ".%d.swp", i);
+        snprintf(tmp_fname + dirlen, sizeof(tmp_fname) - dirlen, "%d", i);
         if (!os_fileinfo_link(tmp_fname, &file_info)) {
           break;
         }
@@ -766,7 +756,6 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
       } else {
 #ifdef UNIX
         os_fchown(fd, (uv_uid_t)file_info_old->stat.st_uid, (uv_gid_t)file_info_old->stat.st_gid);
-        os_fsetperm(fd, perm);
         if (!os_fileinfo(tmp_fname, &file_info)
             || file_info.stat.st_uid != file_info_old->stat.st_uid
             || file_info.stat.st_gid != file_info_old->stat.st_gid
@@ -913,7 +902,7 @@ nobackup:
     // If 'cpoptions' includes the "W" flag, we don't want to
     // overwrite a read-only file.  But rename may be possible
     // anyway, thus we need an extra check here.
-    if (file_readonly && vim_strchr(p_cpo, kCpoFwrite) != NULL) {
+    if (file_readonly && vim_strchr(p_cpo, CPO_FWRITE) != NULL) {
       *err = set_err_num("E504", _(err_readonly));
       return FAIL;
     }
@@ -1016,10 +1005,16 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
     return FAIL;
   }
 
-  // Ensure all fields are initialized (zeroed, or else specified here).
-  struct bw_info write_info = {          // info for buf_write_bytes()
-    .bw_iconv_fd = (iconv_t)-1,
-  };
+  // must init bw_conv_buf and bw_iconv_fd before jumping to "fail"
+  struct bw_info write_info;            // info for buf_write_bytes()
+  write_info.bw_conv_buf = NULL;
+  write_info.bw_conv_error = false;
+  write_info.bw_conv_error_lnum = 0;
+  write_info.bw_iconv_fd = (iconv_t)-1;
+
+  // After writing a file changedtick changes but we don't want to display
+  // the line.
+  ex_no_reprint = true;
 
   // If there is no file name yet, use the one for the written file.
   // BF_NOTEDITED is set to reflect this (in case the write fails).
@@ -1032,8 +1027,8 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
       && buf == curbuf
       && !bt_nofilename(buf)
       && !filtering
-      && (!append || vim_strchr(p_cpo, kCpoFnameapp) != NULL)
-      && vim_strchr(p_cpo, kCpoFnamew) != NULL) {
+      && (!append || vim_strchr(p_cpo, CPO_FNAMEAPP) != NULL)
+      && vim_strchr(p_cpo, CPO_FNAMEW) != NULL) {
     if (set_rw_fname(fname, sfname) == FAIL) {
       return FAIL;
     }
@@ -1054,7 +1049,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
 #endif
 
   // true if writing over original
-  bool overwriting = buf->b_ffname != NULL && path_equal(ffname, buf->b_ffname, kPathCmpLiteral);
+  bool overwriting = buf->b_ffname != NULL && path_fnamecmp(ffname, buf->b_ffname) == 0;
 
   no_wait_return++;                 // don't wait for return yet
 
@@ -1074,48 +1069,25 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
     return res;
   }
 
-  // Emitting a msg below can run user code (ui2 `msg_show` handler), which may change CWD and thus
-  // reallocate the buffer names. #41417
-  char *const fname_copy = xstrdup(fname);
-  char *const sfname_copy = xstrdup(sfname);
-  char *const ffname_copy = xstrdup(ffname);
-  fname = fname_copy;
-  sfname = sfname_copy;
-  ffname = ffname_copy;
-
   if (cmdmod.cmod_flags & CMOD_LOCKMARKS) {
     // restore the original '[ and '] positions
     buf->b_op_start = orig_start;
     buf->b_op_end = orig_end;
   }
 
-  if (shortmess(kShmOver) && !exiting) {
+  if (shortmess(SHM_OVER) && !exiting) {
     msg_scroll = false;             // overwrite previous file message
   } else {
     msg_scroll = true;              // don't overwrite previous file message
   }
-#ifndef UNIX
-  char *msgname = sfname;
-#else
-  char *msgname = fname;
-#endif
-  char msg_id[MAXPATHL + 32];  // Progress-msg id.
-  fname_msg_id(msg_id, sizeof(msg_id), "nvim.bufwrite", buf, msgname);
-
-  // Hide the cursor until done writing, else it jumps to the filename message. #25974
-  const bool show_msg = !filtering && msg_silent == 0;
-  if (show_msg) {
-    ui_busy_start();
-  }
   if (!filtering) {
-    filemess_bufwrite(buf, msgname, msg_id);
+    // show that we are busy
+#ifndef UNIX
+    filemess(buf, sfname, "");
+#else
+    filemess(buf, fname, "");
+#endif
   }
-
-  int progress = -1;  // Progress-message percent for a slow write.
-  off_T progress_nchars = 0;  // `nchars` at the last progress check.
-  const uint64_t write_start = os_hrtime();
-  // Safety: any changes hereafter (eg by Progress autocmds) are not written, so keep 'modified'.
-  const varnumber_T write_tick = buf_get_changedtick(buf);
   msg_scroll = false;               // always overwrite the file message now
 
   char *buffer = verbose_try_malloc(WRITEBUFSIZE);
@@ -1185,13 +1157,13 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
     }
   }
 
-#ifdef UNIX
+#if defined(UNIX)
   bool made_writable = false;  // 'w' bit has been set
 
   // When using ":w!" and the file was read-only: make it writable
   if (forceit && perm >= 0 && !(perm & 0200)
       && file_info_old.stat.st_uid == getuid()
-      && vim_strchr(p_cpo, kCpoFwrite) == NULL) {
+      && vim_strchr(p_cpo, CPO_FWRITE) == NULL) {
     perm |= 0200;
     os_setperm(fname, perm);
     made_writable = true;
@@ -1200,7 +1172,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
 
   // When using ":w!" and writing to the current file, 'readonly' makes no
   // sense, reset it, unless 'Z' appears in 'cpoptions'.
-  if (forceit && overwriting && vim_strchr(p_cpo, kCpoKeepro) == NULL) {
+  if (forceit && overwriting && vim_strchr(p_cpo, CPO_KEEPRO) == NULL) {
     buf->b_p_ro = false;
     need_maketitle = true;          // set window title later
     status_redraw_all();            // redraw status lines later
@@ -1280,7 +1252,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
       // When the file needs to be converted with 'charconvert' after
       // writing, write to a temp file instead and let the conversion
       // overwrite the original file.
-      if (p_ccv.type != kCallbackNone) {
+      if (*p_ccv != NUL) {
         wfname = vim_tempname();
         if (wfname == NULL) {  // Can't write without a tempfile!
           err = set_err(_("E214: Can't find temp file for writing"));
@@ -1355,7 +1327,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
             err = set_err(_("E166: Can't open linked file for writing"));
           } else {
             err = set_err_arg(_("E212: Can't open file for writing: %s"), fd);
-            if (forceit && vim_strchr(p_cpo, kCpoFwrite) == NULL && perm >= 0) {
+            if (forceit && vim_strchr(p_cpo, CPO_FWRITE) == NULL && perm >= 0) {
               // we write to the file, thus it should be marked
               // writable after all
               if (!(perm & 0200)) {
@@ -1374,7 +1346,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
           }
 #else
           err = set_err_arg(_("E212: Can't open file for writing: %s"), fd);
-          if (forceit && vim_strchr(p_cpo, kCpoFwrite) == NULL && perm >= 0) {
+          if (forceit && vim_strchr(p_cpo, CPO_FWRITE) == NULL && perm >= 0) {
             if (!append) {                    // don't remove when appending
               os_remove(wfname);
             }
@@ -1461,9 +1433,6 @@ restore_backup:
     write_info.bw_flags = wb_flags;
     fileformat = get_fileformat_force(buf, eap);
     char *s = buffer;
-
-    // The write loop: copies each line (plus EOL) into `buffer`, which buf_write_bytes() writes to
-    // the file whenever it is full (`bufsize`). Also reports progress.
     for (lnum = start; lnum <= end; lnum++) {
       // The next while loop is done once for each character written.
       // Keep it fast!
@@ -1532,25 +1501,7 @@ restore_backup:
           break;
         }
       }
-
-      // Show a progress-message (with updated %) if slow.
-      if (show_msg && nchars != progress_nchars) {
-        progress_nchars = nchars;
-        const int percent = (int)((int64_t)(lnum - start) * 100 / (end - start + 1));
-        if (percent != progress && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())) {
-          progress = percent;
-          add_quoted_fname(IObuff, IOSIZE, buf, msgname);
-          msg_progress(IObuff, msg_id, "running", progress, 0, false, true, false);
-          if (buf_get_changedtick(buf) != write_tick) {
-            // Progress handler changed the text: the file would mix old and new lines.
-            err = set_err(_(e_buffer_changed_unexpectedly));
-            end = 0;
-            break;
-          }
-        }
-      }
     }
-
     if (write_info.bw_len > 0 && end > 0) {
       int remaining = write_info.bw_len;
       if (buf_write_bytes(&write_info) == FAIL) {
@@ -1713,7 +1664,7 @@ restore_backup:
   lnum -= start;            // compute number of written lines
   no_wait_return--;         // may wait for return now
 
-#ifndef UNIX
+#if !defined(UNIX)
   fname = sfname;           // use shortname now, for the messages
 #endif
   if (!filtering) {
@@ -1749,24 +1700,21 @@ restore_backup:
       insert_space = true;
     }
     msg_add_lines(insert_space, lnum, nchars);       // add line/char count
-    if (!shortmess(kShmWrite)) {
+    if (!shortmess(SHM_WRITE)) {
       if (append) {
-        xstrlcat(IObuff, shortmess(kShmWri) ? _(" [a]") : _(" appended"), IOSIZE);
+        xstrlcat(IObuff, shortmess(SHM_WRI) ? _(" [a]") : _(" appended"), IOSIZE);
       } else {
-        xstrlcat(IObuff, shortmess(kShmWri) ? _(" [w]") : _(" written"), IOSIZE);
+        xstrlcat(IObuff, shortmess(SHM_WRI) ? _(" [w]") : _(" written"), IOSIZE);
       }
     }
-    set_keep_msg(progress >= 0
-                 ? msg_progress(IObuff, msg_id, "success", -1, 0, true, true, false)
-                 : msg_with_id(IObuff, msg_id, "bufwrite", NULL, 0, true, true, false), 0);
+    set_keep_msg(msg_progress(IObuff, "bufwrite", "success", 0, true, true), 0);
   }
 
-  // When written everything correctly: reset 'modified'.  Unless not writing to the original file
-  // and not 'cpoptions=+', or the buffer changed (by autocmds!?) while writing.
+  // When written everything correctly: reset 'modified'.  Unless not
+  // writing to the original file and '+' is not in 'cpoptions'.
   if (reset_changed && whole && !append
       && !write_info.bw_conv_error
-      && (overwriting || vim_strchr(p_cpo, kCpoPlus) != NULL)
-      && buf_get_changedtick(buf) == write_tick) {
+      && (overwriting || vim_strchr(p_cpo, CPO_PLUS) != NULL)) {
     unchanged(buf, true, false);
     const varnumber_T changedtick = buf_get_changedtick(buf);
     if (buf->b_last_changedtick + 1 == changedtick) {
@@ -1841,9 +1789,9 @@ restore_backup:
 fail:
   no_wait_return--;             // may wait for return now
 nofail:
-  if (show_msg) {
-    ui_busy_stop();
-  }
+
+  // Done saving, we accept changed buffer warnings again
+  buf->b_saving = false;
 
   xfree(backup);
   if (buffer != smallbuf) {
@@ -1858,9 +1806,13 @@ nofail:
   os_free_acl(acl);
 
   if (err.msg != NULL) {
-    // - 100 to save some space for further error message.
-    add_quoted_fname(IObuff, IOSIZE - 100, buf, msgname);
-    emit_err(&err, progress >= 0 ? msg_id : NULL);
+    // - 100 to save some space for further error message
+#ifndef UNIX
+    add_quoted_fname(IObuff, IOSIZE - 100, buf, sfname);
+#else
+    add_quoted_fname(IObuff, IOSIZE - 100, buf, fname);
+#endif
+    emit_err(&err);
 
     retval = FAIL;
     if (end == 0) {
@@ -1877,9 +1829,6 @@ nofail:
       }
     }
   }
-
-  // Done saving, reported any errors. Allow "changed buffer" warnings and unloading `buf`, again.
-  buf->b_saving = false;
   msg_scroll = msg_save;
 
   // When writing the whole file and 'undofile' is set, also write the undo
@@ -1899,10 +1848,6 @@ nofail:
   }
 
   got_int |= prev_got_int;
-
-  xfree(fname_copy);
-  xfree(sfname_copy);
-  xfree(ffname_copy);
 
   return retval;
 }

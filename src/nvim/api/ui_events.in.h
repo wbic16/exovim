@@ -29,8 +29,8 @@ void flush(void)
   FUNC_API_SINCE(3) FUNC_API_REMOTE_IMPL;
 void connect(String server_addr)
   FUNC_API_SINCE(14) FUNC_API_REMOTE_ONLY FUNC_API_REMOTE_IMPL FUNC_API_CLIENT_IMPL;
-void restart(String listen_addr, Dict chan_config)
-  FUNC_API_SINCE(14) FUNC_API_REMOTE_ONLY FUNC_API_REMOTE_IMPL FUNC_API_CLIENT_IMPL;
+void restart(String listen_addr)
+  FUNC_API_SINCE(14) FUNC_API_REMOTE_ONLY FUNC_API_CLIENT_IMPL;
 void suspend(void)
   FUNC_API_SINCE(3);
 void set_title(String title)
@@ -43,6 +43,9 @@ void option_set(String name, Object value)
   FUNC_API_SINCE(4);
 void chdir(String path)
   FUNC_API_SINCE(12);
+// Stop event is not exported as such, represented by EOF in the msgpack stream.
+void stop(void)
+  FUNC_API_NOEXPORT;
 void ui_send(String content)
   FUNC_API_SINCE(14) FUNC_API_REMOTE_IMPL;
 
@@ -175,24 +178,13 @@ void msg_ruler(Array content)
 void msg_history_show(Array entries, Boolean prev_cmd)
   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
 
-// These UI events are currently documented only internally:
+// This UI event is currently undocumented.
 // - When the server needs to intentionally exit with an exit code, and there is no
 //   message in server stderr for the user, this event is sent with positive `status`
 //   argument, to indicate that the UI should exit normally with `status`.
 // - When the server has crashed or there is a message in server stderr for the user,
 //   this event is not sent, and the UI should make server stderr visible.
-//   If "_set_restart_on_crash_exit" has been sent, the UI may start
-//   a new nvim server with this command line and attach to it.
 // - When :detach is used on the server, this event is sent with a zero `status`
-//   argument, to indicate that the UI shouldn't wait for server exit, and the `addr`
-//   to which the client may reattach.
-void error_exit(Integer status, String addr)
+//   argument, to indicate that the UI shouldn't wait for server exit.
+void error_exit(Integer status)
   FUNC_API_SINCE(12) FUNC_API_CLIENT_IMPL;
-
-// Sets a hint for how a client can handle neovim unexpectedly exiting
-// with an error code or signal (without using "error_exit" to indicate
-// an intentional `:cquit`). This should then be handled by starting a new
-// server. Use `progpath` as the full path to the Nvim executable
-// |v:progpath| and `argv` as its arguments |v:argv|, and reattach to the new
-// server.
-void _set_restart_on_crash_exit(String progpath, Array argv) FUNC_API_CLIENT_IMPL;

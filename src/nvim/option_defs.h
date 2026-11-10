@@ -6,7 +6,6 @@
 #include "nvim/api/private/defs.h"
 #include "nvim/cmdexpand_defs.h"
 #include "nvim/regexp_defs.h"
-#include "nvim/types_defs.h"
 
 #include "options_enum.generated.h"
 
@@ -29,55 +28,52 @@ typedef enum {
   kOptFlagOneComma  = (1 << 11) | kOptFlagComma,  ///< Comma-separated list that cannot have two consecutive commas.
   kOptFlagNoDup     = 1 << 12,  ///< Don't allow duplicate strings.
   kOptFlagFlagList  = 1 << 13,  ///< List of single-char flags.
-  kOptFlagSecure    = 1 << 14,  ///< Cannot change in modelines, secure mode, or the sandbox.
+  kOptFlagSecure    = 1 << 14,  ///< Cannot change in modeline or secure mode.
   kOptFlagGettext   = 1 << 15,  ///< Expand default value with _().
   kOptFlagNoGlob    = 1 << 16,  ///< Do not use local value for global vimrc.
   kOptFlagNFname    = 1 << 17,  ///< Only normal file name chars allowed.
-  kOptFlagInsecure  = 1 << 18,  ///< Value contains untrusted content; evaluate it in the sandbox.
+  kOptFlagInsecure  = 1 << 18,  ///< Option was set from a modeline.
   kOptFlagPriMkrc   = 1 << 19,  ///< Priority for :mkvimrc (setting option has side effects).
   kOptFlagCurswant  = 1 << 20,  ///< Update curswant required; not needed when there is a redraw flag.
   kOptFlagNDname    = 1 << 21,  ///< Only normal directory name chars allowed.
   kOptFlagHLOnly    = 1 << 22,  ///< Option only changes highlight, not text.
   kOptFlagMLE       = 1 << 23,  ///< Under control of 'modelineexpr'.
-  kOptFlagFunc      = 1 << 24,  ///< Callback option: Lua function, or Vimscript funcref.
+  kOptFlagFunc      = 1 << 24,  ///< Accept a function reference or a lambda.
   kOptFlagColon     = 1 << 25,  ///< Values use colons to create sublists.
-  kOptFlagExpr      = 1 << 26,  ///< Callback option: Vimscript expr, e.g. 'foldexpr'.
 } OptFlags;
+
+/// Option value type.
+/// These types are also used as type flags by using the type value as an index for the type_flags
+/// bit field (@see option_has_type()).
+typedef enum {
+  kOptValTypeNil = -1,  // Make sure Nil can't be bitshifted and used as an option type flag.
+  kOptValTypeBoolean,
+  kOptValTypeNumber,
+  kOptValTypeString,
+} OptValType;
 
 /// Scopes that an option can support.
 typedef enum {
   kOptScopeGlobal = 0,  ///< Request global option value
   kOptScopeWin,      ///< Request window-local option value
   kOptScopeBuf,      ///< Request buffer-local option value
-  kOptScopeTab,      ///< Request tabpage-local option value
 } OptScope;
 /// Always update this whenever a new option scope is added.
-#define kOptScopeSize (kOptScopeTab + 1)
+#define kOptScopeSize (kOptScopeBuf + 1)
 typedef uint8_t OptScopeFlags;
 
-/// Value kind of one key in a dict option (see "schema" in options.lua).
-typedef enum {
-  kOptSchemaFlag,   ///< bare flag, e.g. 'diffopt' "filler"
-  kOptSchemaNum,    ///< "key:N" non-negative number, e.g. 'diffopt' "context:4"
-  kOptSchemaSNum,   ///< "key:N" signed number, e.g. 'breakindentopt' "shift:-2"
-  kOptSchemaEnum,   ///< "key:val" where val is one of "enum_values", e.g. "algorithm:patience"
-  kOptSchemaStr,    ///< "key:val" where val is a free string, e.g. 'previewpopup' "highlight:Foo"
-} OptSchemaKind;
+typedef union {
+  // boolean options are actually tri-states because they have a third "None" value.
+  TriState boolean;
+  OptInt number;
+  String string;
+} OptValData;
 
-/// One key of a dict option, generated from its `dict` schema in options.lua.
-/// Consumed by opt_strings_check(). A NULL "name" terminates the array.
+/// Option value
 typedef struct {
-  const char *name;           ///< key name, without a trailing ':'
-  OptSchemaKind kind;
-  const char **enum_values;    ///< kOptSchemaEnum: NULL-terminated valid values; else NULL
-} OptSchemaItem;
-
-/// Schema for a dict option (`schema.dict` in options.lua).
-typedef struct {
-  FieldHashfn get_field;        ///< Keyset perfect-hash lookup, for opt_fill().
-  const OptSchemaItem *schema;  ///< Grammar, for opt_strings_check() validation.
-  size_t size;                  ///< sizeof the keyset, for opt_keyset() storage.
-} OptDictSchema;
+  OptValType type;
+  OptValData data;
+} OptVal;
 
 /// :set operator types
 typedef enum {
@@ -87,29 +83,19 @@ typedef enum {
   OP_REMOVING,    ///< "opt-=arg"
 } set_op_T;
 
-/// Arguments for validating an option value or applying it after storage.
+/// Argument for the callback function (opt_did_set_cb_T) invoked after an
+/// option value is modified.
 typedef struct {
   /// Pointer to the option variable.  The variable can be an OptInt (numeric
-  /// option), an int (boolean option), a char pointer (string option), or a Callback.
-  /// Holds the old value during validation and the new value when applying it.
+  /// option), an int (boolean option) or a char pointer (string option).
   void *os_varp;
   OptIndex os_idx;
   int os_flags;
 
   /// Old value of the option.
-  Object os_oldval;
-  /// New value of the option (not yet stored during validation).
-  Object os_newval;
-
-  /// Initially empty; validation may prepare data for the did_set callback.
-  /// The callbacks agree on the union member and pointer type. A callback taking
-  /// ownership of a pointer must clear it.
-  union {
-    void *ptr;
-    unsigned flags;
-  } os_prep;
-  /// Frees non-NULL prepared data after a dry run, an error, or application.
-  void (*os_prep_free)(void *);
+  OptValData os_oldval;
+  /// New value of the option.
+  OptValData os_newval;
 
   /// Option value was checked to be safe, no need to set kOptFlagInsecure
   /// Used for the 'keymap', 'filetype' and 'syntax' options.
@@ -125,21 +111,19 @@ typedef struct {
   /// If the value specified for an option is not valid and the error message
   /// is parameterized, then the "os_errbuf" buffer is used to store the error
   /// message (when it is not NULL).
-  const CharBuf *os_errbuf;
+  char *os_errbuf;
+  /// length of the error buffer
+  size_t os_errbuflen;
 
-  win_T *os_win;
-  buf_T *os_buf;
+  void *os_win;
+  void *os_buf;
 } optset_T;
 
-/// Check a candidate value without changing option variables or derived state,
-/// or evaluating user code. Return an error message, or NULL on success.
-/// May populate os_prep for the did_set callback.
-typedef const char *(*opt_validate_cb_T)(optset_T *args);
-
-/// Type for the callback function invoked after storing an option value to
-/// apply it and update derived state.
+/// Type for the callback function that is invoked after an option value is
+/// changed to validate and apply the new value.
 ///
-/// Returns NULL on success, or an error message if the value could not be applied.
+/// Returns NULL if the option value is valid and successfully applied.
+/// Otherwise returns an error message.
 typedef const char *(*opt_did_set_cb_T)(optset_T *args);
 
 /// Argument for the callback function (opt_expand_cb_T) invoked after a string
@@ -183,7 +167,7 @@ typedef struct {
   char *fullname;                    ///< full option name
   char *shortname;                   ///< permissible abbreviation
   uint32_t flags;                    ///< see above
-  ObjectType type;                   ///< option type
+  OptValType type;                   ///< option type
   OptScopeFlags scope_flags;         ///< option scope flags, see OptScope
   void *var;                         ///< global option: pointer to variable;
                                      ///< window-local option: NULL;
@@ -195,19 +179,14 @@ typedef struct {
   const char **values;               ///< possible values for string options
   const size_t values_len;           ///< length of values array
 
-  /// Grammar of a dict option ("schema.dict" in options.lua); NULL otherwise.
-  const OptSchemaItem *schema;
-
-  /// Validate a candidate value before storing it, without side effects.
-  opt_validate_cb_T opt_validate_cb;
-
-  /// Apply the stored value. Some handlers still perform option-specific validation.
+  /// callback function to invoke after an option is modified to validate and
+  /// apply the new value.
   opt_did_set_cb_T opt_did_set_cb;
 
   /// callback function to invoke when expanding possible values on the
   /// cmdline. Only useful for string options.
   opt_expand_cb_T opt_expand_cb;
 
-  Object def_val;                    ///< default value
+  OptVal def_val;                    ///< default value
   sctx_T script_ctx;                 ///< script in which the option was last set
 } vimoption_T;

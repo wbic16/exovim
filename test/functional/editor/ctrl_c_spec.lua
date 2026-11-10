@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear, feed, source = n.clear, n.feed, n.source
 local command = n.command
 local poke_eventloop = n.poke_eventloop
@@ -18,7 +17,7 @@ describe('CTRL-C (mapped)', function()
 
   it('interrupts :global', function()
     -- Crashes luajit.
-    if t.skip_fragile(t.pending) then
+    if t.skip_fragile(pending) then
       return
     end
 
@@ -38,18 +37,25 @@ describe('CTRL-C (mapped)', function()
                                                           |
     ]])
 
-    -- Sends CTRL-C during :global. The timer fires when :global first checks for input.
-    n.exec_lua(function()
-      function _G.ctrl_c_soon()
-        local timer = assert(vim.uv.new_timer())
-        timer:start(0, 0, function()
-          timer:close()
-          vim.api.nvim_input('<C-C>')
-        end)
+    local function test_ctrl_c(ms)
+      feed(':global/^/p<CR>')
+      screen:sleep(ms)
+      feed('<C-C>')
+      screen:expect { any = 'Interrupt' }
+    end
+
+    -- The test is time-sensitive. Try different sleep values.
+    local ms_values = { 100, 1000, 10000 }
+    for i, ms in ipairs(ms_values) do
+      if i < #ms_values then
+        local status, _ = pcall(test_ctrl_c, ms)
+        if status then
+          break
+        end
+      else -- Call the last attempt directly.
+        test_ctrl_c(ms)
       end
-    end)
-    feed(':call v:lua.ctrl_c_soon() | global/^/p<CR>')
-    screen:expect({ any = 'Interrupt' })
+    end
   end)
 
   it('interrupts :sleep', function()

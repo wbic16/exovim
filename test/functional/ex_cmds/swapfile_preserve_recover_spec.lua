@@ -3,8 +3,6 @@ local n = require('test.functional.testnvim')()
 local tt = require('test.functional.testterm')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each, finally =
-  t.describe, t.it, t.before_each, t.after_each, t.finally
 local uv = vim.uv
 local eq, eval, expect, exec = t.eq, n.eval, n.expect, n.exec
 local assert_alive = n.assert_alive
@@ -119,7 +117,7 @@ describe("preserve and (R)ecover with custom 'directory'", function()
     test_recover(swappath1)
   end)
 
-  it('killing TUI process without :preserve #22096', { retries = 2 }, function()
+  it('killing TUI process without :preserve #22096', function()
     -- Windows(#38669): inner server could attach to the outer Nvim terminal's console
     -- and die abruptly when the outer terminal job closed, leaving an unreadable swapfile
     skip(is_os('win'), 'unreadable swapfile on Windows after TUI process exit')
@@ -138,7 +136,8 @@ describe("preserve and (R)ecover with custom 'directory'", function()
     -- n.exec_lua([[vim.uv.kill(vim.fn.jobpid(vim.bo.channel), 'sigterm')]])
     command('call chanclose(&channel)') -- Kill the child process.
     -- Wait for the child process to stop.
-    screen0:expect({ any = '%[Process exited 1%]' })
+    -- FIXME: SIGHUP sometimes isn't caught with ASAN.
+    screen0:expect({ any = t.is_asan() and '%[Process exited %d+%]' or '%[Process exited 1%]' })
     neq(nil, uv.fs_stat(swappath1))
     test_recover(swappath1)
   end)
@@ -161,34 +160,24 @@ describe("preserve and (R)ecover with custom 'directory'", function()
             {
               content = { { '' } },
               pos = 0,
-              -- Default vim.ui.select prompt.
-              prompt = 'Type number and <Enter> (q or empty cancels): ',
+              prompt = 'Enter number of swap file to use (0 to quit): ',
             },
           },
           condition = function()
             msg = msg or screen.messages[1]
-            -- Concatenate all chunks (each chunk is { 'text' } or { hl_id, 'text', 'group' }).
-            local text = ''
-            for _, chunk in ipairs(msg.content) do
-              text = text .. (#chunk >= 2 and chunk[2] or chunk[1])
-            end
-            -- New ui.select-driven prompt; rich info from format_item.
-            eq(true, text:match('Select a swapfile:') ~= nil)
-            eq(true, text:match('%.swo') ~= nil)
-            eq(true, text:match('%.swp') ~= nil)
-            eq(true, text:match('host name:') ~= nil)
-            eq('confirm', msg.kind)
+            eq(true, msg.content[1][2]:match('Swap.*none --') ~= nil)
+            eq('list_cmd', msg.kind)
             screen.messages = {}
           end,
         })
       else
         screen:expect({
           any = {
-            vim.pesc('Select a swapfile:'),
-            '\n1:.*%.swo',
-            '\n2:.*%.swp',
-            'host name:',
-            vim.pesc('Type number and <Enter> (q or empty cancels): ^'),
+            '\nSwap files found:',
+            '\n   In directory ',
+            vim.pesc('\n1.    '),
+            vim.pesc('\n2.    '),
+            vim.pesc('\nEnter number of swap file to use (0 to quit): ^'),
           },
           none = vim.pesc('{18:^@}'),
         })
@@ -249,12 +238,13 @@ describe('swapfile detection', function()
     write_file(
       testfile,
       [[
-        vim.o.foldmethod = 'expr'
-        vim.o.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-        vim.defer_fn(function()
-          vim.api.nvim__redraw({ valid = false })
-        end, 500)
-        pcall(vim.cmd.edit, 'Xtest_swapredraw.lua')]]
+vim.o.foldmethod = 'expr'
+vim.o.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+vim.defer_fn(function()
+  vim.api.nvim__redraw({ valid = false })
+end, 500)
+pcall(vim.cmd.edit, 'Xtest_swapredraw.lua')
+    ]]
     )
     exec(init)
     command('edit! ' .. testfile)
@@ -428,50 +418,10 @@ describe('swapfile detection', function()
     screen:expect([[
       ^                                                            |
       {1:~                                                           }|*16
-      {19:W325: Ignoring swapfile from Nvim process }0,0-1          All|
+      {19:W325: Ignoring swapfile from Nvim process }0,0-1         All |
     ]])
     eq(('\n' .. msg_expected):rep(3):sub(2), n.exec_capture('messages'))
     command('bwipe!')
-
-    nvim1:close()
-  end)
-
-  -- ui2 opens windows to show a message, which chdirs in and out of the target window's context.
-  -- readfile() aliases the buffer name across that.
-  it('ui2 message from the SwapExists handler does not abort the read #41454', function()
-    exec(init)
-    write_file('Xfile1', 'some text...\n')
-    command('edit Xfile1')
-    command('preserve') -- Make sure the swap file exists.
-
-    local initfile = 'Xtest_swapdialog_init.lua'
-    write_file(
-      initfile,
-      ('vim.opt.directory:prepend(%q)\nrequire("vim._core.ui2").enable()\n'):format(swapdir .. '//')
-    )
-    finally(function()
-      os.remove(initfile)
-      os.remove('Xfile1')
-    end)
-
-    local nvim1 = n.new_session(true)
-    set_session(nvim1)
-    local screen = Screen.new(75, 10)
-    -- ui2 needs a UI attached while the file argument is read, i.e. a real TTY.
-    fn.jobstart({ nvim_prog, '-i', 'NONE', '--noplugin', '-u', initfile, 'Xfile1' }, {
-      term = true,
-      env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
-    })
-    screen:expect({
-      grid = [[
-        ^some text...                                                               |
-        ~                                                                          |*6
-        Xfile1                                                   1,1            All|
-        {MATCH:W325: Ignoring swapfile from Nvim process %d+ *}|
-                                                                                   |
-      ]],
-      attr_ids = {},
-    })
 
     nvim1:close()
   end)
@@ -767,50 +717,5 @@ describe('quitting swapfile dialog on startup stops TUI properly', function()
     end)
     api.nvim_chan_send(chan, 'q')
     expect_exitcode(1)
-  end)
-end)
-
-describe('swapfile', function()
-  it('when using device path #31606', function()
-    t.skip(not is_os('win'), 'N/A: Windows feature')
-    local cwd = vim.fs.normalize(vim.uv.cwd())
-    local drive, path = cwd:sub(1, 1), cwd:sub(3)
-    local swapdir = ('%s/Xtest_swap_dir'):format(cwd)
-    local dos_path = ('%s/file.txt'):format(cwd)
-    local device_quest_path = ('//?/%s'):format(dos_path)
-    clear({
-      args = {
-        '--embed',
-        '--headless',
-        '--cmd',
-        ('set directory=%s//'):format(swapdir),
-        '--',
-        device_quest_path,
-      },
-      merge = false,
-    })
-    local escaped_name = ('%s/%s.swp'):format(swapdir, dos_path:gsub('[:/]', '%%'))
-    eq(escaped_name, fn.swapname('%'))
-
-    command('bw!')
-    api.nvim_buf_set_name(0, dos_path)
-    eq(escaped_name, fn.swapname('%'))
-
-    command('bw!')
-    local device_dot_path = ('//./%s'):format(dos_path)
-    api.nvim_buf_set_name(0, device_dot_path)
-    eq(escaped_name, fn.swapname('%'))
-
-    command('bw!')
-    local device_unc_path = ('//?/UNC/localhost/%s$%s/file.txt'):format(drive, path)
-    api.nvim_buf_set_name(0, device_unc_path)
-    eq(('%s/%%%s.swp'):format(swapdir, device_unc_path:sub(8):gsub('/', '%%')), fn.swapname('%'))
-
-    command('bw!')
-    -- Volume GUID form, like \\?\Volume{d4857377-2ac4-45d8-a4cb-9b2e447fd02e}\
-    local guid = vim.fs.normalize(vim.trim(vim.fn.system(('mountvol %s: /L'):format(drive))))
-    local device_guid_path = ('%s%s/file.txt'):format(guid, path:sub(2))
-    api.nvim_buf_set_name(0, device_guid_path)
-    eq(escaped_name, fn.swapname('%'))
   end)
 end)

@@ -4,71 +4,25 @@
                              NVIM REFERENCE MANUAL
 
 
-==============================================================================
-Deprecated features                                          *deprecated*
+Nvim                                                             *deprecated*
 
 The items listed below are deprecated: they will be removed in the future.
 They should not be used in new scripts, and old scripts should be updated.
 
-------------------------------------------------------------------------------
-DEPRECATED IN 0.13					*deprecated-0.13*
-
-API
-
-• *nvim_win_set_height()*	Use |nvim_win_resize()| instead.
-• *nvim_win_set_width()*	Use |nvim_win_resize()| instead.
-• The "buffer" key accepted and/or returned by these functions, was renamed to
-  "buf":
-  • |nvim_create_autocmd()|
-  • |nvim_get_autocmds()|
-  • |nvim_exec_autocmds()|
-  • |nvim_clear_autocmds()|
-
-EVENTS
-• *BufModifiedSet*	Use |OptionSet| with pattern "modified" instead.
-
-HIGHLIGHTS
-
-• vim.hl.on_yank()	Use |vim.hl.hl_op()| instead.
-
-LUA
-
-• vim.F.if_nil()		Renamed to |vim.nonnil()|
-• vim.F.ok_or_nil()
-• vim.F.npcall()		Renamed to |vim.npcall()|
-• vim.F.nil_wrap()		Use |vim.npcall()| instead
-• *vim.uri_decode()*		Renamed to |vim.uri.decode()|
-• *vim.uri_encode()*		Renamed to |vim.uri.encode()|
-• *vim.uri_from_bufnr()*	Renamed to |vim.uri.from_buf()|
-• *vim.uri_from_fname()*	Renamed to |vim.uri.from_fname()|
-• *vim.uri_to_bufnr()*		Renamed to |vim.uri.to_buf()|
-• *vim.uri_to_fname()*		Renamed to |vim.uri.to_fname()|
-
-TREESITTER
-
-• *vim.treesitter.get_captures_at_pos()* Use |vim.treesitter.get_captures()|
-  with `(buf, { row, col })` instead.
-
-UI
-
-• |v:echospace|		Its purpose to avoid a "Press ENTER" prompt
-			no longer applies with |ui2|.
-
-LSP
-
-• vim.lsp.util.character_offset()	Use to |vim.str_utfindex()| instead
-
-VIMSCRIPT
-• ctxget(), ctxpop(), ctxpush(), ctxset(), ctxsize(). Use
-  |nvim_get_context()| and |nvim_load_context()| instead.
-• *rpcnotify()*		Use |vim.rpcnotify()| instead.
-• *rpcrequest()*	Use |vim.rpcrequest()| instead.
+==============================================================================
+Deprecated features
 
 ------------------------------------------------------------------------------
 DEPRECATED IN 0.12					*deprecated-0.12*
 
 API
 
+• The "buffer" key accepted and/or returned by these functions, was renamed to
+  "buf":
+  • |nvim_create_autocmd()|
+  • |nvim_get_autocmds()|
+  • |nvim_exec_autocmds()|
+  • |nvim_clear_autocmds()|
 • nvim_set_decoration_provider `on_line`	Use `on_range` instead.
 
 DIAGNOSTICS
@@ -108,7 +62,7 @@ LUA
 UI
 
 • *hit-enter* *hit-enter-prompt*	With |ui2|, the legacy "Press ENTER"
-  *press-enter*				prompt is never triggered.
+  *press-enter				prompt is never triggered.
 
 ------------------------------------------------------------------------------
 DEPRECATED IN 0.11					*deprecated-0.11*
@@ -189,8 +143,8 @@ DIAGNOSTICS
 • Configuring |diagnostic-signs| using |:sign-define| or |sign_define()|. Use
   the "signs" key of |vim.diagnostic.config()| instead.
 • vim.diagnostic functions:
-  • vim.diagnostic.disable()		Use |vim.diagnostic.enable()|
-  • vim.diagnostic.is_disabled()	Use |vim.diagnostic.is_enabled()|
+  • *vim.diagnostic.disable()*		Use |vim.diagnostic.enable()|
+  • *vim.diagnostic.is_disabled()*	Use |vim.diagnostic.is_enabled()|
   • Legacy signature: `vim.diagnostic.enable(buf:number, namespace:number)`
 
 LSP
@@ -210,7 +164,7 @@ LSP
 LUA
 • *vim.loop*				Use |vim.uv| instead.
 • *vim.tbl_add_reverse_lookup()*
-• *vim.tbl_flatten()*			Use |IterArray:flatten()| instead.
+• *vim.tbl_flatten()*			Use |Iter:flatten()| instead.
 • *vim.tbl_islist()*			Use |vim.islist()| instead.
 
 OPTIONS
@@ -298,38 +252,38 @@ HIGHLIGHTS
 LSP DIAGNOSTICS
 For each of the functions below, use the corresponding function in
 |vim.diagnostic| instead (unless otherwise noted). For example, use
-|vim.diagnostic.get()| instead of vim.lsp.diagnostic.get().
+|vim.diagnostic.get()| instead of |vim.lsp.diagnostic.get()|.
 
-• vim.lsp.diagnostic.clear()		Use |vim.diagnostic.hide()| instead.
-• vim.lsp.diagnostic.disable()          Use |vim.diagnostic.enable()| instead.
-• vim.lsp.diagnostic.display()		Use |vim.diagnostic.show()| instead.
-• vim.lsp.diagnostic.enable()
-• vim.lsp.diagnostic.get()
-• vim.lsp.diagnostic.get_all()		Use |vim.diagnostic.get()| instead.
-• vim.lsp.diagnostic.get_count()	Use |vim.diagnostic.count()| instead.
-• vim.lsp.diagnostic.get_line_diagnostics() Use |vim.diagnostic.get()| instead.
-• vim.lsp.diagnostic.get_next()
-• vim.lsp.diagnostic.get_next_pos()
-• vim.lsp.diagnostic.get_prev()
-• vim.lsp.diagnostic.get_prev_pos()
-• vim.lsp.diagnostic.get_virtual_text_chunks_for_line() No replacement. Use
+• *vim.lsp.diagnostic.clear()*		Use |vim.diagnostic.hide()| instead.
+• *vim.lsp.diagnostic.disable()*          Use |vim.diagnostic.enable()| instead.
+• *vim.lsp.diagnostic.display()*	Use |vim.diagnostic.show()| instead.
+• *vim.lsp.diagnostic.enable()*
+• *vim.lsp.diagnostic.get()*
+• *vim.lsp.diagnostic.get_all()*	Use |vim.diagnostic.get()| instead.
+• *vim.lsp.diagnostic.get_count()*	Use |vim.diagnostic.count()| instead.
+• *vim.lsp.diagnostic.get_line_diagnostics()* Use |vim.diagnostic.get()| instead.
+• *vim.lsp.diagnostic.get_next()*
+• *vim.lsp.diagnostic.get_next_pos()*
+• *vim.lsp.diagnostic.get_prev()*
+• *vim.lsp.diagnostic.get_prev_pos()*
+• *vim.lsp.diagnostic.get_virtual_text_chunks_for_line()* No replacement. Use
   options provided by |vim.diagnostic.config()| to customize virtual text.
-• vim.lsp.diagnostic.goto_next()
-• vim.lsp.diagnostic.goto_prev()
-• vim.lsp.diagnostic.redraw()		Use |vim.diagnostic.show()| instead.
-• vim.lsp.diagnostic.save()		Use |vim.diagnostic.set()| instead.
-• vim.lsp.diagnostic.set_loclist()	Use |vim.diagnostic.setloclist()| instead.
-• vim.lsp.diagnostic.set_qflist()	Use |vim.diagnostic.setqflist()| instead.
-• vim.lsp.diagnostic.show_line_diagnostics() Use |vim.diagnostic.open_float()| instead.
-• vim.lsp.diagnostic.show_position_diagnostics() Use |vim.diagnostic.open_float()| instead.
+• *vim.lsp.diagnostic.goto_next()*
+• *vim.lsp.diagnostic.goto_prev()*
+• *vim.lsp.diagnostic.redraw()*		Use |vim.diagnostic.show()| instead.
+• *vim.lsp.diagnostic.save()*		Use |vim.diagnostic.set()| instead.
+• *vim.lsp.diagnostic.set_loclist()*	Use |vim.diagnostic.setloclist()| instead.
+• *vim.lsp.diagnostic.set_qflist()*	Use |vim.diagnostic.setqflist()| instead.
+• *vim.lsp.diagnostic.show_line_diagnostics()* Use |vim.diagnostic.open_float()| instead.
+• *vim.lsp.diagnostic.show_position_diagnostics()* Use |vim.diagnostic.open_float()| instead.
 
 The following are deprecated without replacement. These functions are moved
 internally and are no longer exposed as part of the API. Instead, use
 |vim.diagnostic.config()| and |vim.diagnostic.show()|.
 
-• vim.lsp.diagnostic.set_signs()
-• vim.lsp.diagnostic.set_underline()
-• vim.lsp.diagnostic.set_virtual_text()
+• *vim.lsp.diagnostic.set_signs()*
+• *vim.lsp.diagnostic.set_underline()*
+• *vim.lsp.diagnostic.set_virtual_text()*
 
 LSP FUNCTIONS
 • *vim.lsp.buf.server_ready()*
@@ -372,7 +326,6 @@ OPTIONS
 			WARNING: Setting this breaks plugins, because "/g"
 			will have the opposite effect. |:s_g|
 • *'highlight'* *'hl'*	Names of builtin |highlight-groups| cannot be changed.
-• *'isprint* *'isp'*	Printability of ASCII or Unicode chars cannot be changed.
 • *'langnoremap'*	Deprecated alias to 'nolangremap'.
 • *'magic'* *'nomagic'*	boolean	(default on) Changes the special characters in
 			search |pattern|s.

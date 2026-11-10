@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local eq = t.eq
 local exec_lua = n.exec_lua
 local clear = n.clear
@@ -41,38 +40,33 @@ describe('ffi.cdef', function()
         typedef struct {} StlClickRecord;
         typedef struct {} statuscol_T;
         typedef struct {} Error;
-        typedef struct {
-          char *data;
-          size_t size;
-        } CharBuf;
 
         win_T *find_window_by_handle(int Window, Error *err);
 
         int build_stl_str_hl(
           win_T *wp,
-          CharBuf out,
+          char *out,
+          size_t outlen,
           char *fmt,
           int opt_idx,
           int opt_scope,
           int fillchar,
           int maxwidth,
           stl_hlrec_t **hltab,
-          size_t *hltab_len,
           StlClickRecord **tabtab,
           statuscol_T *scp
         );
       ]]
 
-        local out = ffi.new('char[1024]')
         return ffi.C.build_stl_str_hl(
           ffi.C.find_window_by_handle(0, ffi.new('Error')),
-          ffi.new('CharBuf', { out, ffi.sizeof(out) }),
+          ffi.new('char[1024]'),
+          1024,
           ffi.cast('char*', 'StatusLineOfLength20'),
           -1,
           0,
           0,
           0,
-          nil,
           nil,
           nil,
           nil

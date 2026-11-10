@@ -660,6 +660,9 @@ msgstr "E471: Необхідно вказати аргумент"
 msgid "E10: \\ should be followed by /, ? or &"
 msgstr "E10: За \\ має йти /, ? або &"
 
+msgid "E11: Invalid in command-line window; <CR> executes, CTRL-C quits"
+msgstr "E11: Неприпустимо у вікні команд, <CR> виконує, CTRL-C виходить"
+
 msgid "E12: Command not allowed in secure mode in current dir or tag search"
 msgstr ""
 "E12: Команда не дозволена у exrc/vimrc у поточному пошуку каталогу чи мітки"
@@ -5474,6 +5477,10 @@ msgstr "Замінити «%.*s» на:"
 msgid " < \"%.*s\""
 msgstr " < «%.*s»"
 
+#, c-format
+msgid "%<PRId64>,"
+msgstr "%<PRId64>, "
+
 msgid "[Help]"
 msgstr "[Допомога]"
 
@@ -5511,14 +5518,44 @@ msgstr "E1505: Некоректний специфікатор формату: %
 msgid "unknown"
 msgstr "невідомо"
 
+msgid "int"
+msgstr "int"
+
+msgid "long int"
+msgstr "long int"
+
+msgid "long long int"
+msgstr "long long int"
+
+msgid "signed size_t"
+msgstr "signed size_t"
+
+msgid "unsigned int"
+msgstr "unsigned int"
+
+msgid "unsigned long int"
+msgstr "unsigned long int"
+
+msgid "unsigned long long int"
+msgstr "unsigned long long int"
+
+msgid "size_t"
+msgstr "size_t"
+
 msgid "pointer"
 msgstr "pointer"
 
 msgid "percent"
 msgstr "percent"
 
+msgid "char"
+msgstr "char"
+
 msgid "string"
 msgstr "string"
+
+msgid "float"
+msgstr "float"
 
 msgid "E766: Insufficient arguments for printf()"
 msgstr "E766: Недостатньо аргументів для printf()"

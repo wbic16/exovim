@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "nvim/autocmd_defs.h"
 #include "nvim/channel_defs.h"  // IWYU pragma: keep
 #include "nvim/eval/typval_defs.h"
 #include "nvim/event/defs.h"
@@ -32,12 +31,9 @@ struct Channel {
   } stream;
 
   bool is_rpc;
-  bool detach;  ///< Prevents self-exit on channel-close. Nvim self-exits when the last open
-                ///< detach=false RPC channel is closed. The stdio channel defaults to detach=false.
-  char *addr;  ///< Address (hint) the peer uses to reach this server (e.g. a tunnel), or NULL.
-  /// Trust the peer: accept its incoming RPC API calls. Should be false for an untrusted peer.
-  /// If false, only responses (and UI events) are accepted.
-  bool trust;
+  bool detach;  ///< Prevents self-exit on channel-close. Normally, Nvim self-exits if its primary
+                ///< RPC channel is closed, unless detach=true. Note: currently, detach=false does
+                ///< not FORCE self-exit.
   RpcState rpc;
   Terminal *term;
 
@@ -48,7 +44,6 @@ struct Channel {
 
   bool callback_busy;
   bool callback_scheduled;
-  bool did_close_event;
 };
 
 #include "channel.h.generated.h"

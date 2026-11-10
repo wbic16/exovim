@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe = t.describe
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 local t_viml = require('test.unit.viml.testutil')
 
 local child_call_once = t.child_call_once

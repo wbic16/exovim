@@ -42,11 +42,10 @@ foreach(PACKAGE ${PACKAGES})
       COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${PACKAGE} ${GENERATED_PACKAGE_DIR}/${PACKNAME}
       COMMAND ${NVIM_HOST_PRG}
-        -u NONE -l ${PROJECT_SOURCE_DIR}/src/gen/gen_helptags.lua doc/tags doc
+        -u NONE -i NONE -e --headless -c "helptags doc" -c quit
       DEPENDS
         nvim_bin
         nvim_runtime_deps
-        ${PROJECT_SOURCE_DIR}/src/gen/gen_helptags.lua
       WORKING_DIRECTORY "${GENERATED_PACKAGE_DIR}/${PACKNAME}"
     )
 
@@ -75,11 +74,10 @@ add_custom_command(OUTPUT ${GENERATED_HELP_TAGS}
   COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${PROJECT_SOURCE_DIR}/runtime/doc doc
   COMMAND ${NVIM_HOST_PRG}
-    -u NONE -l ${PROJECT_SOURCE_DIR}/src/gen/gen_helptags.lua doc/tags doc ++t
+    -u NONE -i NONE -e --headless -c "helptags ++t doc" -c quit
   DEPENDS
     nvim_bin
     nvim_runtime_deps
-    ${PROJECT_SOURCE_DIR}/src/gen/gen_helptags.lua
   WORKING_DIRECTORY "${GENERATED_RUNTIME_DIR}"
 )
 
@@ -107,7 +105,7 @@ install_helper(
 
 if(NOT APPLE)
   install_helper(
-    FILES ${CMAKE_CURRENT_SOURCE_DIR}/org.neovim.nvim.desktop
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/nvim.desktop
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
 endif()
 
@@ -127,5 +125,5 @@ foreach(D ${RUNTIME_DIRS})
   endif()
 endforeach()
 
-# Only runtime/ script installed as executable.
+# only foo.sh script in runtime/
 install_helper(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/less.sh DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/nvim/runtime/scripts/)

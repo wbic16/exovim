@@ -9,6 +9,6 @@ if exists('b:did_ftplugin') || &cp
   finish
 endif
 
-runtime! ftplugin/scala[.]{vim,lua}
+runtime! ftplugin/scala.vim
 
 let b:did_ftplugin = 1

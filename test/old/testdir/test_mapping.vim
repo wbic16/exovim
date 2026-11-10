@@ -7,41 +7,11 @@ source term_util.vim
 
 func Test_abbreviation()
   new
-
-  " abbreviation with 0x80 (full-id)
+  " abbreviation with 0x80 should work
   inoreab чкпр   vim
   call feedkeys("Goчкпр \<Esc>", "xt")
   call assert_equal('vim ', getline('$'))
   iunab чкпр
-
-  " abbreviation with 0x80 (non-id)
-  inoreab abc⁀ abc^
-  inoreab ⁀ ^
-  call feedkeys("Goabc⁀ def⁀ ⁀ \<Esc>", "xt")
-  call assert_equal('abc^ def⁀ ^ ', getline('$'))
-  iunab abc⁀
-  iunab ⁀
-
-  " abbreviation with 0x9b (non-id)
-  inoreab abc； abc;
-  inoreab ； ;
-  call feedkeys("Goabc； def； ； \<Esc>", "xt")
-  call assert_equal('abc; def； ; ', getline('$'))
-  iunab abc；
-  iunab ；
-
-  " abbreviation with composing chars (end-id)
-  inoreab ..ã a^~
-  inoreab ..β̃ β^~
-  inoreab ..π̃ π^~
-  inoreab ..Λ̃ Λ^~
-  call feedkeys("Go..ã ..β̃ ..π̃ ..Λ̃ \<Esc>", "xt")
-  call assert_equal('a^~ β^~ π^~ Λ^~ ', getline('$'))
-  iunab ..ã
-  iunab ..β̃
-  iunab ..π̃
-  iunab ..Λ̃
-
   bwipe!
 endfunc
 
@@ -279,11 +249,9 @@ endfunc
 func Test_break_undo()
   set whichwrap=<,>,[,]
   call feedkeys("G4o2k", "xt")
-  " Nvim: "." re-executes the whole insert session, including the (wrapping)
-  " CTRL-G U <Right>, instead of only the text typed after it.
   exe ":norm! iTest3: text with a (parenthesis here\<C-G>U\<Right>new line here\<esc>\<up>\<up>."
-  call assert_equal('Test3: text with a (parenthesis here', getline(line('$') - 3))
-  call assert_equal('new line hereTest3: text with a (parenthesis here', getline(line('$') - 2))
+  call assert_equal('new line here', getline(line('$') - 3))
+  call assert_equal('Test3: text with a (parenthesis here', getline(line('$') - 2))
   call assert_equal('new line here', getline(line('$') - 1))
   set nomodified
 endfunc
@@ -1150,11 +1118,7 @@ func Test_map_cmdkey()
   call setline(1, ['some short lines', 'of test text'])
   call feedkeys(":bar\<F2>x\<C-B>\"\r", 'xt')
   call assert_equal('"barx', @:)
-
-  " test for chars with 0x80 or 0x9b bytes
-  map <F2> <Cmd>let x = '洛固四最倒倀'<CR>
-  call feedkeys("\<F2>", 'xt')
-  call assert_equal('洛固四最倒倀', x)
+  unmap! <F2>
 
   " test for calling a <SID> function
   let lines =<< trim END
@@ -1163,14 +1127,12 @@ func Test_map_cmdkey()
       let g:x = 32
     endfunc
   END
-  call writefile(lines, 'Xscript', 'D')
+  call writefile(lines, 'Xscript')
   source Xscript
   call feedkeys("\<F2>", 'xt')
   call assert_equal(32, g:x)
-  unlet g:x
+  call delete('Xscript')
 
-  unmap <F2>
-  unmap! <F2>
   unmap <F3>
   unmap! <F3>
   %bw!

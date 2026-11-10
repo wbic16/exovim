@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local eq = t.eq
 local exec_lua = n.exec_lua
 local clear = n.clear
@@ -452,7 +451,7 @@ describe('vim.ui_attach', function()
         end
       end)
     ]])
-    feed('@@')
+    feed('Q')
     screen:expect({
       grid = [[
                                                                           |
@@ -479,7 +478,7 @@ describe('vim.ui_attach', function()
         end
       end)
     ]])
-    feed('@@')
+    feed('Q')
     screen:expect({
       grid = [[
                                                                           |

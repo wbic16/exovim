@@ -3,8 +3,6 @@ local n = require('test.functional.testnvim')()
 
 local t_lsp = require('test.functional.plugin.lsp.testutil')
 
-local describe, it, before_each, after_each, teardown =
-  t.describe, t.it, t.before_each, t.after_each, t.teardown
 local command = n.command
 local eq = t.eq
 local exec_lua = n.exec_lua
@@ -29,24 +27,6 @@ if skip(is_os('win')) then
 end
 
 describe('vim.lsp.buf', function()
-  local function eq_qflist(expected, actual)
-    eq(
-      vim.tbl_map(function(entry)
-        return vim.tbl_extend('force', {
-          end_col = 0,
-          end_lnum = 0,
-          module = '',
-          nr = 0,
-          pattern = '',
-          type = '',
-          valid = 1,
-          vcol = 0,
-        }, entry)
-      end, expected),
-      actual
-    )
-  end
-
   local function exec_capture(cmd)
     return exec_lua(function(cmd0)
       return vim.api.nvim_exec2(cmd0, { output = true }).output
@@ -131,9 +111,24 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 1, col = 5, lnum = 4, text = 'foo' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 1,
+          col = 5,
+          end_col = 0,
+          lnum = 4,
+          end_lnum = 0,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'foo',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+
+      eq(expected, qflist)
     end)
   end)
 
@@ -196,9 +191,24 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 2, col = 5, lnum = 4, text = 'main' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 2,
+          col = 5,
+          end_col = 0,
+          lnum = 4,
+          end_lnum = 0,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'main',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+
+      eq(expected, qflist)
     end)
   end)
 
@@ -324,10 +334,38 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 2, col = 7, lnum = 4, text = 'D2' },
-        { bufnr = 2, col = 7, lnum = 3, text = 'D1' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 2,
+          col = 7,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'D2',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+        {
+          bufnr = 2,
+          col = 7,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 3,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'D1',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+
+      eq(expected, qflist)
     end)
 
     it('opens the quickfix list with the right subtypes and details', function()
@@ -387,10 +425,37 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 2, col = 2, lnum = 4, text = 'A' },
-        { bufnr = 3, col = 2, lnum = 4, text = 'MyList$Inner mylist' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 2,
+          col = 2,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'A',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+        {
+          bufnr = 3,
+          col = 2,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'MyList$Inner mylist',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+      eq(expected, qflist)
     end)
   end)
 
@@ -517,10 +582,38 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 2, col = 7, lnum = 4, text = 'D2' },
-        { bufnr = 2, col = 7, lnum = 3, text = 'D1' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 2,
+          col = 7,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'D2',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+        {
+          bufnr = 2,
+          col = 7,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 3,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'D1',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+
+      eq(expected, qflist)
     end)
 
     it('opens the quickfix list with the right supertypes and details', function()
@@ -580,10 +673,37 @@ describe('vim.lsp.buf', function()
         return vim.fn.getqflist()
       end)
 
-      eq_qflist({
-        { bufnr = 2, col = 2, lnum = 4, text = 'A' },
-        { bufnr = 3, col = 2, lnum = 4, text = 'MyList$Inner mylist' },
-      }, qflist)
+      local expected = {
+        {
+          bufnr = 2,
+          col = 2,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'A',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+        {
+          bufnr = 3,
+          col = 2,
+          end_col = 0,
+          end_lnum = 0,
+          lnum = 4,
+          module = '',
+          nr = 0,
+          pattern = '',
+          text = 'MyList$Inner mylist',
+          type = '',
+          valid = 1,
+          vcol = 0,
+        },
+      }
+      eq(expected, qflist)
     end)
   end)
 
@@ -977,10 +1097,7 @@ describe('vim.lsp.buf', function()
               })
             end,
             ['codeAction/resolve'] = function(_, _, callback)
-              callback(
-                { code = vim.lsp.protocol.ErrorCodes.InternalError, message = 'resolve failed' },
-                nil
-              )
+              callback('resolve failed', nil)
             end,
           },
         })
@@ -1226,52 +1343,6 @@ describe('vim.lsp.buf', function()
       }
     end)
 
-    it('formats range ending with -1 column', function()
-      exec_lua(create_server_definition)
-      local result = exec_lua(function()
-        local server = _G._create_server({
-          capabilities = {
-            documentRangeFormattingProvider = true,
-          },
-          handlers = {
-            ['textDocument/rangeFormatting'] = function(_, params, callback)
-              callback(nil, {
-                {
-                  range = params.range,
-                  newText = 'function fn(abc)\n  print("hello")',
-                },
-              })
-            end,
-          },
-        })
-        local bufnr = vim.api.nvim_get_current_buf()
-        local client_id = assert(vim.lsp.start({ name = 'dummy', cmd = server.cmd }))
-        vim.api.nvim_win_set_buf(0, bufnr)
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {
-          'function fn(abc  )',
-          '  print("hello" )',
-          'end',
-        })
-        vim.lsp.buf.format({
-          bufnr = bufnr,
-          range = {
-            start = { 1, 0 },
-            ['end'] = { 2, -1 },
-          },
-        })
-        vim.lsp.get_client_by_id(client_id):stop()
-        return {
-          lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true),
-          range = server.messages[3].params.range,
-        }
-      end)
-      eq({
-        start = { line = 0, character = 0 },
-        ['end'] = { line = 1, character = 17 },
-      }, result.range)
-      eq({ 'function fn(abc)', '  print("hello")', 'end' }, result.lines)
-    end)
-
     it('sends textDocument/rangesFormatting request to format multiple ranges', function()
       local expected_handlers = {
         { NIL, {}, { method = 'shutdown', client_id = 1 } },
@@ -1319,62 +1390,47 @@ describe('vim.lsp.buf', function()
       }
     end)
 
-    it('can format async with an optional timeout', function()
-      exec_lua(create_server_definition)
-      exec_lua(function()
-        _G.edits = {
-          {
-            range = {
-              start = { line = 0, character = 0 },
-              ['end'] = { line = 0, character = 0 },
-            },
-            newText = 'formatted',
-          },
-        }
-        local opts = {
-          capabilities = { documentFormattingProvider = true },
-          handlers = {
-            ['textDocument/formatting'] = function(_, _, callback)
-              table.insert(_G.callbacks, callback)
-              if #_G.callbacks == 2 then
-                callback(nil, _G.edits)
-              end
-            end,
-          },
-        }
-        _G.server = _G._create_server(opts)
-        _G.server2 = _G._create_server(opts)
-        vim.lsp.start({ name = 'dummy', cmd = _G.server.cmd })
-        vim.lsp.start({ name = 'dummy2', cmd = _G.server2.cmd })
-      end)
+    it('can format async', function()
+      local expected_handlers = {
+        { NIL, {}, { method = 'shutdown', client_id = 1 } },
+        { NIL, {}, { method = 'start', client_id = 1 } },
+      }
+      local client --- @type vim.lsp.Client
+      test_rpc_server {
+        test_name = 'basic_formatting',
+        on_init = function(c)
+          client = c
+        end,
+        on_handler = function(_, _, ctx)
+          table.remove(expected_handlers)
+          if ctx.method == 'start' then
+            local result = exec_lua(function()
+              local bufnr = vim.api.nvim_get_current_buf()
+              vim.lsp.buf_attach_client(bufnr, _G.TEST_RPC_CLIENT_ID)
 
-      for _, timeout_ms in ipairs({ false, 20 }) do
-        eq(
-          1,
-          exec_lua(function()
-            _G.callbacks = {}
-            vim.api.nvim_buf_set_lines(0, 0, -1, true, { '' })
-            vim.lsp.buf.format({ async = true, timeout_ms = timeout_ms or nil })
-            return #_G.callbacks
-          end)
-        )
-        if not timeout_ms then
-          exec_lua('_G.callbacks[1](nil, _G.edits)')
-        end
-        local expected = { timeout_ms and 'formatted' or 'formattedformatted' }
-        retry(nil, 1000, function()
-          eq(expected, api.nvim_buf_get_lines(0, 0, -1, true))
-        end)
-        if timeout_ms then
-          eq(
-            { method = '$/cancelRequest', params = { id = 4 } },
-            exec_lua('return _G.server.messages[5] or _G.server2.messages[5]')
-          )
-          exec_lua('_G.callbacks[1](nil, _G.edits)')
-          eq(expected, api.nvim_buf_get_lines(0, 0, -1, true))
-        end
-        eq(2, exec_lua('return #_G.callbacks'))
-      end
+              local notify_msg --- @type string?
+              local notify = vim.notify
+              vim.notify = function(msg, _)
+                notify_msg = msg
+              end
+
+              _G.handler_called = false
+              vim.lsp.buf.format({ bufnr = bufnr, async = true })
+              vim.wait(1000, function()
+                return _G.handler_called
+              end)
+
+              vim.notify = notify
+              return { notify_msg = notify_msg, handler_called = _G.handler_called }
+            end)
+            eq({ handler_called = true }, result)
+          elseif ctx.method == 'textDocument/formatting' then
+            exec_lua('_G.handler_called = true')
+          elseif ctx.method == 'shutdown' then
+            client:stop()
+          end
+        end,
+      }
     end)
 
     it('format formats range in visual mode', function()
@@ -1400,7 +1456,7 @@ describe('vim.lsp.buf', function()
       eq('textDocument/rangeFormatting', result[3].method)
       local expected_range = {
         start = { line = 0, character = 0 },
-        ['end'] = { line = 2, character = 0 },
+        ['end'] = { line = 1, character = 4 },
       }
       eq(expected_range, result[3].params.range)
     end)
@@ -1533,7 +1589,7 @@ describe('vim.lsp.buf', function()
                   start = { line = 0, character = 0 },
                   ['end'] = { line = 0, character = 0 },
                 },
-                uri = vim.uri.from_buf(bufnr),
+                uri = vim.uri_from_bufnr(bufnr),
               }
               callback(nil, location)
             end,
@@ -1567,8 +1623,7 @@ describe('vim.lsp.buf', function()
       n.feed(':vnew<CR>')
       api.nvim_win_set_buf(0, result.bufnr)
       api.nvim_win_set_cursor(0, { 3, 6 })
-      n.feed(':set switchbuf=usetab<CR>')
-      n.feed(':=vim.lsp.buf.definition()<CR>')
+      n.feed(':=vim.lsp.buf.definition({ reuse_win = true })<CR>')
       eq(displayed_result_win, api.nvim_get_current_win())
       exec_lua(function()
         vim.lsp.get_client_by_id(result.client_id):stop()
@@ -1590,7 +1645,7 @@ describe('vim.lsp.buf', function()
                     start = { line = 0, character = character },
                     ['end'] = { line = 0, character = character },
                   },
-                  uri = vim.uri.from_buf(bufnr),
+                  uri = vim.uri_from_bufnr(bufnr),
                 }
                 callback(nil, location)
               end,
@@ -1649,11 +1704,7 @@ describe('vim.lsp.buf', function()
       return exec_lua(function()
         _G.server = _G._create_server({
           capabilities = {
-            diagnosticProvider = {
-              documentSelector = vim.NIL,
-              interFileDependencies = false,
-              workspaceDiagnostics = true,
-            },
+            diagnosticProvider = { workspaceDiagnostics = true },
           },
           handlers = {
             ['workspace/diagnostic'] = function(_, _, callback)
@@ -1704,7 +1755,7 @@ describe('vim.lsp.buf', function()
     it('favors document diagnostics over workspace diagnostics', function()
       local client_id = setup_server({ make_report('full', 'Workspace error', 1) })
       local diagnostic_bufnr = exec_lua(function()
-        return vim.uri.to_buf(fake_uri)
+        return vim.uri_to_bufnr(fake_uri)
       end)
 
       exec_lua(function()
@@ -1740,7 +1791,7 @@ describe('vim.lsp.buf', function()
       eq(
         'Document error',
         exec_lua(function()
-          return vim.diagnostic.get(vim.uri.to_buf(fake_uri))[1].message
+          return vim.diagnostic.get(vim.uri_to_bufnr(fake_uri))[1].message
         end)
       )
     end)

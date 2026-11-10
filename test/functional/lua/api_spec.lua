@@ -2,7 +2,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local remove_trace = t.remove_trace
 local fn = n.fn
 local clear = n.clear
@@ -33,7 +32,6 @@ describe('luaeval(vim.api.…)', function()
       end)
     end)
   end)
-
   describe('with errors', function()
     it('transforms API error from nvim_buf_set_lines into lua error', function()
       fn.setline(1, { 'abc', 'def', 'a\nb', 'ttt' })
@@ -66,7 +64,7 @@ describe('luaeval(vim.api.…)', function()
     )
   end)
 
-  it('evaluates API code which calls luaeval', function()
+  it('correctly evaluates API code which calls luaeval', function()
     local str = (
       ([===[vim.api.nvim_eval([==[
       luaeval('vim.api.nvim_eval([=[
@@ -79,7 +77,7 @@ describe('luaeval(vim.api.…)', function()
     eq(1, fn.luaeval(str))
   end)
 
-  it('converts from API objects', function()
+  it('correctly converts from API objects', function()
     eq(1, fn.luaeval('vim.api.nvim_eval("1")'))
     eq('1', fn.luaeval([[vim.api.nvim_eval('"1"')]]))
     eq('Blobby', fn.luaeval('vim.api.nvim_eval("0z426c6f626279")'))
@@ -111,7 +109,7 @@ describe('luaeval(vim.api.…)', function()
     eq({ { 42 }, {} }, fn.luaeval([=[vim.api.nvim_eval('[[42], []]')]=]))
   end)
 
-  it('converts to API objects', function()
+  it('correctly converts to API objects', function()
     eq(1, fn.luaeval('vim.api.nvim__id(1)'))
     eq('1', fn.luaeval('vim.api.nvim__id("1")'))
     eq({ 1 }, fn.luaeval('vim.api.nvim__id({1})'))
@@ -146,20 +144,6 @@ describe('luaeval(vim.api.…)', function()
       fn.luaeval('vim.api.nvim__id({foo=1, bar={42, {{baz=true}, 5}}})')
     )
 
-    -- Drops a metatable (e.g. `__index`, `__tostring`): converts only the table's own fields.
-    eq(
-      { { foo = 1 }, true },
-      exec_lua(function()
-        local tbl = setmetatable({ foo = 1 }, {
-          __index = { bar = 2 },
-          __tostring = function()
-            return 'x'
-          end,
-        })
-        return { tbl, getmetatable(vim.api.nvim__id(tbl)) == nil }
-      end)
-    )
-
     eq(true, fn.luaeval('vim.api.nvim__id(vim.api.nvim__id)(true)'))
     eq(
       42,
@@ -170,7 +154,7 @@ describe('luaeval(vim.api.…)', function()
     )
   end)
 
-  it('converts container objects with type_idx to API objects', function()
+  it('correctly converts container objects with type_idx to API objects', function()
     eq(
       5,
       eval('type(luaeval("vim.api.nvim__id({[vim.type_idx]=vim.types.float, [vim.val_idx]=0})"))')
@@ -207,7 +191,7 @@ describe('luaeval(vim.api.…)', function()
     )
   end)
 
-  it('converts arrays with type_idx to API objects', function()
+  it('correctly converts arrays with type_idx to API objects', function()
     eq(3, eval([[type(luaeval('vim.api.nvim__id_array({[vim.type_idx]=vim.types.array})'))]]))
 
     eq({}, fn.luaeval('vim.api.nvim__id_array({[vim.type_idx]=vim.types.array})'))
@@ -241,7 +225,7 @@ describe('luaeval(vim.api.…)', function()
     eq(3, eval([[type(luaeval('vim.api.nvim__id_array({})'))]]))
   end)
 
-  it('converts dictionaries with type_idx to API objects', function()
+  it('correctly converts dictionaries with type_idx to API objects', function()
     eq(4, eval([[type(luaeval('vim.api.nvim__id_dict({[vim.type_idx]=vim.types.dictionary})'))]]))
 
     eq({}, fn.luaeval('vim.api.nvim__id_dict({[vim.type_idx]=vim.types.dictionary})'))

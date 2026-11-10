@@ -4,7 +4,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local eq = t.eq
@@ -15,6 +14,10 @@ describe('example', function()
   before_each(function()
     clear()
     screen = Screen.new(20, 5)
+    screen:set_default_attr_ids({
+      [0] = { bold = true, foreground = Screen.colors.Blue },
+      [1] = { bold = true, foreground = Screen.colors.Brown },
+    })
   end)
 
   it('screen test', function()
@@ -28,7 +31,8 @@ describe('example', function()
     screen:expect([[
       line1               |
       line^2               |
-      {1:~                   }|*2
+      {0:~                   }|
+      {0:~                   }|
                           |
     ]])
   end)

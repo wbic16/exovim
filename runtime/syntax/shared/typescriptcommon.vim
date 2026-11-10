@@ -2,9 +2,7 @@
 " Language:     TypeScript and TypeScriptReact
 " Maintainer:   Herrington Darkholme
 " Last Change:  2024 May 24
-" 2025 Aug 05 by Vim Project: support for new TypeScript syntaxes #17911
-" 2026 Sep 30 by Vim Project: fix exponential backtracking in typescriptArrowFuncDef #21400
-" 2026 Sep 30 by Vim Project: fix memory usage of typescriptArrowFuncDef patterns #21423
+" 2025 Aug 05   support for new TypeScript syntaxes
 " Based On:     Herrington Darkholme's yats.vim
 " Changes:      See https://github.com/HerringtonDarkholme/yats.vim
 " Credits:      See yats.vim on github
@@ -308,13 +306,13 @@ syntax keyword typescriptRepeat                do while for nextgroup=typescript
 syntax keyword typescriptRepeat                for nextgroup=typescriptLoopParen,typescriptAsyncFor skipwhite skipempty
 syntax keyword typescriptBranch                break continue containedin=typescriptBlock
 syntax keyword typescriptCase                  case nextgroup=@typescriptPrimitive skipwhite containedin=typescriptBlock
-syntax keyword typescriptDefault               default containedin=typescriptBlock nextgroup=@typescriptValue,typescriptClassKeyword,typescriptInterfaceKeyword skipwhite
+syntax keyword typescriptDefault               default containedin=typescriptBlock nextgroup=@typescriptValue,typescriptClassKeyword,typescriptInterfaceKeyword skipwhite oneline
 syntax keyword typescriptStatementKeyword      with
 syntax keyword typescriptStatementKeyword      yield skipwhite nextgroup=@typescriptValue containedin=typescriptBlock
 
 syntax keyword typescriptTry                   try
 syntax keyword typescriptExceptions            throw finally
-syntax keyword typescriptExceptions            catch nextgroup=typescriptCall skipwhite skipempty
+syntax keyword typescriptExceptions            catch nextgroup=typescriptCall skipwhite skipempty oneline
 syntax keyword typescriptDebugger              debugger
 
 syntax keyword typescriptAsyncFor              await nextgroup=typescriptLoopParen skipwhite skipempty contained
@@ -1768,9 +1766,9 @@ endif
 " patch
 " patch for generated code
 syntax keyword typescriptGlobal Promise
-  \ nextgroup=typescriptGlobalPromiseDot,typescriptFuncCallArg,typescriptTypeArguments
+  \ nextgroup=typescriptGlobalPromiseDot,typescriptFuncCallArg,typescriptTypeArguments oneline
 syntax keyword typescriptGlobal Map WeakMap
-  \ nextgroup=typescriptGlobalPromiseDot,typescriptFuncCallArg,typescriptTypeArguments
+  \ nextgroup=typescriptGlobalPromiseDot,typescriptFuncCallArg,typescriptTypeArguments oneline
 
 syntax keyword typescriptConstructor           contained constructor
   \ nextgroup=@typescriptCallSignature
@@ -1950,12 +1948,12 @@ syntax match   typescriptArrowFuncDef          contained /\K\k*\s*=>/
   \ nextgroup=@typescriptExpression,typescriptBlock
   \ skipwhite skipempty
 
-syntax match   typescriptArrowFuncDef          contained /(\_[^()]*\%((\_[^()]*)\_[^()]*\)*)\_s*=>/
+syntax match   typescriptArrowFuncDef          contained /(\%(\_[^()]\+\|(\_[^()]*)\)*)\_s*=>/
   \ contains=typescriptArrowFuncArg,typescriptArrowFunc,@typescriptCallSignature
   \ nextgroup=@typescriptExpression,typescriptBlock
   \ skipwhite skipempty
 
-syntax region  typescriptArrowFuncDef          contained start=/(\_[^()]*\%((\_[^()]*)\_[^()]*\)*):/ matchgroup=typescriptArrowFunc end=/=>/
+syntax region  typescriptArrowFuncDef          contained start=/(\%(\_[^()]\+\|(\_[^()]*)\)*):/ matchgroup=typescriptArrowFunc end=/=>/
   \ contains=typescriptArrowFuncArg,typescriptTypeAnnotation,@typescriptCallSignature
   \ nextgroup=@typescriptExpression,typescriptBlock
   \ skipwhite skipempty keepend

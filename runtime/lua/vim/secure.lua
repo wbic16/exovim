@@ -1,11 +1,5 @@
 local M = {}
 
-local fileformat_newlines = {
-  unix = '\n',
-  dos = '\r\n',
-  mac = '\r',
-}
-
 --- Reads trust database from $XDG_STATE_HOME/nvim/trust.
 ---
 ---@return table<string, string> Contents of trust database, if it exists. Empty table otherwise.
@@ -51,7 +45,7 @@ local function compute_hash(fullpath, bufnr)
     if is_unchanged_empty then
       contents = ''
     else
-      local newline = fileformat_newlines[vim.bo[bufnr].fileformat]
+      local newline = vim.bo[bufnr].fileformat == 'unix' and '\n' or '\r\n'
       contents =
         table.concat(vim.api.nvim_buf_get_lines(bufnr --[[@as integer]], 0, -1, false), newline)
       if vim.bo[bufnr].endofline then
@@ -116,7 +110,6 @@ function M.read(path)
   if not fullpath then
     return nil
   end
-  fullpath = vim.fs.normalize(fullpath) -- Ensure "/" slashes, even on Windows.
 
   local trust = read_trust()
 
@@ -225,7 +218,6 @@ function M.trust(opts)
   if not fullpath then
     return false, string.format('invalid path: %s', path)
   end
-  fullpath = vim.fs.normalize(fullpath) -- Ensure "/" slashes, even on Windows.
 
   local trust = read_trust()
 

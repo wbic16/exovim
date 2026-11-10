@@ -1,8 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, after_each, pending =
-  t.describe, t.it, t.before_each, t.after_each, t.pending
 local eq, eval, clear, write_file, source, insert =
   t.eq, n.eval, n.clear, t.write_file, n.source, n.insert
 local pcall_err = t.pcall_err
@@ -79,7 +77,7 @@ describe(':write', function()
   it('appends FIFO file', function()
     -- mkfifo creates read-only .lnk files on Windows
     if is_os('win') or eval("executable('mkfifo')") == 0 then
-      pending('N/A: missing "mkfifo" command')
+      pending('missing "mkfifo" command')
     end
 
     local text = 'some fifo text from write_spec'
@@ -130,14 +128,16 @@ describe(':write', function()
     )
 
     eq('Vim(write):E32: No file name', pcall_err(command, 'write ++p Xotherdir/'))
-    eq(
-      ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
-      pcall_err(command, 'write ++p .')
-    )
-    eq(
-      ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
-      pcall_err(command, 'write ++p ./')
-    )
+    if not is_os('win') then
+      eq(
+        ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
+        pcall_err(command, 'write ++p .')
+      )
+      eq(
+        ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
+        pcall_err(command, 'write ++p ./')
+      )
+    end
 
     t.matches(
       'E474: Invalid argument',
@@ -149,10 +149,12 @@ describe(':write', function()
     command('let $HOME=""')
     eq(fn.fnamemodify('.', ':p:h'), fn.fnamemodify('.', ':p:h:~'))
     -- Message from check_overwrite
-    eq(
-      ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
-      pcall_err(command, 'write .')
-    )
+    if not is_os('win') then
+      eq(
+        ('Vim(write):E17: "' .. fn.fnamemodify('.', ':p:h') .. '" is a directory'),
+        pcall_err(command, 'write .')
+      )
+    end
     api.nvim_set_option_value('writeany', true, {})
     -- Message from buf_write
     eq('Vim(write):E502: "." is a directory', pcall_err(command, 'write .'))
@@ -262,42 +264,6 @@ describe(':write', function()
       "Vim(write):E513: Write error, conversion failed (make 'fenc' empty to override)",
       pcall_err(command, 'write ++enc=cp1251 ' .. fname)
     )
-  end)
-
-  it('unaffected if a BufWritePre autocmd changes CWD away from the file #41838', function()
-    -- Leaving the file's directory clears its short name; the write must fall back to the full one.
-    local dir = vim.fs.normalize(t.tmpname(false))
-    t.mkdir(dir)
-    t.mkdir(dir .. '/other')
-    local file = dir .. '/f.txt'
-    command('edit ' .. file)
-    command('lcd ' .. dir)
-    eq('f.txt', fn.bufname('%'))
-    command(('autocmd BufWritePre <buffer> lcd %s/other'):format(dir))
-    api.nvim_buf_set_lines(0, 0, -1, true, { 'hello' })
-    command('write')
-
-    eq(file, fn.bufname('%'))
-    eq({ 'hello' }, fn.readfile(file))
-  end)
-
-  it('unaffected if a Progress handler changes CWD #41417', function()
-    -- ASAN catches the read of the freed name. Also assert the written file name/contents.
-    local dir = vim.fs.normalize(t.tmpname(false))
-    t.mkdir(dir)
-    local file = dir .. '/f.txt'
-    write_file(file, 'one\n')
-    command('edit ' .. file)
-    command('lcd ' .. dir)
-    eq('f.txt', fn.bufname('%'))
-    -- Frees every buffer's short name, twice; the net CWD is unchanged.
-    command(('autocmd Progress * lcd %s | lcd %s'):format(vim.fs.dirname(dir), dir))
-    api.nvim_buf_set_lines(0, 0, -1, true, { 'one', 'two' })
-    command('write')
-
-    eq('f.txt', fn.bufname('%'))
-    eq({ 'one', 'two' }, fn.readfile(file))
-    eq({ 'f.txt' }, fn.readdir(dir))
   end)
 
   it('handles a multi-byte sequence crossing the buffer boundary converting with iconv', function()

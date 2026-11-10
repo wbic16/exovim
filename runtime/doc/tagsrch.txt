@@ -4,7 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
 Tags and special searches				*tags-and-searches*
 
 See section |29.1| of the user manual for an introduction.
@@ -31,7 +30,8 @@ function name and hit CTRL-].  This will bring you to the function definition.
 An easy way back is with the CTRL-T command.  Also read about the tag stack
 below.
 
-:[count]ta[g][!] {name}				*:ta* *:tag* *E426* *E429*
+						*:ta* *:tag* *E426* *E429*
+:[count]ta[g][!] {name}
 			Jump to the definition of {name}, using the
 			information in the tags file(s).  Put {name} in the
 			tag stack.  See |tag-!| for [!].
@@ -41,9 +41,9 @@ below.
 			first one is jumped to.  See |tag-matchlist| for
 			jumping to other matching tags.
 
-g<LeftMouse>					*g<LeftMouse>*
-CTRL-]						*CTRL-]*
-			Jump to the definition of the keyword under the
+g<LeftMouse>						*g<LeftMouse>*
+<C-LeftMouse>					*<C-LeftMouse>* *CTRL-]*
+CTRL-]			Jump to the definition of the keyword under the
 			cursor.  Same as ":tag {name}", where {name} is the
 			keyword under or after cursor.
 			When there are several matching tags for {name}, jump
@@ -51,8 +51,8 @@ CTRL-]						*CTRL-]*
 			first one is jumped to.  See |tag-matchlist| for
 			jumping to other matching tags.
 
-{Visual}CTRL-]						*v_CTRL-]*
-			Same as ":tag {name}", where {name} is the text that
+							*v_CTRL-]*
+{Visual}CTRL-]		Same as ":tag {name}", where {name} is the text that
 			is highlighted.
 
 							*telnet-CTRL-]*
@@ -106,20 +106,19 @@ On the tag stack is remembered which tags you jumped to, and from where.
 Tags are only pushed onto the stack when the 'tagstack' option is set.
 
 g<RightMouse>						*g<RightMouse>*
-<C-RightMouse>						*<C-RightMouse>*
-CTRL-T							*CTRL-T*
-			Jump to [count] older entry in the tag stack
+<C-RightMouse>					*<C-RightMouse>* *CTRL-T*
+CTRL-T			Jump to [count] older entry in the tag stack
 			(default 1).
 
-:[count]po[p][!]				*:po* *:pop* *E555* *E556*
-			Jump to [count] older entry in tag stack (default 1).
+						*:po* *:pop* *E555* *E556*
+:[count]po[p][!]	Jump to [count] older entry in tag stack (default 1).
 			See |tag-!| for [!].
 
 :[count]ta[g][!]	Jump to [count] newer entry in tag stack (default 1).
 			See |tag-!| for [!].
 
-:tags							*:tags*
-			Show the contents of the tag stack.  The active
+							*:tags*
+:tags			Show the contents of the tag stack.  The active
 			entry is marked with a '>'.
 
 The output of ":tags" looks like this:
@@ -149,7 +148,6 @@ An indent is removed and a long line is truncated to fit in the window.
 
 You can jump to previously used tags with several commands.  Some examples:
 
-	Command			Goes to ~
 	":pop" or CTRL-T	to position before previous tag
 	{count}CTRL-T		to position before {count} older tag
 	":tag"			to newer tag
@@ -215,8 +213,8 @@ When there are several matching tags, these commands can be used to jump
 between them.  Note that these commands don't change the tag stack, they keep
 the same entry.
 
-:ts[elect][!] [name]					*:ts* *:tselect*
-			List the tags that match [name], using the
+							*:ts* *:tselect*
+:ts[elect][!] [name]	List the tags that match [name], using the
 			information in the tags file(s).
 			When [name] is not given, the last tag name from the
 			tag stack is used.
@@ -250,67 +248,67 @@ the same entry.
 			If you already see the tag you want to use, you can
 			type 'q' and enter the number.
 
-:sts[elect][!] [name]					*:sts* *:stselect*
-			Does ":tselect[!] [name]" and splits the window for
+							*:sts* *:stselect*
+:sts[elect][!] [name]	Does ":tselect[!] [name]" and splits the window for
 			the selected tag.
 
-g]							*g]*
-			Like CTRL-], but use ":tselect" instead of ":tag".
+							*g]*
+g]			Like CTRL-], but use ":tselect" instead of ":tag".
 
-{Visual}g]						*v_g]*
-			Same as "g]", but use the highlighted text as the
+							*v_g]*
+{Visual}g]		Same as "g]", but use the highlighted text as the
 			identifier.
 
-:tj[ump][!] [name]					*:tj* *:tjump*
-			Like ":tselect", but jump to the tag directly when
+							*:tj* *:tjump*
+:tj[ump][!] [name]	Like ":tselect", but jump to the tag directly when
 			there is only one match.
 
-:stj[ump][!] [name]					*:stj* *:stjump*
-			Does ":tjump[!] [name]" and splits the window for the
+							*:stj* *:stjump*
+:stj[ump][!] [name]	Does ":tjump[!] [name]" and splits the window for the
 			selected tag.
 
-g CTRL-]						*g_CTRL-]*
-			Like CTRL-], but use ":tjump" instead of ":tag".
+							*g_CTRL-]*
+g CTRL-]		Like CTRL-], but use ":tjump" instead of ":tag".
 
-{Visual}g CTRL-]					*v_g_CTRL-]*
-			Same as "g CTRL-]", but use the highlighted text as
+							*v_g_CTRL-]*
+{Visual}g CTRL-]	Same as "g CTRL-]", but use the highlighted text as
 			the identifier.
 
-:[count]tn[ext][!]					*:tn* *:tnext*
-			Jump to [count] next matching tag (default 1).  See
+							*:tn* *:tnext*
+:[count]tn[ext][!]	Jump to [count] next matching tag (default 1).  See
 			|tag-!| for [!].
 
-]t							*]t*
-			Mapped to |:tnext|. |default-mappings|
+								*]t*
+]t			Mapped to |:tnext|. |default-mappings|
 
-:[count]tp[revious][!]					*:tp* *:tprevious*
-			Jump to [count] previous matching tag (default 1).
+							*:tp* *:tprevious*
+:[count]tp[revious][!]	Jump to [count] previous matching tag (default 1).
 			See |tag-!| for [!].
 
-[t							*[t*
-			Mapped to |:tprevious|. |default-mappings|
+								*[t*
+[t			Mapped to |:tprevious|. |default-mappings|
 
-:[count]tN[ext][!]					*:tN* *:tNext*
-			Same as ":tprevious".
+							*:tN* *:tNext*
+:[count]tN[ext][!]	Same as ":tprevious".
 
-:[count]tr[ewind][!]					*:tr* *:trewind*
-			Jump to first matching tag.  If [count] is given, jump
+							*:tr* *:trewind*
+:[count]tr[ewind][!]	Jump to first matching tag.  If [count] is given, jump
 			to [count]th matching tag.  See |tag-!| for [!].
 
-[T							*[T*
-			Mapped to |:trewind|. |default-mappings|
+								*[T*
+[T			Mapped to |:trewind|. |default-mappings|
 
-:[count]tf[irst][!]					*:tf* *:tfirst*
-			Same as ":trewind".
+							*:tf* *:tfirst*
+:[count]tf[irst][!]	Same as ":trewind".
 
-:tl[ast][!]						*:tl* *:tlast*
-			Jump to last matching tag.  See |tag-!| for [!].
+							*:tl* *:tlast*
+:tl[ast][!]		Jump to last matching tag.  See |tag-!| for [!].
 
-]T							*]T*
-			Mapped to |:tlast|. |default-mappings|
+								*]T*
+]T			Mapped to |:tlast|. |default-mappings|
 
-:lt[ag][!] [name]					*:lt* *:ltag*
-			Jump to tag [name] and add the matching tags to a new
+							*:lt* *:ltag*
+:lt[ag][!] [name]	Jump to tag [name] and add the matching tags to a new
 			location list for the current window.  [name] can be
 			a regexp pattern, see |tag-regexp|.  When [name] is
 			not given, the last tag name from the tag stack is
@@ -341,37 +339,37 @@ message is given.
 The tag match list can also be used in the preview window.  The commands are
 the same as above, with a "p" prepended.
 
-:pts[elect][!] [name]					*:pts* *:ptselect*
-			Does ":tselect[!] [name]" and shows the new tag in a
+							*:pts* *:ptselect*
+:pts[elect][!] [name]	Does ":tselect[!] [name]" and shows the new tag in a
 			"Preview" window.  See |:ptag| for more info.
 
-:ptj[ump][!] [name]					*:ptj* *:ptjump*
-			Does ":tjump[!] [name]" and shows the new tag in a
+							*:ptj* *:ptjump*
+:ptj[ump][!] [name]	Does ":tjump[!] [name]" and shows the new tag in a
 			"Preview" window.  See |:ptag| for more info.
 
-:[count]ptn[ext][!]					*:ptn* *:ptnext*
-			":tnext" in the preview window.  See |:ptag|.
+							*:ptn* *:ptnext*
+:[count]ptn[ext][!]	":tnext" in the preview window.  See |:ptag|.
 
-]_CTRL-T						*]_CTRL-T*
-			Mapped to |:ptnext|. |default-mappings|
+								*]_CTRL-T*
+]_CTRL-T		Mapped to |:ptnext|. |default-mappings|
 
-:[count]ptp[revious][!]					*:ptp* *:ptprevious*
-			":tprevious" in the preview window.  See |:ptag|.
+							*:ptp* *:ptprevious*
+:[count]ptp[revious][!]	":tprevious" in the preview window.  See |:ptag|.
 
-[_CTRL-T						*[_CTRL-T*
-			Mapped to |:ptprevious|. |default-mappings|
+								*[_CTRL-T*
+[_CTRL-T		Mapped to |:ptprevious|. |default-mappings|
 
-:[count]ptN[ext][!]					*:ptN* *:ptNext*
-			Same as ":ptprevious".
+							*:ptN* *:ptNext*
+:[count]ptN[ext][!]	Same as ":ptprevious".
 
-:[count]ptr[ewind][!]					*:ptr* *:ptrewind*
-			":trewind" in the preview window.  See |:ptag|.
+							*:ptr* *:ptrewind*
+:[count]ptr[ewind][!]	":trewind" in the preview window.  See |:ptag|.
 
-:[count]ptf[irst][!]					*:ptf* *:ptfirst*
-			Same as ":ptrewind".
+							*:ptf* *:ptfirst*
+:[count]ptf[irst][!]	Same as ":ptrewind".
 
-:ptl[ast][!]						*:ptl* *:ptlast*
-			":tlast" in the preview window.  See |:ptag|.
+							*:ptl* *:ptlast*
+:ptl[ast][!]		":tlast" in the preview window.  See |:ptag|.
 
 ==============================================================================
 4. Tags details						*tag-details*
@@ -422,22 +420,22 @@ If the tag is in the current file this will always work.  Otherwise the
 performed actions depend on whether the current file was changed, whether a !
 is added to the command and on the 'autowrite' and 'winfixbuf' options:
 
-in file	changed	!	winfixbuf	autowrite	action ~
-yes	x	x	off		x		goto tag
-no	no	x	off		x		read other file,
-							goto tag
-no	yes	yes	off		x		abandon current file,
-							read other file,
-							goto tag
-no	yes	no	off		on		write current file,
-							read other file,
-							goto tag
-no	yes	no	off		off		fail
-yes	x	yes	x		x		goto tag
-no	no	no	on		x		fail
-no	yes	no	on		x		fail
-no	yes	no	on		on		fail
-no	yes	no	on		off		fail
+  tag in       file	    winfixbuf	autowrite		~
+current file  changed	!   option	option	      action	~
+ -----------------------------------------------------------------------------
+    yes		x	x      off	  x	    goto tag
+    no		no	x      off	  x	    read other file, goto tag
+    no		yes	yes    off	  x	    abandon current file,
+						    read other file, goto tag
+    no		yes	no     off	  on	    write current file,
+						    read other file, goto tag
+    no		yes	no     off	  off	    fail
+    yes		x	yes    x	  x	    goto tag
+    no		no	no     on	  x	    fail
+    no		yes	no     on	  x	    fail
+    no		yes	no     on	  on	    fail
+    no		yes	no     on	  off	    fail
+ -----------------------------------------------------------------------------
 
 - If the tag is in the current file, the command will always work.
 - If the tag is in another file and the current file was not changed, the
@@ -622,18 +620,17 @@ The first lines in the tags file can contain lines that start with
 These are sorted to the first lines, only rare tags that start with "!" can
 sort to before them.  Vim recognizes two items.  The first one is the line
 that indicates if the file was sorted.  When this line is found, Vim uses
-binary searching for the tags file: >
-	!_TAG_FILE_SORTED<Tab>1<Tab>{anything}
-<
+binary searching for the tags file:
+	!_TAG_FILE_SORTED<Tab>1<Tab>{anything} ~
+
 A tag file may be case-fold sorted to avoid a linear search when case is
 ignored.  (Case is ignored when 'ignorecase' is set and 'tagcase' is
 "followic", or when 'tagcase' is "ignore".)  See 'tagbsearch' for details.
-The value '2' should be used then: >
-	!_TAG_FILE_SORTED<Tab>2<Tab>{anything}
-<
-The other tag that Vim recognizes is the encoding of the tags file: >
-	!_TAG_FILE_ENCODING<Tab>utf-8<Tab>{anything}
-<
+The value '2' should be used then:
+	!_TAG_FILE_SORTED<Tab>2<Tab>{anything} ~
+
+The other tag that Vim recognizes is the encoding of the tags file:
+	!_TAG_FILE_ENCODING<Tab>utf-8<Tab>{anything} ~
 Here "utf-8" is the encoding used for the tags.  Vim will then convert the tag
 being searched for from 'encoding' to the encoding of the tags file.  And when
 listing tags the reverse happens.  When the conversion fails the unconverted
@@ -641,10 +638,10 @@ tag is used.
 
 							*tag-search*
 The command can be any Ex command, but often it is a search command.
-Examples: >
-	tag1	file1	/^main(argc, argv)/
-	tag2	file2	108
-<
+Examples:
+	tag1	file1	/^main(argc, argv)/ ~
+	tag2	file2	108 ~
+
 The command is always executed with 'magic' not set.  The only special
 characters in a search pattern are "^" (begin-of-line) and "$" (<EOL>).
 See |pattern|.  Note that you must put a backslash before each backslash in
@@ -733,56 +730,58 @@ mapping to do that for you.  Here is an example: >
 
   :map <F4> [I:let nr = input("Which one: ")<Bar>exe "normal " .. nr .. "[\t"<CR>
 <
-[i							*[i*
-			Display the first line that contains the keyword
+							*[i*
+[i			Display the first line that contains the keyword
 			under the cursor.  The search starts at the beginning
 			of the file.  Lines that look like a comment are
 			ignored (see 'comments' option).  If a count is given,
 			the count'th matching line is displayed, and comment
 			lines are not ignored.
 
-]i							*]i*
-			like "[i", but start at the current cursor position.
+							*]i*
+]i			like "[i", but start at the current cursor position.
 
-:[range]is[earch][!] [count] [/]pattern[/]		*:is* *:isearch*
+							*:is* *:isearch*
+:[range]is[earch][!] [count] [/]pattern[/]
 			Like "[i"  and "]i", but search in [range] lines
 			(default: whole file).
 			See |:search-args| for [/] and [!].
 
-[I							*[I*
-			Display all lines that contain the keyword under the
+							*[I*
+[I			Display all lines that contain the keyword under the
 			cursor.  Filenames and line numbers are displayed
 			for the found lines.  The search starts at the
 			beginning of the file.
 
-]I							*]I*
-			like "[I", but start at the current cursor position.
+							*]I*
+]I			like "[I", but start at the current cursor position.
 
-:[range]il[ist][!] [/]pattern[/]			*:il* *:ilist*
+							*:il* *:ilist*
+:[range]il[ist][!] [/]pattern[/]
 			Like "[I" and "]I", but search in [range] lines
 			(default: whole file).
 			See |:search-args| for [/] and [!].
 
-[ CTRL-I						*[_CTRL-I*
-			Jump to the first line that contains the keyword
+							*[_CTRL-I*
+[ CTRL-I		Jump to the first line that contains the keyword
 			under the cursor.  The search starts at the beginning
 			of the file.  Lines that look like a comment are
 			ignored (see 'comments' option).  If a count is given,
 			the count'th matching line is jumped to, and comment
 			lines are not ignored.
 
-] CTRL-I						*]_CTRL-I*
-			like "[ CTRL-I", but start at the current cursor
+							*]_CTRL-I*
+] CTRL-I		like "[ CTRL-I", but start at the current cursor
 			position.
 
-:[range]ij[ump][!] [count] [/]pattern[/]		*:ij* *:ijump*
+							*:ij* *:ijump*
+:[range]ij[ump][!] [count] [/]pattern[/]
 			Like "[ CTRL-I"  and "] CTRL-I", but search in
 			[range] lines (default: whole file).
 			See |:search-args| for [/] and [!].
 
-CTRL-W CTRL-I					*CTRL-W_CTRL-I*
-CTRL-W i					*CTRL-W_i*
-			Open a new window, with the cursor on the first line
+CTRL-W CTRL-I					*CTRL-W_CTRL-I* *CTRL-W_i*
+CTRL-W i		Open a new window, with the cursor on the first line
 			that contains the keyword under the cursor.  The
 			search starts at the beginning of the file.  Lines
 			that look like a comment line are ignored (see
@@ -790,13 +789,14 @@ CTRL-W i					*CTRL-W_i*
 			matching line is jumped to, and comment lines are not
 			ignored.
 
-:[range]isp[lit][!] [count] [/]pattern[/]		*:isp* *:isplit*
+							*:isp* *:isplit*
+:[range]isp[lit][!] [count] [/]pattern[/]
 			Like "CTRL-W i"  and "CTRL-W i", but search in
 			[range] lines (default: whole file).
 			See |:search-args| for [/] and [!].
 
-[d							*[d*
-			Display the first macro definition that contains the
+							*[d*
+[d			Display the first macro definition that contains the
 			macro under the cursor.  The search starts from the
 			beginning of the file.  If a count is given, the
 			count'th matching line is displayed.
@@ -805,20 +805,21 @@ CTRL-W i					*CTRL-W_i*
 			Jumps to the previous diagnostic in the current buffer
 			by default. |vim.diagnostic.jump()| |default-mappings|
 
-]d							*]d*
-			like "[d", but start at the current cursor position.
+							*]d*
+]d			like "[d", but start at the current cursor position.
 
 							*]d-default*
 			Jumps to the next diagnostic in the current buffer by
 			default. |vim.diagnostic.jump()| |default-mappings|
 
-:[range]ds[earch][!] [count] [/]string[/]		*:ds* *:dsearch*
+							*:ds* *:dsearch*
+:[range]ds[earch][!] [count] [/]string[/]
 			Like "[d"  and "]d", but search in [range] lines
 			(default: whole file).
 			See |:search-args| for [/] and [!].
 
-[D							*[D*
-			Display all macro definitions that contain the macro
+							*[D*
+[D			Display all macro definitions that contain the macro
 			under the cursor.  Filenames and line numbers are
 			displayed for the found lines.  The search starts
 			from the beginning of the file.
@@ -827,38 +828,39 @@ CTRL-W i					*CTRL-W_i*
 			Jumps to the first diagnostic in the current buffer by
 			default. |vim.diagnostic.jump()| |default-mappings|
 
-]D							*]D*
-			like "[D", but start at the current cursor position.
+							*]D*
+]D			like "[D", but start at the current cursor position.
 
 							*]D-default*
 			Jumps to the last diagnostic in the current buffer by
 			default. |vim.diagnostic.jump()| |default-mappings|
 
-:[range]dli[st][!] [/]string[/]				*:dli* *:dlist*
+							*:dli* *:dlist*
+:[range]dli[st][!] [/]string[/]
 			Like `[D`  and `]D`, but search in [range] lines
 			(default: whole file).
 			See |:search-args| for [/] and [!].
-			Note: `:dl` works like `:delete` with the "l" flag,
-			not `:dlist`.
+			Note that `:dl` works like `:delete` with the "l"
+			flag, not `:dlist`.
 
-[ CTRL-D						*[_CTRL-D*
-			Jump to the first macro definition that contains the
+							*[_CTRL-D*
+[ CTRL-D		Jump to the first macro definition that contains the
 			keyword under the cursor.  The search starts from
 			the beginning of the file.  If a count is given, the
 			count'th matching line is jumped to.
 
-] CTRL-D						*]_CTRL-D*
-			like "[ CTRL-D", but start at the current cursor
+							*]_CTRL-D*
+] CTRL-D		like "[ CTRL-D", but start at the current cursor
 			position.
 
-:[range]dj[ump][!] [count] [/]string[/]			*:dj* *:djump*
+							*:dj* *:djump*
+:[range]dj[ump][!] [count] [/]string[/]
 			Like "[ CTRL-D"  and "] CTRL-D", but search  in
 			[range] lines (default: whole file).
 			See |:search-args| for [/] and [!].
 
-CTRL-W CTRL-D					*CTRL-W_CTRL-D*
-CTRL-W d					*CTRL-W_d*
-			Open a new window, with the cursor on the first
+CTRL-W CTRL-D					*CTRL-W_CTRL-D* *CTRL-W_d*
+CTRL-W d		Open a new window, with the cursor on the first
 			macro definition line that contains the keyword
 			under the cursor.  The search starts from the
 			beginning of the file.  If a count is given, the
@@ -868,13 +870,14 @@ CTRL-W d					*CTRL-W_d*
 			Mapped to |vim.diagnostic.open_float()| by default.
 			|default-mappings|
 
-:[range]dsp[lit][!] [count] [/]string[/]		*:dsp* *:dsplit*
+							*:dsp* *:dsplit*
+:[range]dsp[lit][!] [count] [/]string[/]
 			Like "CTRL-W d", but search in [range] lines
 			(default: whole file).
 			See |:search-args| for [/] and [!].
 
-:checkp[ath]						*:checkp* *:checkpath*
-			List all the included files that could not be found.
+							*:checkp* *:checkpath*
+:checkp[ath]		List all the included files that could not be found.
 
 :checkp[ath]!		List all the included files.
 
@@ -942,11 +945,7 @@ include the following entries and each value must be a string:
 			either relative to the current directory or a full
 			path.
 	cmd		Ex command used to locate the tag in the file.  This
-			can be a line number, a search pattern or any other
-			Ex command, like in a tags file (see
-			|tags-file-format|).  A search pattern must start and
-			end with "/" or "?".  An invalid value results in
-			|E987|.
+			can be either an Ex search pattern or a line number.
 Note that the format is similar to that of |taglist()|, which makes it possible
 to use its output to generate the result.
 The following fields are optional:
@@ -959,19 +958,25 @@ be performed instead.
 
 It is not allowed to change the tagstack from inside 'tagfunc'.  *E986*
 It is not allowed to close a window or change window from inside 'tagfunc'.
-							*E1299*
+*E1299*
 
 The following is a hypothetical example of a function used for 'tagfunc'.  It
 uses the output of |taglist()| to generate the result: a list of tags in the
 inverse order of file names.
->lua
-	vim.bo.tagfunc = function(pattern, flags, info)
-	  local result = vim.fn.taglist(pattern)
-	  table.sort(result, function(item1, item2)
-	    return item1.filename > item2.filename
-	  end)
+>vim
+	function CompareFilenames(item1, item2)
+	  let f1 = a:item1['filename']
+	  let f2 = a:item2['filename']
+	  return f1 >=# f2 ? -1 : f1 <=# f2 ? 1 : 0
+	endfunction
+
+	function TagFunc(pattern, flags, info)
+	  let result = taglist(a:pattern)
+	  call sort(result, "CompareFilenames")
+
 	  return result
-	end
+	endfunc
+	set tagfunc=TagFunc
 <
 Note: When executing |taglist()| the 'tagfunc' function won't be called
 recursively.

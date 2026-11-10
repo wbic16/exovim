@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local feed = n.feed
 local fn = n.call
 local source = n.source
@@ -543,11 +542,10 @@ describe('prompt buffer', function()
       {5:-- INSERT --}             |
     ]])
     feed('<Esc>u')
-    -- Nvim: the cursor returns to its pre-"S" position (|restore-undo-cursor|).
     screen:expect([[
       cmd: tests-initial       |
       Command: "tests-initial" |
-      cmd: hell^o               |
+      ^cmd: hello               |
       {1:~                        }|
       {3:[Prompt]                 }|
       other buffer             |
@@ -562,7 +560,7 @@ describe('prompt buffer', function()
     screen:expect([[
       cmd: tests-initial       |
       Command: "tests-initial" |
-      cmd > hell^o              |
+      c^md > hello              |
       {1:~                        }|
       {3:[Prompt]                 }|
       other buffer             |
@@ -1126,31 +1124,5 @@ describe('prompt buffer', function()
       { 'line1-append', 'line2', 'line3', 'line4', 'line5', 'line6', 'cmd: input1', 'input2' },
       api.nvim_buf_get_lines(buf, 0, -1, false)
     )
-  end)
-
-  it("respects 'scrollback'", function()
-    exec_lua(function()
-      local buf = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_set_option_value('buftype', 'prompt', { buf = buf })
-      vim.api.nvim_set_option_value('scrollback', 3, { buf = buf })
-      vim.fn.prompt_setcallback(buf, function(_)
-        vim.fn.prompt_setprompt(buf, '> ')
-      end)
-      vim.fn.prompt_setprompt(buf, '> ')
-      vim.api.nvim_set_current_buf(buf)
-      vim.cmd('startinsert')
-    end)
-    local buf = fn('bufnr')
-
-    -- Submit 5 times, each creates a new prompt line as history
-    feed('a<cr>')
-    feed('b<cr>')
-    feed('c<cr>')
-    feed('d<cr>')
-    feed('e<cr>')
-
-    -- Should only keep 3 lines above the prompt (scrollback limit = 3)
-    local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
-    eq({ '> c', '> d', '> e', '> ' }, lines)
   end)
 end)

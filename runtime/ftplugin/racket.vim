@@ -6,7 +6,6 @@
 " Last Change:          2025 Aug 09
 " 2026 Mar 31 by Vim project: use shellescape for the K mapping
 " 2026 Apr 01 by Vim project: make K mapping more robust for shell injection
-" 2026 Jun 27 by Vim Project: add recommended style guard
 
 if exists("b:did_ftplugin")
   finish
@@ -19,10 +18,7 @@ set cpo&vim
 " quick hack to allow adding values
 setlocal iskeyword=@,!,#-',*-:,<-Z,a-z,~,_,94
 
-if get(g:, 'racket_recommended_style',
-      \ get(g:, 'filetype_recommended_style', 1))
-  setlocal shiftwidth=2 softtabstop=2
-endif
+setlocal shiftwidth=2 softtabstop=2
 
 " Enable auto begin new comment line when continuing from an old comment line
 setlocal comments=:;;;;,:;;;,:;;,:;

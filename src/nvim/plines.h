@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "nvim/decoration.h"
 #include "nvim/marktree_defs.h"
 #include "nvim/pos_defs.h"
 #include "nvim/types_defs.h"
@@ -15,17 +14,6 @@ enum {
   kCharsizeFast,
 };
 
-/// Extmark-conceal of a line (see CharsizeArg.extconceal_off) as disjoint byte ranges in order,
-/// collected by conceal_spans_collect(). It is a copy, so a callback that changes the marktree
-/// can't invalidate it.
-typedef struct {
-  int start_col;
-  int end_col;          ///< Byte after the range.
-  schar_T replacement;  ///< Shown at `start_col` (see conceal_replacement()), or NUL.
-} ConcealSpan;
-
-typedef kvec_t(ConcealSpan) ConcealSpans;
-
 /// Argument for char size functions.
 typedef struct {
   win_T *win;
@@ -36,32 +24,16 @@ typedef struct {
                              ///< parts of lines, INT_MIN if not yet calculated.
 
   int virt_row;              ///< Row for virtual text, -1 if no virtual text.
-  bool skip_cur_text;        ///< Don't count inline text at the measured character or advance iter.
-                             ///< A CharsizeArg with this set cannot be reused for a later character.
   int cur_text_width_left;   ///< Width of virtual text left of cursor.
   int cur_text_width_right;  ///< Width of virtual text right of cursor.
 
-  int max_head_vcol;         ///< Count 'showbreak'/'breakindent' in `head` only before this
-                             ///< displayed vcol. Negative: before the cursor. 0: no limit.
-  /// Cells hidden so far by "extmark-conceal": conceal from (non-ephemeral) extmarks, including
-  /// treesitter's. `vcol - extconceal_off` is the "displayed vcol", which places wrap prefixes;
-  /// `vcol` still counts hidden cells (for TAB width).
-  int extconceal_off;
+  int max_head_vcol;         ///< See charsize_regular().
   MarkTreeIter iter[1];
-
-  const ConcealSpans *extconceal;  ///< Extmark-conceal of the line, if measuring with it.
 } CharsizeArg;
 
 typedef struct {
   int width;
-  int body;  ///< Character and inline virtual text, excluding wrap prefixes and linebreak tail.
   int head;  ///< Size of 'breakindent' etc. before the character (included in width).
-  int tail;  ///< Size of 'linebreak' after the character (included in width).
-  bool linebreak;  ///< This character ends a run of 'breakat' characters followed by a word.
-  /// Cells of `body` hidden by extmark-conceal (added to CharsizeArg.extconceal_off). A TAB undoes
-  /// the cells hidden since the previous TAB, to keep its tab stop, but keeps one cell: -2 for the
-  /// TAB of "ab<Tab>" with "ab" hidden.
-  int hidden;
 } CharSize;
 
 #include "plines.h.generated.h"
@@ -75,14 +47,14 @@ typedef struct {
 /// of 'showbreak'/'breakindent' before "csarg->max_head_vcol".
 /// When "csarg->max_head_vcol" is negative, only count in "head" the size
 /// of 'showbreak'/'breakindent' before where cursor should be placed.
-static inline CharSize win_charsize(CSType cstype, int vcol, const char *ptr, int32_t chr,
-                                    CharsizeArg *csarg, int mb_width)
+static inline CharSize win_charsize(CSType cstype, int vcol, char *ptr, int32_t chr,
+                                    CharsizeArg *csarg)
   FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_ALWAYS_INLINE
 {
   if (cstype == kCharsizeFast) {
-    return charsize_fast(csarg, ptr, vcol, chr, mb_width);
+    return charsize_fast(csarg, ptr, vcol, chr);
   } else {
-    return charsize_regular(csarg, ptr, vcol, chr, mb_width);
+    return charsize_regular(csarg, ptr, vcol, chr);
   }
 }
 
@@ -117,9 +89,3 @@ static inline int win_linetabsize(win_T *wp, linenr_T lnum, char *line, colnr_T 
     return linesize_regular(&csarg, 0, len);
   }
 }
-
-/// Flags used by getvcol()
-enum {
-  GETVCOL_END_EXCL_LBR = 1,
-  GETVCOL_DISP = 2,  ///< Displayed vcols (see CharsizeArg.extconceal_off).
-};

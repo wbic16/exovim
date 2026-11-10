@@ -14,7 +14,6 @@
 #include "nvim/api/private/defs.h"
 #include "nvim/api/private/helpers.h"
 #include "nvim/ascii_defs.h"
-#include "nvim/charset.h"
 #include "nvim/cursor_shape.h"
 #include "nvim/event/defs.h"
 #include "nvim/event/loop.h"
@@ -25,7 +24,6 @@
 #include "nvim/grid.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/log.h"
-#include "nvim/lua/executor.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
 #include "nvim/map_defs.h"
@@ -35,10 +33,8 @@
 #include "nvim/os/input.h"
 #include "nvim/os/os.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/os/time.h"
 #include "nvim/strings.h"
 #include "nvim/tui/input.h"
-#include "nvim/tui/termdef_field_defs.h"
 #include "nvim/tui/terminfo.h"
 #include "nvim/tui/tui.h"
 #include "nvim/tui/ugrid.h"
@@ -105,7 +101,6 @@ struct TUIData {
   bool mouse_enabled_save;
   bool title_enabled;
   bool sync_output;
-  bool sync_output_active;
   bool busy, is_invisible, want_invisible;
   bool set_cursor_color_as_str;
   bool cursor_has_color;
@@ -147,11 +142,6 @@ struct TUIData {
   StringBuilder urlbuf;  ///< Re-usable buffer for writing OSC 8 control sequences
   Arena ti_arena;
 };
-
-typedef enum {
-  kFlushBufPartial,
-  kFlushBufFinal,
-} FlushBufFinish;
 
 static bool cursor_style_enabled = false;
 #include "tui/tui.c.generated.h"
@@ -361,108 +351,7 @@ void tui_query_bg_color(TUIData *tui)
   FUNC_ATTR_NONNULL_ALL
 {
   tui_query_bg_color_noflush(tui);
-  flush_buf(tui, kFlushBufFinal);
-}
-
-/// Use $NVIM_TERMDEFS to apply user overrides to terminfo. This is our own homebaked "terminfo",
-/// analogous to Vim's t_xx options. #37274
-///
-/// This also positions us to drop Unibilium entirely.
-static void apply_termdefs(TUIData *tui)
-{
-  // We allow empty values just to provide the user with a warning
-  if (!os_env_exists("NVIM_TERMDEFS", false)) {
-    return;
-  }
-
-  Error lua_err = ERROR_INIT;
-  Object rv = NLUA_EXEC_STATIC("return require('vim.tty')._get_termdefs()",
-                               (Array)ARRAY_DICT_INIT, kRetObject, NULL, &lua_err);
-  if (rv.type != kObjectTypeDict) {
-    return;
-  }
-
-  init_termdef_fields();
-
-  Arena err_arena = ARENA_EMPTY;
-  Array chunks = ARRAY_DICT_INIT;
-  int err_count = 0;
-
-#define PUSH_ERR(fmt, ...) \
-  do { \
-    String str = arena_printf(&err_arena, fmt, __VA_ARGS__); \
-    Array err = arena_array(&err_arena, 2); \
-    ADD(err, STRING_OBJ(str)); \
-    ADD(err, STATIC_CSTR_AS_OBJ("ErrorMsg")); \
-    ADD(chunks, ARRAY_OBJ(err)); \
-    err_count++; \
-  } while (0)
-
-  for (size_t i = 0; i < rv.data.dict.size; i++) {
-    KeyValuePair kv = rv.data.dict.items[i];
-    TermdefField *td_field = pmap_get(cstr_t)(&termdef_fields, kv.key.data);
-    if (!td_field || kv.value.type != td_field->type) {
-      PUSH_ERR("skipping invalid field in $NVIM_TERMDEFS: '%s'\n", kv.key.data);
-      continue;
-    }
-    Object val = kv.value;
-    char *dst = (char *)&tui->ti + td_field->offset;
-
-    switch (val.type) {
-    case kObjectTypeBoolean:
-      *(bool *)dst = val.data.boolean;
-      break;
-    case kObjectTypeInteger:
-      *(int *)dst = (int)val.data.integer;
-      break;
-    case kObjectTypeString:
-      *(const char **)dst = arena_strdup(&tui->ti_arena,
-                                         val.data.string.data);
-      break;
-    case kObjectTypeArray:
-      if (val.data.array.size > 2) {
-        PUSH_ERR(
-                "skipping invalid field definition in $NVIM_TERMDEFS for %s: array should have at most two entries for unshifted and shifted key variants.\n",
-                kv.key.data);
-        continue;
-      }
-      *(const char **)dst = NULL;
-      *(const char **)(dst + sizeof(char *)) = NULL;
-
-      for (size_t key_map_idx = 0; key_map_idx < val.data.array.size;
-           key_map_idx++) {
-        Object key_mapping = val.data.array.items[key_map_idx];
-        if (key_mapping.type != kObjectTypeString) {
-          PUSH_ERR(
-                  "skipping invalid field definition in $NVIM_TERMDEFS for %s[%zu]: expected type 'string'\n",
-                  kv.key.data, key_map_idx);
-          continue;
-        }
-        size_t offset = key_map_idx * sizeof(char *);
-        *(const char **)(dst + offset) = arena_strdup(&tui->ti_arena, key_mapping.data.string.data);
-      }
-      break;
-    default:
-      break;
-    }
-  }
-
-  if (err_count > 0) {
-    MAXSIZE_TEMP_ARRAY(args, 3);
-    ADD_C(args, ARRAY_OBJ(chunks));
-    ADD_C(args, BOOLEAN_OBJ(true));  // history
-    MAXSIZE_TEMP_DICT(opts, 1);
-    PUT_C(opts, "err", BOOLEAN_OBJ(true));
-    ADD_C(args, DICT_OBJ(opts));
-    rpc_send_event(ui_client_channel_id, "nvim_echo", args);
-  }
-
-  arena_mem_free(arena_finish(&err_arena));
-  kv_destroy(chunks);
-  api_free_object(rv);
-  api_clear_error(&lua_err);
-
-#undef PUSH_ERR
+  flush_buf(tui);
 }
 
 /// Enable the alternate screen and emit other control sequences to start the TUI.
@@ -507,7 +396,7 @@ static void terminfo_start(TUIData *tui)
 
   // Set up terminfo.
   tui->terminfo_found_in_db = false;
-  if (term && !os_env_exists("NVIM_TERMDEFS", false)) {
+  if (term) {
     if (terminfo_from_database(&tui->ti, term, &tui->ti_arena)) {
       tui->term = arena_strdup(&tui->ti_arena, term);
       tui->terminfo_found_in_db = true;
@@ -527,16 +416,14 @@ static void terminfo_start(TUIData *tui)
   char *konsolev_env = os_getenv("KONSOLE_VERSION");
   char *term_program_version_env = os_getenv("TERM_PROGRAM_VERSION");
 
-  char *vte_version_end = vte_version_env;
-  int vtev = vte_version_env ? getdigits_int(&vte_version_end, false, 0) : 0;
+  int vtev = vte_version_env ? (int)strtol(vte_version_env, NULL, 10) : 0;
   bool iterm_env = termprg && strstr(termprg, "iTerm.app");
   bool nsterm = (termprg && strstr(termprg, "Apple_Terminal"))
                 || terminfo_is_term_family(term, "nsterm");
   bool konsole = terminfo_is_term_family(term, "konsole")
                  || os_env_exists("KONSOLE_PROFILE_NAME", true)
                  || os_env_exists("KONSOLE_DBUS_SESSION", true);
-  char *konsolev_end = konsolev_env;
-  int konsolev = konsolev_env ? getdigits_int(&konsolev_end, false, 0)
+  int konsolev = konsolev_env ? (int)strtol(konsolev_env, NULL, 10)
                               : (konsole ? 1 : 0);
   bool wezterm = strequal(termprg, "WezTerm");
   const char *weztermv = wezterm ? term_program_version_env : NULL;
@@ -549,7 +436,6 @@ static void terminfo_start(TUIData *tui)
 
   patch_terminfo_bugs(tui, term, colorterm, vtev, konsolev, iterm_env, nsterm);
   augment_terminfo(tui, term, vtev, konsolev, weztermv, iterm_env, nsterm);
-  apply_termdefs(tui);
 
 #define TI_HAS(name) (tui->ti.defs[name] != NULL)
   tui->can_change_scroll_region = TI_HAS(kTerm_change_scroll_region);
@@ -566,7 +452,7 @@ static void terminfo_start(TUIData *tui)
     || terminfo_is_term_family(term, "cygwin")
     || terminfo_is_term_family(term, "win32con")
     || terminfo_is_term_family(term, "interix");
-  tui->bce = tui->ti.back_color_erase;
+  tui->bce = tui->ti.bce;
   // Set 't_Co' from the result of terminfo & fix_terminfo.
   t_colors = tui->ti.max_colors;
   // Enter alternate screen, save title, and clear.
@@ -637,7 +523,7 @@ static void terminfo_start(TUIData *tui)
       ELOG("uv_pipe_open failed: %s", uv_strerror(ret));
     }
   }
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
 
   xfree(term);
   xfree(colorterm);
@@ -693,7 +579,7 @@ static void terminfo_disable(TUIData *tui)
   out(tui, S_LEN("\x1b[c"));
 
   // Immediately flush the buffer and wait for the DA1 response.
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
 }
 
 /// Disable the alternate screen and prepare for the TUI to close.
@@ -713,7 +599,7 @@ static void terminfo_stop(TUIData *tui)
     terminfo_out(tui, kTerm_exit_ca_mode);
   }
 
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
   uv_tty_reset_mode();
   uv_close((uv_handle_t *)&tui->output_handle, NULL);
   uv_run(&tui->write_loop, UV_RUN_DEFAULT);
@@ -749,7 +635,7 @@ static void tui_terminal_after_startup(TUIData *tui)
   // Emit this after Nvim startup, not during.  This works around a tmux
   // 2.3 bug(?) which caused slow drawing during startup.  #7649
   out_len(tui, tui->terminfo_ext.enable_focus_reporting);
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
 }
 
 void tui_stop(TUIData *tui)
@@ -766,10 +652,9 @@ void tui_stop(TUIData *tui)
   terminfo_disable(tui);
 
   // Wait until DA1 response is received, or stdin is closed (#35744).
-  uint64_t wait_start = os_hrtime();
   LOOP_PROCESS_EVENTS_UNTIL(tui->loop, tui->loop->events, EXIT_TIMEOUT_MS,
                             tui->stopped || tui->input.read_stream.did_eof);
-  if (!tui->stopped && (os_hrtime() - wait_start) / 1000000 >= EXIT_TIMEOUT_MS) {
+  if (!tui->stopped && !tui->input.read_stream.did_eof) {
     WLOG("TUI: timed out waiting for DA1 response");
   }
   tui->stopped = true;
@@ -1223,7 +1108,7 @@ static void print_spaces(TUIData *tui, int width)
     if (left == 0) {
       break;  // likely: didn't need to flush for sm0l spaces
     }
-    flush_buf(tui, kFlushBufPartial);
+    flush_buf(tui);
   }
 
   grid->col += width;
@@ -1306,7 +1191,7 @@ static void clear_region(TUIData *tui, int top, int bot, int left, int right, in
       cursor_goto(tui, row, left);
       if (tui->can_clear_attr && right == tui->width) {
         terminfo_out(tui, kTerm_clr_eol);
-      } else if (tui->can_erase_chars && tui->can_clear_attr) {
+      } else if (tui->can_erase_chars && tui->can_clear_attr && width >= 5) {
         terminfo_print_num1(tui, kTerm_erase_chars, width);
       } else {
         print_spaces(tui, width);
@@ -1665,12 +1550,12 @@ void tui_visual_bell(TUIData *tui)
   } else {
     out(tui, S_LEN("\x1b[?5h"));
 
-    flush_buf(tui, kFlushBufFinal);
+    flush_buf(tui);
     uv_sleep(100);  // typically either 100 or 200 in terminfo. 100 seems enough
 
     out(tui, S_LEN("\x1b[?5l"));
   }
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
 }
 
 void tui_default_colors_set(TUIData *tui, Integer rgb_fg, Integer rgb_bg, Integer rgb_sp,
@@ -1687,16 +1572,10 @@ void tui_default_colors_set(TUIData *tui, Integer rgb_fg, Integer rgb_bg, Intege
   invalidate(tui, 0, tui->grid.height, 0, tui->grid.width);
 }
 
-/// Writes to the TTY, or buffers (to avoid "tearing") if a frame is being assembled (or output is
-/// already buffered).
+/// Writes directly to the TTY, bypassing the buffer.
 void tui_ui_send(TUIData *tui, String content)
   FUNC_ATTR_NONNULL_ALL
 {
-  if (kv_size(tui->invalid_regions) || tui->bufpos > 0) {
-    // Append to buffer instead of writing directly.
-    out(tui, content.data, content.size);
-    return;
-  }
   uv_write_t req;
   uv_buf_t buf = { .base = content.data, .len = UV_BUF_LEN(content.size) };
   int ret = uv_write(&req, (uv_stream_t *)&tui->output_handle, &buf, 1, NULL);
@@ -1752,7 +1631,7 @@ void tui_flush(TUIData *tui)
 
   cursor_goto(tui, tui->row, tui->col);
 
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
 }
 
 /// Dumps termcap info to the messages area, if 'verbose' >= 3.
@@ -1800,12 +1679,6 @@ static void tui_suspend_cb(TUIData *tui)
   tui_terminal_stop(tui);
   stream_set_blocking(tui->input.in_fd, true);   // normalize stream (#2598)
 
-  // Stop a parent sharing our process group (e.g. `fish -c`) first, so it can't reap our stop
-  // while still running and then exit instead of waiting for us when resumed.
-  pid_t ppid = getppid();
-  if (getpgid(ppid) == getpgrp()) {
-    kill(ppid, SIGSTOP);
-  }
   // Avoid os/signal.c SIGTSTP handler. ex_stop calls auto_writeall. #33258
   kill(0, SIGSTOP);
 
@@ -1839,7 +1712,7 @@ void tui_set_title(TUIData *tui, String title)
     if ((sizeof tui->buf - tui->bufpos) < title.size + 2 * TERMINFO_SEQ_LIMIT) {
       // The sequence to set title, is usually an OSC sequence that cannot be cut in half.
       // flush buffer prior to printing to avoid this
-      flush_buf(tui, kFlushBufFinal);
+      flush_buf(tui);
     }
     terminfo_out(tui, kTerm_to_status_line);
     out(tui, title.data, title.size);
@@ -1863,7 +1736,7 @@ void tui_screenshot(TUIData *tui, String path)
   }
 
   UGrid *grid = &tui->grid;
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
   grid->row = 0;
   grid->col = 0;
 
@@ -1879,7 +1752,7 @@ void tui_screenshot(TUIData *tui, String path)
       print_cell(tui, buf, cell.attr);
     }
   }
-  flush_buf(tui, kFlushBufFinal);
+  flush_buf(tui);
   tui->screenshot = NULL;
 
   fclose(f);
@@ -2050,12 +1923,12 @@ static void out(TUIData *tui, const char *str, size_t len)
   size_t available = sizeof(tui->buf) - tui->bufpos;
 
   if (len > available) {
-    flush_buf(tui, kFlushBufPartial);
+    flush_buf(tui);
     if (len > sizeof(tui->buf)) {
       // Don't use tui->buf[] when the string to output is too long. #30794
       tui->buf_to_flush = (char *)str;
       tui->bufpos = len;
-      flush_buf(tui, kFlushBufPartial);
+      flush_buf(tui);
       return;
     }
   }
@@ -2078,7 +1951,7 @@ void out_printf(TUIData *tui, size_t limit, const char *fmt, ...)
   assert(limit <= sizeof(tui->buf));
   size_t available = sizeof(tui->buf) - tui->bufpos;
   if (available < limit) {
-    flush_buf(tui, kFlushBufPartial);
+    flush_buf(tui);
   }
 
   va_list ap;
@@ -2129,7 +2002,7 @@ static void terminfo_print(TUIData *tui, TerminfoDef what, TPVAR *params)
   }
 
   // try again with fresh buffer
-  flush_buf(tui, kFlushBufPartial);
+  flush_buf(tui);
   size_t len = terminfo_fmt(tui->buf + tui->bufpos, tui->buf + sizeof(tui->buf), str, params);
   if (len > 0) {
     tui->bufpos += len;
@@ -2160,7 +2033,7 @@ static bool term_has_truecolor(TUIData *tui, const char *colorterm)
     return true;
   }
 
-  if (tui->ti.Tc || tui->ti.RGB) {
+  if (tui->ti.has_Tc_or_RGB) {
     // terminfo had one of "Tc" or "RGB" extended boolean capabilities
     return true;
   }
@@ -2249,7 +2122,7 @@ static void patch_terminfo_bugs(TUIData *tui, const char *term, const char *colo
 
   if (tmux || screen || kitty) {
     // Disable BCE in some cases we know it is not working. #8806
-    tui->ti.back_color_erase = false;
+    tui->ti.bce = false;
   }
 
   if (xterm || hterm) {
@@ -2287,7 +2160,8 @@ static void patch_terminfo_bugs(TUIData *tui, const char *term, const char *colo
     // rxvt-unicode has a default steady block cursor, though there's an option
     // to initialize it with an underline https://cvs.schmorp.de/rxvt-unicode/src/init.C?revision=1.351&view=markup#l727
     // \x1b[0 q doesn't work because it makes it a blinking block https://cvs.schmorp.de/rxvt-unicode/src/command.C?revision=1.605&view=markup#l4122
-    // We can't really account for that, so just set it to steady block and hope for the best.
+    // We can't really account for that, so just set it to steady block and hope
+    // for the best.
     terminfo_set_str(tui, kTerm_reset_cursor_style, "\x1b[2 q");
     terminfo_set_str(tui, kTerm_set_cursor_style, "\x1b[%p1%d q");
   } else if (screen) {
@@ -2377,7 +2251,9 @@ static void patch_terminfo_bugs(TUIData *tui, const char *term, const char *colo
   // DECSCUSR (cursor shape) is widely supported.
   // https://github.com/gnachman/iTerm2/pull/92
   if (!bsdvt
-      && (putty         // per MinTTY 0.4.3-1 release notes from 2009
+      && (xterm         // anything claiming xterm compat
+          // per MinTTY 0.4.3-1 release notes from 2009
+          || putty
           // per https://chromium.googlesource.com/apps/libapps/+/a5fb83c190aa9d74f4a9bca233dac6be2664e9e9/hterm/doc/ControlSequences.md
           || hterm
           // per https://bugzilla.gnome.org/show_bug.cgi?id=720821
@@ -2423,11 +2299,6 @@ static void patch_terminfo_bugs(TUIData *tui, const char *term, const char *colo
                      "%e%{0}"                   // anything else
                      "%;" "%dc");
     terminfo_set_str(tui, kTerm_reset_cursor_style, "\x1b[?c");
-  } else if (!bsdvt && xterm) {
-    terminfo_set_if_empty(tui, kTerm_set_cursor_style, "\x1b[%p1%d q");
-    // xterm has a configurable cursor, but the default is 2, and 0 doesn't
-    // reset to default. #41047
-    terminfo_set_if_empty(tui, kTerm_reset_cursor_style, "\x1b[2 q");
   }
 
   xfree(xterm_version);
@@ -2577,96 +2448,98 @@ static bool should_invisible(TUIData *tui)
   return tui->busy || tui->want_invisible;
 }
 
-/// Flushes the rendered buffer to the TTY.
+/// Write the sequence to begin flushing output to `buf`.
+/// If 'termsync' is set and the terminal supports synchronized output, begin synchronized update.
+/// Otherwise, hide the cursor to avoid cursor jumping.
 ///
-/// @see tui_flush
-static void flush_buf(TUIData *tui, FlushBufFinish finish)
+/// @param buf  the buffer to write the sequence to
+/// @param len  the length of `buf`
+static size_t flush_buf_start(TUIData *tui, char *buf, size_t len)
   FUNC_ATTR_NONNULL_ALL
 {
-  bool should_be_invisible = should_invisible(tui);
-
-  // Nothing to flush unless a final flush must end an active synchronized update.
-  if (tui->bufpos <= 0 && tui->is_invisible == should_be_invisible
-      && !(finish == kFlushBufFinal && tui->sync_output_active)) {
-    return;
-  }
-
-  uv_write_t req;
-  uv_buf_t bufs[3];
-  char pre[32];
-  char post[32];
-  size_t pre_len = 0;
-  size_t post_len = 0;
-  TPVAR null_params[9] = { 0 };
-
-  // Begin flushing output. If 'termsync' is set and the terminal supports synchronized
-  // output, begin synchronized update.
-  if (!tui->sync_output_active && tui->sync_output && tui->has_sync_mode) {
-    static const char sync_start[] = "\x1b[?2026h";
-    memcpy(pre, sync_start, sizeof sync_start);
-    pre_len += sizeof sync_start - 1;
-    tui->sync_output_active = true;
-  } else if (!tui->sync_output_active && !tui->is_invisible) {
-    // Otherwise, hide the cursor to avoid cursor jumping.
+  if (tui->sync_output && tui->has_sync_mode) {
+    return xstrlcpy(buf, "\x1b[?2026h", len);
+  } else if (!tui->is_invisible) {
     tui->is_invisible = true;
 
     // TODO(bfredl): zero-param terminfo strings should be pre-filtered so we can just
     // return a cached string here
+    TPVAR null_params[9] = { 0 };
     const char *str = tui->ti.defs[kTerm_cursor_invisible];
     if (str != NULL) {
-      pre_len += terminfo_fmt(pre + pre_len, pre + sizeof(pre), str, null_params);
+      return terminfo_fmt(buf, buf + len, str, null_params);
     }
   }
 
-  // End synchronized update on the final flush.
-  if (finish == kFlushBufFinal && tui->sync_output_active) {
-    static const char sync_end[] = "\x1b[?2026l";
-    memcpy(post, sync_end, sizeof sync_end);
-    post_len += sizeof sync_end - 1;
-    tui->sync_output_active = false;
+  return 0;
+}
+
+/// Write the sequence to end flushing output to `buf`.
+/// If 'termsync' is set and the terminal supports synchronized output, end synchronized update.
+/// Otherwise, make the cursor visible again.
+///
+/// @param buf  the buffer to write the sequence to
+/// @param len  the length of `buf`
+static size_t flush_buf_end(TUIData *tui, char *buf, size_t len)
+  FUNC_ATTR_NONNULL_ALL
+{
+  size_t offset = 0;
+  if (tui->sync_output && tui->has_sync_mode) {
+#define SYNC_END "\x1b[?2026l"
+    memcpy(buf, SYNC_END, sizeof SYNC_END);
+    offset += sizeof SYNC_END - 1;
   }
 
-  // Once synchronized output has ended, or when it was not active, make the cursor
-  // visible or invisible according to the current TUI state.
-  if (!tui->sync_output_active) {
-    const char *str = NULL;
-    if (tui->is_invisible && !should_be_invisible) {
-      str = tui->ti.defs[kTerm_cursor_normal];
-      tui->is_invisible = false;
-    } else if (!tui->is_invisible && should_be_invisible) {
-      str = tui->ti.defs[kTerm_cursor_invisible];
-      tui->is_invisible = true;
-    }
-    if (str != NULL) {
-      post_len += terminfo_fmt(post + post_len, post + sizeof(post), str, null_params);
-    }
+  const char *str = NULL;
+  if (tui->is_invisible && !should_invisible(tui)) {
+    str = tui->ti.defs[kTerm_cursor_normal];
+    tui->is_invisible = false;
+  } else if (!tui->is_invisible && should_invisible(tui)) {
+    str = tui->ti.defs[kTerm_cursor_invisible];
+    tui->is_invisible = true;
+  }
+  TPVAR null_params[9] = { 0 };
+  if (str != NULL) {
+    offset += terminfo_fmt(buf + offset, buf + len, str, null_params);
+  }
+
+  return offset;
+}
+
+/// Flushes the rendered buffer to the TTY.
+///
+/// @see tui_flush
+static void flush_buf(TUIData *tui)
+{
+  uv_write_t req;
+  uv_buf_t bufs[3];
+  char pre[32];
+  char post[32];
+
+  if (tui->bufpos <= 0 && tui->is_invisible == should_invisible(tui)) {
+    return;
   }
 
   bufs[0].base = pre;
-  bufs[0].len = UV_BUF_LEN(pre_len);
+  bufs[0].len = UV_BUF_LEN(flush_buf_start(tui, pre, sizeof(pre)));
 
   bufs[1].base = tui->buf_to_flush != NULL ? tui->buf_to_flush : tui->buf;
   bufs[1].len = UV_BUF_LEN(tui->bufpos);
 
   bufs[2].base = post;
-  bufs[2].len = UV_BUF_LEN(post_len);
+  bufs[2].len = UV_BUF_LEN(flush_buf_end(tui, post, sizeof(post)));
 
   if (tui->screenshot) {
     for (size_t i = 0; i < ARRAY_SIZE(bufs); i++) {
       fwrite(bufs[i].base, bufs[i].len, 1, tui->screenshot);
     }
   } else {
-    unsigned nbufs = ARRAY_SIZE(bufs);
-    while (nbufs > 0 && bufs[nbufs - 1].len == 0) {
-      nbufs--;  // Trim trailing zero-length buffers. https://github.com/libuv/libuv/issues/5182
+    int ret
+      = uv_write(&req, (uv_stream_t *)&tui->output_handle, bufs, ARRAY_SIZE(bufs), NULL);
+    if (ret) {
+      ELOG("uv_write failed: %s", uv_strerror(ret));
     }
-    if (nbufs > 0) {
-      int ret = uv_write(&req, (uv_stream_t *)&tui->output_handle, bufs, nbufs, NULL);
-      if (ret) {
-        ELOG("uv_write failed: %s", uv_strerror(ret));
-      }
-      uv_run(&tui->write_loop, UV_RUN_DEFAULT);
-    }
+    uv_run(&tui->write_loop, UV_RUN_DEFAULT);
   }
   tui->buf_to_flush = NULL;
   tui->bufpos = 0;
@@ -2682,7 +2555,7 @@ static void flush_buf(TUIData *tui, FlushBufFinish finish)
 static const char *tui_get_stty_erase(TermInput *input)
 {
   static char stty_erase[2] = { 0 };
-#ifdef HAVE_TERMIOS_H
+#if defined(HAVE_TERMIOS_H)
   struct termios t;
   if (tcgetattr(input->in_fd, &t) != -1) {
     stty_erase[0] = (char)t.c_cc[VERASE];

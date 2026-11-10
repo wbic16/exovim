@@ -8,7 +8,7 @@ if exists("b:did_ftplugin")
   finish
 endif
 
-runtime! ftplugin/xml[.]{vim,lua} ftplugin/xml_*.{vim,lua} ftplugin/xml/*.{vim,lua}
+runtime! ftplugin/xml.vim ftplugin/xml_*.vim ftplugin/xml/*.vim
 
 let b:did_ftplugin = 1
 

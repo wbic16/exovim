@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local exec = n.exec
@@ -178,7 +177,7 @@ describe('Conceal', function()
       {1:~                                                                          }|
       {2:[No Name] [+]                                                              }|
       one one one one one                                                        |
-      two |hidden| {17:^h}ere                                                          |
+      two |hidden| ^here                                                          |
       three  three                                                               |
       {1:~                                                                          }|
       {3:[No Name] [+]                                                              }|
@@ -241,7 +240,7 @@ describe('Conceal', function()
       {1:~                                                                          }|
       {2:[No Name] [+]                                                              }|
       one one one one one                                                        |
-      two |hidden| {17:^h}ere                                                          |
+      two |hidden| ^here                                                          |
       three  three                                                               |
       {1:~                                                                          }|
       {3:[No Name] [+]                                                              }|
@@ -304,7 +303,7 @@ describe('Conceal', function()
       {1:~                                                                          }|
       {2:[No Name] [+]                                                              }|
       one one one one one                                                        |
-      two  {17:^h}ere                                                                  |
+      two  ^here                                                                  |
       three  three                                                               |
       {1:~                                                                          }|
       {3:[No Name] [+]                                                              }|

@@ -31,7 +31,7 @@ local history = {
 --- @field ltree vim.treesitter.LanguageTree
 --- @field region Range4
 
-local M = { TEST_SWITCH_PRIORITY = false }
+local M = {}
 
 --- @param node vim.treesitter.select.node
 --- @return string
@@ -96,8 +96,10 @@ end
 --- @param ltree vim.treesitter.LanguageTree
 --- @return vim.treesitter.select.node.top
 local function create_top_node(tree, region, ltree)
+  --- @type vim.treesitter.select.node.top
   local self = {
     node = tree:root(),
+    top = {} --[[@as any]],
     ltree = ltree,
     region = region,
   }
@@ -147,7 +149,7 @@ local function get_node(range, top_node, parent_chain)
       return nil, {}
     end
 
-    local tree = parser:parse(range)[1]
+    local tree = assert(parser:parse(range))[1]
     top_node = create_top_node(tree, assert(tree:included_ranges(false)[1]), parser)
 
     if not Range.contains(node_range(top_node), range) then
@@ -164,7 +166,6 @@ local function get_node(range, top_node, parent_chain)
       for _, child_tree in ipairs(child:trees()) do
         for _, child_region in ipairs(tree_get_ranges(child_tree)) do
           local child_root_node_range = { child_tree:root():range() }
-          --- @cast child_root_node_range Range4
           local child_range = Range.intersection(child_region, child_root_node_range)
 
           local child_top_node = create_top_node(child_tree, child_region, child)
@@ -238,7 +239,6 @@ local function node_get_parent_no_normalize(node, parent_chain)
 end
 
 --- @param node vim.treesitter.select.node
---- @param parent_chain vim.treesitter.select.node[]
 --- @return vim.treesitter.select.node
 local function node_normalize_up(node, parent_chain)
   while true do
@@ -300,7 +300,6 @@ local function node_get_children_no_normalize(node)
     for _, child_tree in ipairs(child:trees()) do
       for _, child_region in ipairs(tree_get_ranges(child_tree)) do
         local child_root_node_range = { child_tree:root():range() }
-        --- @cast child_root_node_range Range4
         local child_range = Range.intersection(child_region, child_root_node_range)
 
         if child_range and Range.contains(node_range(node), child_range) then
@@ -349,17 +348,43 @@ local function node_normalize_down(node)
   return node
 end
 
+local function visual_select(range)
+  assert(type(range) == 'table')
+  local srow, scol, erow, ecol = Range.unpack4(range)
+  local cursor_other_end_of_visual = false
+
+  local vcol, vrow = vim.fn.col('v'), vim.fn.line('v')
+  local ccol, cline = vim.fn.col('.'), vim.fn.line('.')
+  if vrow > cline or (vrow == cline and vcol > ccol) then
+    cursor_other_end_of_visual = true
+  end
+
+  if ecol == 0 then
+    erow = erow - 1
+    ecol = #vim.fn.getline(erow + 1) + 1
+  end
+
+  if vim.fn.visualmode() ~= 'v' then
+    -- reset visualmode() to 'v'
+    vim.cmd.normal({ 'v\27', bang = true })
+  end
+
+  vim.fn.setpos("'<", { 0, srow + 1, scol + 1, 0 })
+  vim.fn.setpos("'>", { 0, erow + 1, ecol, 0 })
+  if cursor_other_end_of_visual then
+    vim.cmd.normal({ 'gvo', bang = true })
+  else
+    vim.cmd.normal({ 'gv', bang = true })
+  end
+end
+
 --- @return Range4
 local function get_selection()
   local pos1 = vim.fn.getpos('v')
   local pos2 = vim.fn.getpos('.')
   if pos1[2] > pos2[2] or (pos1[2] == pos2[2] and pos1[3] > pos2[3]) then
+    --- @type Range4,Range4
     pos1, pos2 = pos2, pos1
-  end
-
-  -- selection=exclusive excludes end char, except for empty selection (op-pending, or a new "v").
-  if vim.o.selection == 'exclusive' and (pos1[2] ~= pos2[2] or pos1[3] ~= pos2[3]) then
-    pos2[3] = pos2[3] - 1
   end
 
   if pos2[3] == #vim.fn.getline(pos2[2]) + 1 then
@@ -374,7 +399,6 @@ local function get_selection()
   return { pos1[2] - 1, pos1[3] - 1, pos2[2] - 1, pos2[3] }
 end
 
---- @param range Range4
 local function get_parent_from_range(range)
   local node, parent_chain = get_node(range)
 
@@ -416,7 +440,6 @@ local function get_parent_from_range(range)
   end
 end
 
---- @param range Range4
 local function get_child_from_range(range)
   local node, alternative_child_nodes = get_node(range)
 
@@ -446,7 +469,8 @@ local function get_child_from_range(range)
     and history.changedtick == vim.b.changedtick
     and history.current_node_id == node_id(node)
   then
-    local child = table.remove(history) --[[@as {id:string,range:Range4}?]]
+    --- @type {id:string,range:Range4}
+    local child = table.remove(history)
     if child then
       history.current_node_id = child.id
 
@@ -464,7 +488,6 @@ local function get_child_from_range(range)
   return node_range(node)
 end
 
---- @param range Range4
 --- @param prev boolean
 local function get_sibling_from_range(range, prev)
   local node, parent_chain = get_node(range)
@@ -499,17 +522,14 @@ local function get_sibling_from_range(range, prev)
   end
 end
 
---- @param range Range4
 local function get_next_from_range(range)
   return get_sibling_from_range(range, false)
 end
 
---- @param range Range4
 local function get_prev_from_range(range)
   return get_sibling_from_range(range, true)
 end
 
---- @param range Range4
 --- @param prev boolean
 local function get_grow_sibling_from_range(range, prev)
   local node, parent_chain = get_node(range)
@@ -552,12 +572,10 @@ local function get_grow_sibling_from_range(range, prev)
   end
 end
 
---- @param range Range4
 local function get_grow_next_from_range(range)
   return get_grow_sibling_from_range(range, false)
 end
 
---- @param range Range4
 local function get_grow_prev_from_range(range)
   return get_grow_sibling_from_range(range, true)
 end
@@ -578,7 +596,7 @@ local function repeate_apply_range(count, fn)
   end
 
   if range and count ~= 0 then
-    Range.visual_select(range)
+    visual_select(range)
   end
 end
 

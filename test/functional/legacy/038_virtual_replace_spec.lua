@@ -1,9 +1,7 @@
 -- Test Virtual replace mode.
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 
-local describe, it, setup = t.describe, t.it, t.setup
 local feed = n.feed
 local clear, feed_command, expect = n.clear, n.feed_command, n.expect
 

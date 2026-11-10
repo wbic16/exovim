@@ -10,7 +10,7 @@ endif
 let s:cpo_save = &cpo
 set cpo&vim
 
-runtime! ftplugin/make[.]{vim,lua}
+runtime! ftplugin/make.vim
 
 if (has("gui_win32") || has("gui_gtk")) && !exists("b:browsefilter")
   let b:browsefilter = "Free Pascal Makefile Definition Files (*.fpc)\t*.fpc\n"

@@ -1,6 +1,5 @@
 *lua-bit.txt*           Nvim
 
-==============================================================================
 Lua BitOp                                                             *lua-bit*
 
 Adapted from https://bitop.luajit.org.

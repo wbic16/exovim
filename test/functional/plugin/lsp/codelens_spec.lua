@@ -3,7 +3,6 @@ local n = require('test.functional.testnvim')()
 local t_lsp = require('test.functional.plugin.lsp.testutil')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local dedent = t.dedent
 local eq = t.eq
 
@@ -88,18 +87,12 @@ describe('vim.lsp.codelens', function()
   before_each(function()
     clear_notrace()
     exec_lua(create_server_definition)
-    exec_lua(function()
-      vim.lsp.config('*', {
-        flags = { debounce_text_changes = 0 },
-      })
-    end)
 
     screen = Screen.new(nil, 20)
 
     client_id = exec_lua(function()
       _G.server = _G._create_server({
         capabilities = {
-          textDocumentSync = vim.lsp.protocol.TextDocumentSyncKind.Full,
           codeLensProvider = {
             resolveProvider = true,
           },
@@ -258,27 +251,8 @@ describe('vim.lsp.codelens', function()
   end)
 
   it('refreshes code lenses on request', function()
-    local get_message_count = function()
-      local messages = exec_lua('return _G.server.messages')
-      local count = 0
-      for _, m in ipairs(messages) do
-        if m.method == 'textDocument/codeLens' then
-          count = count + 1
-        end
-      end
-      return count
-    end
-
-    eq(2, get_message_count())
-
     feed('ggdd')
 
-    -- Second codelens (▶︎ Run) is not resolved immediately, so its previous extmark (same row) isn't
-    -- cleared and it stays anchored to where it was. The new one (which would effectively look like
-    -- it moved a row down) needs to be resolved first, which goes through another screen update.
-    -- This is a quirk of the test since it returns the exact same result no matter what the text in
-    -- the buffer actually is
-
     screen:expect([[
       {1:       1 implementation}                              |
           ^a: i32,                                          |
@@ -301,34 +275,6 @@ describe('vim.lsp.codelens', function()
       {1:~                                                    }|
                                                            |
     ]])
-
-    eq(2, get_message_count())
-
-    screen:expect([[
-      {1:       1 implementation}                              |
-          ^a: i32,                                          |
-          b: String,                                       |
-      }                                                    |
-                                                           |
-      impl S {                                             |
-          fn new(a: i32, b: String) -> Self {              |
-              S { a, b }                                   |
-          }                                                |
-      }                                                    |
-                                                           |
-      fn main() {                                          |
-      {1:   ▶︎ Run }                                            |
-          let s = S::new(42, String::from("Hello, world!"))|
-      ;                                                    |
-          println!("S.a: {}, S.b: {}", s.a, s.b);          |
-      }                                                    |
-                                                           |
-      {1:~                                                    }|
-                                                           |
-    ]])
-
-    eq(3, get_message_count())
-
     exec_lua(function()
       vim.lsp.codelens.on_refresh(
         nil,
@@ -336,89 +282,79 @@ describe('vim.lsp.codelens', function()
         { method = 'workspace/codeLens/refresh', client_id = client_id }
       )
     end)
-
-    eq(4, get_message_count())
+    screen:expect([[
+      {1:       1 implementation}                              |
+          ^a: i32,                                          |
+          b: String,                                       |
+      }                                                    |
+                                                           |
+      impl S {                                             |
+          fn new(a: i32, b: String) -> Self {              |
+              S { a, b }                                   |
+          }                                                |
+      }                                                    |
+                                                           |
+      fn main() {                                          |
+      {1:   ▶︎ Run }                                            |
+          let s = S::new(42, String::from("Hello, world!"))|
+      ;                                                    |
+          println!("S.a: {}, S.b: {}", s.a, s.b);          |
+      }                                                    |
+                                                           |
+      {1:~                                                    }|
+                                                           |
+    ]])
   end)
 
-  it('cancels stale in-flight requests on change', function()
-    clear_notrace()
-    exec_lua(create_server_definition)
-
-    insert('line1\n')
-
+  it('refreshes immediately and cancels a pending automatic refresh', function()
     exec_lua(function()
-      _G.server = _G._create_server({
-        capabilities = {
-          textDocumentSync = vim.lsp.protocol.TextDocumentSyncKind.Full,
-          codeLensProvider = {
-            resolveProvider = true,
-          },
-        },
-        handlers = {
-          ['textDocument/codeLens'] = function(_, _, callback)
-            callback(nil, {
-              {
-                range = {
-                  ['end'] = {
-                    character = 1,
-                    line = 0,
-                  },
-                  start = {
-                    character = 0,
-                    line = 0,
-                  },
-                },
-              },
-            })
+      local deferred
+      local request_count = 0
+      local defer_fn = vim.defer_fn
+      local client = assert(vim.lsp.get_client_by_id(client_id))
+      local request = client.request
+
+      --- @diagnostic disable-next-line: duplicate-set-field
+      vim.defer_fn = function(callback)
+        deferred = {
+          callback = callback,
+          closed = false,
+          stopped = false,
+          is_closing = function(self)
+            return self.closed
           end,
-          ['codeLens/resolve'] = function()
-            -- Leave the request in-flight so an edit can cancel it.
+          stop = function(self)
+            self.stopped = true
           end,
-        },
-      })
-
-      vim.lsp.start({ name = 'dummy', cmd = _G.server.cmd })
-      vim.lsp.codelens.enable()
-
-      assert(
-        vim.wait(1000, function()
-          return #vim.lsp.codelens.get() > 0
-        end),
-        'timed out waiting for initial codelens response'
-      )
-
-      vim.api.nvim__redraw({ flush = true })
-
-      assert(
-        vim.wait(1000, function()
-          return vim.iter(_G.server.messages):any(function(m)
-            return m.method == 'codeLens/resolve'
-          end)
-        end),
-        'timed out waiting for codeLens/resolve'
-      )
-
-      local resolve_id --- @type integer?
-      for i, m in ipairs(_G.server.messages) do
-        if m.method == 'codeLens/resolve' then
-          resolve_id = i
-          break
-        end
+          close = function(self)
+            self.closed = true
+          end,
+        }
+        return deferred
       end
-      assert(resolve_id, 'no codeLens/resolve request id')
 
-      vim.api.nvim_buf_set_lines(0, 1, 1, true, { 'line2' })
+      client.request = function(self, method, ...)
+        if method == 'textDocument/codeLens' then
+          request_count = request_count + 1
+        end
+        return request(self, method, ...)
+      end
 
-      local did_cancel = false
-      vim.wait(1000, function()
-        did_cancel = vim.iter(_G.server.messages):any(function(m)
-          return m.method == '$/cancelRequest' and m.params ~= nil and m.params.id == resolve_id
-        end)
+      vim.api.nvim_buf_set_lines(0, 0, 0, false, { '// changed' })
+      assert(deferred, 'expected pending automatic codelens refresh')
 
-        return did_cancel
-      end)
+      vim.lsp.codelens.on_refresh(
+        nil,
+        nil,
+        { method = 'workspace/codeLens/refresh', client_id = client_id }
+      )
 
-      assert(did_cancel, 'did not send $/cancelRequest for in-flight codeLens/resolve')
+      vim.defer_fn = defer_fn
+      client.request = request
+
+      assert(deferred.stopped, 'expected pending codelens refresh to stop')
+      assert(deferred.closed, 'expected pending codelens refresh to close')
+      assert(request_count == 1, 'expected exactly one immediate codelens refresh request')
     end)
   end)
 
@@ -433,7 +369,6 @@ describe('vim.lsp.codelens', function()
       _G.stale_resolve_sent = false
       _G.server = _G._create_server({
         capabilities = {
-          textDocumentSync = vim.lsp.protocol.TextDocumentSyncKind.Full,
           codeLensProvider = {
             resolveProvider = true,
           },
@@ -511,7 +446,6 @@ describe('vim.lsp.codelens', function()
       _G.refresh_response_sent = false
       _G.server = _G._create_server({
         capabilities = {
-          textDocumentSync = vim.lsp.protocol.TextDocumentSyncKind.Full,
           codeLensProvider = {
             resolveProvider = true,
           },
@@ -595,12 +529,11 @@ describe('vim.lsp.codelens', function()
           }                                                |
       }                                                    |
                                                            |
-      {1:▶︎ Run }                                               |
+      {1:   ▶︎ Run }                                            |
       ^                                                     |
       {1:~                                                    }|*5
       4 fewer lines                                        |
     ]])
-
     feed('dd')
     screen:expect([[
       {1:       1 implementation}                              |

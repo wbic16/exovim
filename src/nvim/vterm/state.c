@@ -16,7 +16,8 @@
 #define strneq(a, b, n) (strncmp(a, b, n) == 0)
 
 // Primary Device Attributes (DA1) response.
-// NOLINTNEXTLINE(misc-use-internal-linkage): used with FFI in unittests
+// We make this a global (extern) variable so that we can override it with FFI
+// in tests.
 DLLEXPORT char vterm_primary_device_attr[] = "61;22;52";
 
 // Some convenient wrappers to make callback functions easier
@@ -370,10 +371,7 @@ static int on_text(const char bytes[], size_t len, void *user)
     } while (i < npoints && utf_iscomposing((int)codepoints[i - 1], (int)codepoints[i],
                                             &grapheme_state));
 
-    int scratch = (int)grapheme_len;  // libvterm is staged for replacement, no refactor sorry //B
-    StrCharInfo ci = utf_ptr2StrCharInfo_len((char *)state->grapheme_buf, scratch);
-    ClusterInfo cli = utf_ClusterInfo_len(ci, &scratch);
-    int width = cli.cells;
+    int width = utf_ptr2cells_len(state->grapheme_buf, (int)grapheme_len);
 
     if (state->at_phantom || state->pos.col + width > THISROWWIDTH(state)) {
       linefeed(state);

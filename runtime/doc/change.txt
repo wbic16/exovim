@@ -4,9 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
-Deleting and replacing text
-
 This file describes commands that delete or change text.  In this context,
 changing text means deleting the text and replacing it with other text using
 one command.  You can undo all of these commands.  You can repeat the non-Ex
@@ -19,9 +16,8 @@ For inserting text see |insert.txt|.
 ==============================================================================
 1. Deleting text					*deleting* *E470*
 
-["x]<Del>						*<Del>*
-["x]x							*x* *dl*
-			Delete [count] characters under and after the cursor
+["x]<Del>	or					*<Del>* *x* *dl*
+["x]x			Delete [count] characters under and after the cursor
 			[into register x] (not |linewise|).  Does the same as
 			"dl".
 			The <Del> key does not take a [count].  Instead, it
@@ -29,59 +25,54 @@ For inserting text see |insert.txt|.
 			See 'whichwrap' for deleting a line break (join
 			lines).
 
-["x]X							*X* *dh*
-			Delete [count] characters before the cursor [into
+							*X* *dh*
+["x]X			Delete [count] characters before the cursor [into
 			register x] (not |linewise|).  Does the same as "dh".
 			Also see 'whichwrap'.
 
-["x]d{motion}						*d*
-			Delete text that {motion} moves over [into register
+							*d*
+["x]d{motion}		Delete text that {motion} moves over [into register
 			x].  See below for exceptions.
 
-["x]dd							*dd*
-			Delete [count] lines [into register x] |linewise|.
+							*dd*
+["x]dd			Delete [count] lines [into register x] |linewise|.
 
-["x]D							*D*
-			Delete the characters under the cursor until the end
+							*D*
+["x]D			Delete the characters under the cursor until the end
 			of the line and [count]-1 more lines [into register
 			x]; synonym for "d$".
 			(not |linewise|)
 
-{Visual}["x]x						*v_x*
-{Visual}["x]d						*v_d*
-{Visual}["x]<Del>					*v_<Del>*
-			Delete the highlighted text [into register x] (for
+{Visual}["x]x	or					*v_x* *v_d* *v_<Del>*
+{Visual}["x]d   or
+{Visual}["x]<Del>	Delete the highlighted text [into register x] (for
 			{Visual} see |Visual-mode|).
 
-{Visual}["x]CTRL-H					*v_CTRL-H*
-{Visual}["x]<BS>					*v_<BS>*
-			When in Select mode: Delete the highlighted text [into
+{Visual}["x]CTRL-H   or					*v_CTRL-H* *v_<BS>*
+{Visual}["x]<BS>	When in Select mode: Delete the highlighted text [into
 			register x].
 
-{Visual}["x]X						*v_X*
-{Visual}["x]D						*v_D* *v_b_D*
-			Delete the highlighted lines [into register x] (for
+{Visual}["x]X	or					*v_X* *v_D* *v_b_D*
+{Visual}["x]D		Delete the highlighted lines [into register x] (for
 			{Visual} see |Visual-mode|).  In Visual block mode,
 			"D" deletes the highlighted text plus all text until
 			the end of the line.
 
-:[range]d[elete] [x]		*:d* *:de* *:del* *:delete* *:dl* *:dp*
-			Delete [range] lines (default: current line) [into
+					*:d* *:de* *:del* *:delete* *:dl* *:dp*
+:[range]d[elete] [x]	Delete [range] lines (default: current line) [into
 			register x].
 			Note these weird abbreviations:
-
-			  Command	Meaning ~
-			  :dl		delete and list
-			  :dell		idem
-			  :delel	idem
-			  :deletl	idem
-			  :deletel	idem
-			  :dp		delete and print
-			  :dep		idem
-			  :delp		idem
-			  :delep	idem
-			  :deletp	idem
-			  :deletep	idem
+			   :dl		delete and list
+			   :dell	idem
+			   :delel	idem
+			   :deletl	idem
+			   :deletel	idem
+			   :dp		delete and print
+			   :dep		idem
+			   :delp	idem
+			   :delep	idem
+			   :deletp	idem
+			   :deletep	idem
 
 :[range]d[elete] [x] {count}
 			Delete {count} lines, starting with [range]
@@ -102,27 +93,28 @@ force the motion to be charwise.
 Trying to delete an empty region of text (e.g., "d0" in the first column)
 is an error when 'cpoptions' includes the 'E' flag.
 
-J							*J*
-			Join [count] lines, with a minimum of two lines.
+							*J*
+J			Join [count] lines, with a minimum of two lines.
 			Remove the indent and insert up to two spaces (see
 			below).  Fails when on the last line of the buffer.
 			If [count] is too big it is reduced to the number of
 			lines available.
 
-{Visual}J						*v_J*
-			Join the highlighted lines, with a minimum of two
+							*v_J*
+{Visual}J		Join the highlighted lines, with a minimum of two
 			lines.  Remove the indent and insert up to two spaces
 			(see below).
 
-gJ							*gJ*
-			Join [count] lines, with a minimum of two lines.
+							*gJ*
+gJ			Join [count] lines, with a minimum of two lines.
 			Don't insert or remove any spaces.
 
-{Visual}gJ						*v_gJ*
-			Join the highlighted lines, with a minimum of two
+							*v_gJ*
+{Visual}gJ		Join the highlighted lines, with a minimum of two
 			lines.  Don't insert or remove any spaces.
 
-:[range]j[oin][!] [flags]				*:j* *:join*
+							*:j* *:join*
+:[range]j[oin][!] [flags]
 			Join [range] lines.  Same as "J", except with [!]
 			the join does not insert or delete any spaces.
 			If a [range] has equal start and end values, this
@@ -156,21 +148,21 @@ end of the resulting line.
 ==============================================================================
 2. Delete and insert				*delete-insert* *replacing*
 
-R							*R*
-			Enter Replace mode: Each character you type replaces
+							*R*
+R			Enter Replace mode: Each character you type replaces
 			an existing character, starting with the character
 			under the cursor.  Repeat the entered text [count]-1
 			times.  See |Replace-mode| for more details.
 
-gR							*gR*
-			Enter Virtual Replace mode: Each character you type
+							*gR*
+gR			Enter Virtual Replace mode: Each character you type
 			replaces existing characters in screen space.  So a
 			<Tab> may replace several characters at once.
 			Repeat the entered text [count]-1 times.  See
 			|Virtual-Replace-mode| for more details.
 
-["x]c{motion}						*c*
-			Delete {motion} text [into register x] and start
+							*c*
+["x]c{motion}		Delete {motion} text [into register x] and start
 			insert.  When  'cpoptions' includes the 'E' flag and
 			there is no text to delete (e.g., with "cTx" when the
 			cursor is just after an 'x'), an error occurs and
@@ -179,36 +171,35 @@ gR							*gR*
 			"c" command always starts insert mode, even if there
 			is no text to delete.
 
-["x]cc							*cc*
-			Delete [count] lines [into register x] and start
+							*cc*
+["x]cc			Delete [count] lines [into register x] and start
 			insert |linewise|.  If 'autoindent' is on, preserve
 			the indent of the first line.
 
-["x]C							*C*
-			Delete from the cursor position to the end of the
+							*C*
+["x]C			Delete from the cursor position to the end of the
 			line and [count]-1 more lines [into register x], and
 			start insert.  Synonym for c$ (not |linewise|).
 
-["x]s							*s*
-			Delete [count] characters [into register x] and start
+							*s*
+["x]s			Delete [count] characters [into register x] and start
 			insert (s stands for Substitute).  Synonym for "cl"
 			(not |linewise|).
 
-["x]S							*S*
-			Delete [count] lines [into register x] and start
+							*S*
+["x]S			Delete [count] lines [into register x] and start
 			insert.  Synonym for "cc" |linewise|.
 
-{Visual}["x]c						*v_c*
-{Visual}["x]s						*v_s*
-			Delete the highlighted text [into register x] and
+{Visual}["x]c	or					*v_c* *v_s*
+{Visual}["x]s		Delete the highlighted text [into register x] and
 			start insert (for {Visual} see |Visual-mode|).
 
-{Visual}r{char}						*v_r*
-			Replace all selected characters by {char}.
+							*v_r*
+{Visual}r{char}		Replace all selected characters by {char}.
 			CTRL-C will be inserted literally.
 
-{Visual}["x]C						*v_C*
-			Delete the highlighted lines [into register x] and
+							*v_C*
+{Visual}["x]C		Delete the highlighted lines [into register x] and
 			start insert.  In Visual block mode it works
 			differently |v_b_C|.
 							*v_S*
@@ -244,8 +235,8 @@ following white space.
 If you prefer "cw" to include the space after a word, see |cpo-_| to change
 the behavior.  Alternatively, use "caw" (see |aw|).
 
-:{range}c[hange][!]					*:c* *:ch* *:change*
-			Replace lines of text with some different text.
+							*:c* *:ch* *:change*
+:{range}c[hange][!]	Replace lines of text with some different text.
 			Type a line containing only "." to stop replacing.
 			Without {range}, this command changes only the current
 			line.
@@ -255,8 +246,8 @@ the behavior.  Alternatively, use "caw" (see |aw|).
 ==============================================================================
 3. Simple changes				*simple-change* *changing*
 
-r{char}							*r*
-			Replace the character under the cursor with {char}.
+							*r*
+r{char}			Replace the character under the cursor with {char}.
 			If {char} is a <CR> or <NL>, a line break replaces the
 			character.  To replace with a real <CR>, use CTRL-V
 			<CR>.  CTRL-V <NL> replaces with a <Nul>.
@@ -280,8 +271,8 @@ r{char}							*r*
 			|i_CTRL-^|.  See |utf-8-char-arg| about using
 			composing characters when 'encoding' is Unicode.
 
-gr{char}						*gr*
-			Replace the virtual characters under the cursor with
+							*gr*
+gr{char}		Replace the virtual characters under the cursor with
 			{char}.  This replaces in screen space, not file
 			space.  See |gR| and |Virtual-Replace-mode| for more
 			details.  As with |r| a count may be given.
@@ -305,30 +296,29 @@ like |digraphs|.  First type CTRL-K and then the two digraph characters.
 The following commands change the case of letters.  The currently active
 |locale| is used.  See |:language|.  The LC_CTYPE value matters here.
 
-~							*~*
-			'notildeop' option: Switch case of the character
+							*~*
+~			'notildeop' option: Switch case of the character
 			under the cursor and move the cursor to the right.
 			If a [count] is given, do that many characters.
 
 ~{motion}		'tildeop' option: switch case of {motion} text.
 
-g~{motion}						*g~*
-			Switch case of {motion} text.
+							*g~*
+g~{motion}		Switch case of {motion} text.
 
-g~g~							*g~g~*
-g~~							*g~~*
-			Switch case of current line.
+g~g~							*g~g~* *g~~*
+g~~			Switch case of current line.
 
-{Visual}~						*v_~*
-			Switch case of highlighted text (for {Visual} see
+							*v_~*
+{Visual}~		Switch case of highlighted text (for {Visual} see
 			|Visual-mode|).
 
-{Visual}U						*v_U*
-			Make highlighted text uppercase (for {Visual} see
+							*v_U*
+{Visual}U		Make highlighted text uppercase (for {Visual} see
 			|Visual-mode|).
 
-gU{motion}						*gU* *uppercase*
-			Make {motion} text uppercase.
+							*gU* *uppercase*
+gU{motion}		Make {motion} text uppercase.
 			Example: >
 				:map! <C-F> <Esc>gUiw`]a
 <			This works in Insert mode: press CTRL-F to make the
@@ -336,31 +326,28 @@ gU{motion}						*gU* *uppercase*
 			words in lowercase and then make them uppercase.
 
 
-gUgU							*gUgU*
-gUU							*gUU*
-			Make current line uppercase.
+gUgU							*gUgU* *gUU*
+gUU			Make current line uppercase.
 
-{Visual}u						*v_u*
-			Make highlighted text lowercase (for {Visual} see
+							*v_u*
+{Visual}u		Make highlighted text lowercase (for {Visual} see
 			|Visual-mode|).
 
-gu{motion}						*gu* *lowercase*
-			Make {motion} text lowercase.
+							*gu* *lowercase*
+gu{motion}		Make {motion} text lowercase.
 
-gugu							*gugu*
-guu							*guu*
-			Make current line lowercase.
+gugu							*gugu* *guu*
+guu			Make current line lowercase.
 
-g?{motion}						*g?* *rot13*
-			Rot13 encode {motion} text.
+							*g?* *rot13*
+g?{motion}		Rot13 encode {motion} text.
 
-{Visual}g?						*v_g?*
-			Rot13 encode the highlighted text (for {Visual} see
+							*v_g?*
+{Visual}g?		Rot13 encode the highlighted text (for {Visual} see
 			|Visual-mode|).
 
-g?g?							*g?g?*
-g??							*g??*
-			Rot13 encode current line.
+g?g?							*g?g?* *g??*
+g??			Rot13 encode current line.
 
 To turn one line into title caps, make every first letter of a word
 uppercase: >
@@ -372,12 +359,12 @@ Adding and subtracting ~
 CTRL-A			Add [count] to the number or alphabetic character at
 			or after the cursor.
 
-{Visual}CTRL-A						*v_CTRL-A*
-			Add [count] to the number or alphabetic character in
+                                                       *v_CTRL-A*
+{Visual}CTRL-A		Add [count] to the number or alphabetic character in
 			the highlighted text.
 
-{Visual}g CTRL-A					*v_g_CTRL-A*
-			Add [count] to the number or alphabetic character in
+							*v_g_CTRL-A*
+{Visual}g CTRL-A	Add [count] to the number or alphabetic character in
 			the highlighted text.  If several lines are
 			highlighted, each one will be incremented by an
 			additional [count] (so effectively creating a
@@ -394,16 +381,16 @@ CTRL-A			Add [count] to the number or alphabetic character at
 				3.
 				4.
 <
-CTRL-X							*CTRL-X*
-			Subtract [count] from the number or alphabetic
+							*CTRL-X*
+CTRL-X			Subtract [count] from the number or alphabetic
 			character at or after the cursor.
 
-{Visual}CTRL-X						*v_CTRL-X*
-			Subtract [count] from the number or alphabetic
+							*v_CTRL-X*
+{Visual}CTRL-X		Subtract [count] from the number or alphabetic
 			character in the highlighted text.
 
-{Visual}g CTRL-X					*v_g_CTRL-X*
-			Subtract [count] from the number or alphabetic
+							*v_g_CTRL-X*
+{Visual}g CTRL-X	Subtract [count] from the number or alphabetic
 			character in the highlighted text.  If several lines
 			are highlighted, each value will be decremented by an
 			additional [count] (so effectively creating a [count]
@@ -478,8 +465,8 @@ SHIFTING LINES LEFT OR RIGHT				*shift-left-right*
 							*<<*
  <<			Shift [count] lines one 'shiftwidth' leftwards.
 
-{Visual}[count]<					*v_<*
-			Shift the highlighted lines [count] 'shiftwidth'
+							*v_<*
+{Visual}[count]<	Shift the highlighted lines [count] 'shiftwidth'
 			leftwards (for {Visual} see |Visual-mode|).
 
 							*>*
@@ -491,12 +478,12 @@ SHIFTING LINES LEFT OR RIGHT				*shift-left-right*
 							*>>*
  >>			Shift [count] lines one 'shiftwidth' rightwards.
 
-{Visual}[count]>					*v_>*
-			Shift the highlighted lines [count] 'shiftwidth'
+							*v_>*
+{Visual}[count]>	Shift the highlighted lines [count] 'shiftwidth'
 			rightwards (for {Visual} see |Visual-mode|).
 
-:[range]<						*:<*
-			Shift [range] lines one 'shiftwidth' left.  Repeat '<'
+							*:<*
+:[range]<		Shift [range] lines one 'shiftwidth' left.  Repeat '<'
 			for shifting multiple 'shiftwidth's.
 
 :[range]< {count}	Shift {count} lines one 'shiftwidth' left, starting
@@ -506,8 +493,8 @@ SHIFTING LINES LEFT OR RIGHT				*shift-left-right*
 :[range]le[ft] [indent]	left align lines in [range].  Sets the indent in the
 			lines to [indent] (default 0).
 
-:[range]> [flags]					*:>*
-			Shift [range] lines one 'shiftwidth' right.
+							*:>*
+:[range]> [flags]	Shift [range] lines one 'shiftwidth' right.
 			Repeat '>' for shifting multiple 'shiftwidth's.
 			See |ex-flags| for [flags].
 
@@ -560,16 +547,16 @@ shell Vim uses to execute the filter command.  You can repeat filter commands
 with ".".  Vim does not recognize a comment (starting with '"') after the
 `:!` command.
 
-!{motion}{filter}					*!*
-			Filter {motion} text lines through the external
+							*!*
+!{motion}{filter}	Filter {motion} text lines through the external
 			program {filter}.
 
-!!{filter}						*!!*
-			Filter [count] lines through the external program
+							*!!*
+!!{filter}		Filter [count] lines through the external program
 			{filter}.
 
-{Visual}!{filter}					*v_!*
-			Filter the highlighted lines through the external
+							*v_!*
+{Visual}!{filter}	Filter the highlighted lines through the external
 			program {filter} (for {Visual} see |Visual-mode|).
 
 :{range}![!]{filter} [!][arg]				*:range!*
@@ -591,19 +578,19 @@ with ".".  Vim does not recognize a comment (starting with '"') after the
 <			When the number of lines after filtering is less than
 			before, marks in the missing lines are deleted anyway.
 
-={motion}						*=*
-			Filter {motion} lines through the external program
+							*=*
+={motion}		Filter {motion} lines through the external program
 			given with the 'equalprg' option.  When the 'equalprg'
 			option is empty (this is the default), use the
 			internal formatting function |C-indenting| and 'lisp'.
 			But when 'indentexpr' is not empty, it will be used
 			instead |indent-expression|.
 
-==							*==*
-			Filter [count] lines like with ={motion}.
+							*==*
+==			Filter [count] lines like with ={motion}.
 
-{Visual}=						*v_=*
-			Filter the highlighted lines like with ={motion}.
+							*v_=*
+{Visual}=		Filter the highlighted lines like with ={motion}.
 
 
 						*tempdir* *tempfile* *setuid*
@@ -670,8 +657,8 @@ original user.
 			but with last used search pattern.  This is like
 			`:&r`.  See |:s_flags| for [flags].
 
-&							*&*
-			Synonym for `:s` (repeat last substitute).  Note
+								*&*
+&			Synonym for `:s` (repeat last substitute).  Note
 			that the flags are not remembered, thus it might
 			actually work differently.  You can use `:&&` to keep
 			the flags.
@@ -679,25 +666,25 @@ original user.
 								*&-default*
 			Mapped to ":&&<CR>" by default. |default-mappings|
 
-g&							*g&*
-			Synonym for `:%s//~/&` (repeat last substitute with
+								*g&*
+g&			Synonym for `:%s//~/&` (repeat last substitute with
 			last search pattern on all lines with the same flags).
 			For example, when you first do a substitution with
 			`:s/pattern/repl/flags` and then `/search` for
 			something else, `g&` will do `:%s/search/repl/flags`.
 			Mnemonic: global substitute.
 
-:[range]sno[magic] ...					*:snomagic* *:sno*
-			Same as `:substitute`, but always use 'nomagic'.
+						*:snomagic* *:sno*
+:[range]sno[magic] ...	Same as `:substitute`, but always use 'nomagic'.
 
-:[range]sm[agic] ...					*:smagic* *:sm*
-			Same as `:substitute`, but always use 'magic'.
+						*:smagic* *:sm*
+:[range]sm[agic] ...	Same as `:substitute`, but always use 'magic'.
 
 							*:s_flags*
 The flags that you can use for the substitute commands:
 
-[&]							*:&&*
-	Must be the first one: Keep the flags from the previous substitute
+							*:&&*
+[&]	Must be the first one: Keep the flags from the previous substitute
 	command.  Examples: >
 		:&&
 		:s/this/that/&
@@ -705,44 +692,42 @@ The flags that you can use for the substitute commands:
 
 [c]	Confirm each substitution.  Vim highlights the matching string (with
 	|hl-IncSearch|).  You can type:				*:s_c*
-
-	    Key		Action ~
-	    'y'		to substitute this match
-	    'l'		to substitute this match and then quit ("last")
-	    'n'		to skip this match
-	    <Esc>	to quit substituting
-	    'a'		to substitute this and all remaining matches
-	    'q'		to quit substituting
-	    CTRL-E	to scroll the screen up
-	    CTRL-Y	to scroll the screen down
+	    'y'	    to substitute this match
+	    'l'	    to substitute this match and then quit ("last")
+	    'n'	    to skip this match
+	    <Esc>   to quit substituting
+	    'a'	    to substitute this and all remaining matches
+	    'q'	    to quit substituting
+	    CTRL-E  to scroll the screen up
+	    CTRL-Y  to scroll the screen down
 
 							*:s_e*
 [e]     When the search pattern fails, do not issue an error message and, in
 	particular, continue in maps as if no error occurred.  This is most
 	useful to prevent the "No match" error from breaking a mapping.  Vim
 	does not suppress the following error messages, however:
-	- Regular expressions can't be delimited by letters
-	- \ should be followed by /, ? or &
-	- No previous substitute regular expression
-	- Trailing characters
-	- Interrupted
+		Regular expressions can't be delimited by letters
+		\ should be followed by /, ? or &
+		No previous substitute regular expression
+		Trailing characters
+		Interrupted
 
-[g]							*:s_g*
-	Replace all occurrences in the line.  Without this argument,
+							*:s_g*
+[g]	Replace all occurrences in the line.  Without this argument,
 	replacement occurs only for the first occurrence in each line.  If the
 	'gdefault' option is on, this flag is on by default and the [g]
 	argument switches it off.
 
-[i]							*:s_i*
-	Ignore case for the pattern.  The 'ignorecase' and 'smartcase' options
+							*:s_i*
+[i]	Ignore case for the pattern.  The 'ignorecase' and 'smartcase' options
 	are not used.
 
-[I]							*:s_I*
-	Don't ignore case for the pattern.  The 'ignorecase' and 'smartcase'
+							*:s_I*
+[I]	Don't ignore case for the pattern.  The 'ignorecase' and 'smartcase'
 	options are not used.
 
-[n]							*:s_n*
-	Report the number of matches, do not actually substitute.  The [c]
+							*:s_n*
+[n]	Report the number of matches, do not actually substitute.  The [c]
 	flag is ignored.  The matches are reported as if 'report' is zero.
 	Useful to |count-items|.
 	If \= |sub-replace-expression| is used, the expression will be
@@ -754,8 +739,8 @@ The flags that you can use for the substitute commands:
 
 [l]	Like [p] but print the text like |:list|.  *:s_l*
 
-[r]							*:s_r*
-	Only useful in combination with `:&` or `:s` without arguments.  `:&r`
+							*:s_r*
+[r]	Only useful in combination with `:&` or `:s` without arguments.  `:&r`
 	works the same way as `:~`:  When the search pattern is empty, use the
 	previously used search pattern instead of the search pattern from the
 	last substitute or `:global`.  If the last command that did a search
@@ -814,38 +799,38 @@ The substitution is limited in recursion to 4 levels. *E1290*
 
 Otherwise these characters in {string} have a special meaning:
 
- 		magic	nomagic	action ~
-*s/\&*		&	\&	replaced with the whole matched pattern
- 		\&	&	replaced with &
-*\0* *s/\0*	\0	\0	replaced with the whole matched pattern
-*s/\1*		\1	\1	replaced with the matched pattern in the first
-				pair of ()
-*s/\2*		\2	\2	replaced with the matched pattern in the second
-				pair of ()
-*s/\3*		..	..	..
-*s/\9*		\9	\9	replaced with the matched pattern in the ninth
-				pair of ()
-*s~*		~	\~	replaced with the {string} of the previous
-				substitute
-*s/\~*		\~	~	replaced with `~`
-*s/\u*		\u	\u	next character made uppercase
-*s/\U*		\U	\U	following characters made uppercase, until \E
-*s/\l*		\l	\l	next character made lowercase
-*s/\L*		\L	\L	following characters made lowercase, until \E
-*s/\e*		\e	\e	end of \u, \U, \l and \L (NOTE: not <Esc>!)
-*s/\E*		\E	\E	end of \u, \U, \l and \L
-*s<CR>*		<CR>	<CR>	split line in two at this point
-				(Type the <CR> as CTRL-V <Enter>)
-*s/\r*		\r	\r	idem
-*s/\<CR>*	\<CR>	\<CR>	insert a carriage-return (CTRL-M)
-				(Type the <CR> as CTRL-V <Enter>)
-*s/\n*		\n	\n	insert a <NL> (<NUL> in the file)
-				(does NOT break the line)
-*s/\b*		\b	\b	insert a <BS>
-*s/\t*		\t	\t	insert a <Tab>
-*s/\\*		\\	\\	insert a single backslash
- 		\x	\x	where x is any character not mentioned above:
-				Reserved for future expansion
+magic	nomagic	  action    ~
+  &	  \&	  replaced with the whole matched pattern	     *s/\&*
+ \&	   &	  replaced with &
+      \0	  replaced with the whole matched pattern	   *\0* *s/\0*
+      \1	  replaced with the matched pattern in the first
+		  pair of ()					     *s/\1*
+      \2	  replaced with the matched pattern in the second
+		  pair of ()					     *s/\2*
+      ..	  ..						     *s/\3*
+      \9	  replaced with the matched pattern in the ninth
+		  pair of ()					     *s/\9*
+  ~	  \~	  replaced with the {string} of the previous
+		  substitute					     *s~*
+ \~	   ~	  replaced with ~				     *s/\~*
+      \u	  next character made uppercase			     *s/\u*
+      \U	  following characters made uppercase, until \E      *s/\U*
+      \l	  next character made lowercase			     *s/\l*
+      \L	  following characters made lowercase, until \E      *s/\L*
+      \e	  end of \u, \U, \l and \L (NOTE: not <Esc>!)	     *s/\e*
+      \E	  end of \u, \U, \l and \L			     *s/\E*
+      <CR>	  split line in two at this point
+		  (Type the <CR> as CTRL-V <Enter>)		     *s<CR>*
+      \r	  idem						     *s/\r*
+      \<CR>	  insert a carriage-return (CTRL-M)
+		  (Type the <CR> as CTRL-V <Enter>)		     *s/\<CR>*
+      \n	  insert a <NL> (<NUL> in the file)
+		  (does NOT break the line)			     *s/\n*
+      \b	  insert a <BS>					     *s/\b*
+      \t	  insert a <Tab>				     *s/\t*
+      \\	  insert a single backslash			     *s/\\*
+      \x	  where x is any character not mentioned above:
+		  Reserved for future expansion
 
 The special meaning is also used inside the third argument {sub} of
 the |substitute()| function with the following exceptions:
@@ -898,34 +883,31 @@ either the first or second pattern in parentheses did not match, so either
 
 These commands repeat the previous `:substitute` command with the given flags.
 The first letter is always "s", followed by one or two of the possible flag
-characters.  For example ":sce" works like ":s ce".  The table lists the
+characters.  For example `:sce` works like `:s///ce`.  The table lists the
 possible combinations, not all flags are possible, because the command is
 short for another command.
 
-List of :substitute commands:
-
-	 	c	e	g	i	I	n	p	l	r ~
-	c	:sc	:sce	:scg	:sci	:scI	:scn	:scp	:scl
-	e	 
-	g	:sgc	:sge	:sg	:sgi	:sgI	:sgn	:sgp	:sgl	:sgr
-	i	:sic	:sie	 	:si	:siI	:sin	:sip	 	:sir
-	I	:sIc	:sIe	:sIg	:sIi	:sI	:sIn	:sIp	:sIl	:sIr
-	n	 
-	p	 
-	l	 
-	r	:src	 	:srg	:sri	:srI	:srn	:srp	:srl	:sr
+     List of :substitute commands
+     |      c    e    g    i    I    n    p    l    r
+     | c  :sc  :sce :scg :sci :scI :scn :scp :scl
+     | e
+     | g  :sgc :sge :sg  :sgi :sgI :sgn :sgp :sgl :sgr
+     | i  :sic :sie      :si  :siI :sin :sip      :sir
+     | I  :sIc :sIe :sIg :sIi :sI  :sIn :sIp :sIl :sIr
+     | n
+     | p
+     | l
+     | r  :src      :srg :sri :srI :srn :srp :srl :sr
 
 Exceptions:
-
-	Abbreviation	Command ~
-	:scr		`:scriptnames`
-	:se		`:set`
-	:sig		`:sign`
-	:sil		`:silent`
-	:sn		`:snext`
-	:sp		`:split`
-	:sl		`:sleep`
-	:sre		`:srewind`
+     :scr  is  `:scriptnames`
+     :se   is  `:set`
+     :sig  is  `:sign`
+     :sil  is  `:silent`
+     :sn   is  `:snext`
+     :sp   is  `:split`
+     :sl   is  `:sleep`
+     :sre  is  `:srewind`
 
 
 Substitute with an expression			*sub-replace-expression*
@@ -1008,13 +990,13 @@ inside of strings can change!  Also see 'softtabstop' option. >
 ==============================================================================
 5. Copying and moving text				*copy-move*
 
-"{register}						*quote*
-			Use {register} for next delete, yank or put.  Use
+							*quote*
+"{register}		Use {register} for next delete, yank or put.  Use
 			an uppercase character to append with delete and yank.
 			Registers ".", "%", "#" and ":" only work with put.
 
-:reg[isters]						*:reg* *:registers*
-			Display the type and contents of all numbered and
+							*:reg* *:registers*
+:reg[isters]		Display the type and contents of all numbered and
 			named registers.  If a register is written to for
 			|:redir| it will not be listed.
 			Type can be one of:
@@ -1029,60 +1011,60 @@ inside of strings can change!  Also see 'softtabstop' option. >
 <			to display registers '1' and 'a'.  Spaces are allowed
 			in {arg}.
 
-:di[splay] [arg]				*:di* *:dis* *:display*
-			Same as :registers.
+							*:di* *:dis* *:display*
+:di[splay] [arg]	Same as :registers.
 
-["x]y{motion}						*y* *yank*
-			Yank {motion} text [into register x].  When no
+							*y* *yank*
+["x]y{motion}		Yank {motion} text [into register x].  When no
 			characters are to be yanked (e.g., "y0" in column 1),
 			this is an error when 'cpoptions' includes the 'E'
 			flag.
 
-["x]yy							*yy*
-			Yank [count] lines [into register x] |linewise|.
+							*yy*
+["x]yy			Yank [count] lines [into register x] |linewise|.
 
-["x]Y							*Y*
-			yank [count] lines [into register x] (synonym for
+							*Y*
+["x]Y			yank [count] lines [into register x] (synonym for
 			yy, |linewise|).
 							*Y-default*
 			Mapped to "y$" by default. |default-mappings|
 
-["x]zy{motion}						*zy*
-			Yank {motion} text [into register x].  Only differs
+							*zy*
+["x]zy{motion}		Yank {motion} text [into register x].  Only differs
 			from `y` when selecting a block of text, see |v_zy|.
 
-{Visual}["x]y						*v_y*
-			Yank the highlighted text [into register x] (for
+							*v_y*
+{Visual}["x]y		Yank the highlighted text [into register x] (for
 			{Visual} see |Visual-mode|).
 
-{Visual}["x]Y						*v_Y*
-			Yank the highlighted lines [into register x] (for
+							*v_Y*
+{Visual}["x]Y		Yank the highlighted lines [into register x] (for
 			{Visual} see |Visual-mode|).
 
-{Visual}["x]zy						*v_zy*
-			Yank the highlighted text [into register x].  Trailing
+							*v_zy*
+{Visual}["x]zy		Yank the highlighted text [into register x].  Trailing
 			whitespace at the end of each line of a selected block
 			won't be yanked.  Especially useful in combination
 			with `zp`.  (for {Visual} see |Visual-mode|)
 
-:[range]y[ank] [x]					*:y* *:yank* *E850*
-			Yank [range] lines [into register x].
+							*:y* *:yank* *E850*
+:[range]y[ank] [x]	Yank [range] lines [into register x].
 
 :[range]y[ank] [x] {count}
 			Yank {count} lines, starting with last line number
 			in [range] (default: current line |cmdline-ranges|),
 			[into register x].
 
-["x]p						*p* *put* *E353* *E1240*
-			Put the text [from register x] after the cursor
+						*p* *put* *E353* *E1240*
+["x]p			Put the text [from register x] after the cursor
 			[count] times.
 
-["x]P							*P*
-			Put the text [from register x] before the cursor
+							*P*
+["x]P			Put the text [from register x] before the cursor
 			[count] times.
 
-["x]<MiddleMouse>					*<MiddleMouse>*
-			Put the text from a register before the cursor [count]
+							*<MiddleMouse>*
+["x]<MiddleMouse>	Put the text from a register before the cursor [count]
 			times.  Uses the "* register, unless another is
 			specified.
 			Leaves the cursor at the end of the new text.
@@ -1096,16 +1078,16 @@ inside of strings can change!  Also see 'softtabstop' option. >
 <			You might want to disable the multi-click versions
 			too, see |double-click|.
 
-["x]gp							*gp*
-			Just like "p", but leave the cursor just after the new
+							*gp*
+["x]gp			Just like "p", but leave the cursor just after the new
 			text.
 
-["x]gP							*gP*
-			Just like "P", but leave the cursor just after the new
+							*gP*
+["x]gP			Just like "P", but leave the cursor just after the new
 			text.
 
-:[line]pu[t] [x]					*:pu* *:put*
-			Put the text [from register x] after [line] (default
+							*:pu* *:put*
+:[line]pu[t] [x]	Put the text [from register x] after [line] (default
 			current line).  This always works |linewise|, thus
 			this command can be used to put a yanked block as new
 			lines.
@@ -1127,28 +1109,25 @@ inside of strings can change!  Also see 'softtabstop' option. >
 :[line]pu[t]! [x]	Put the text [from register x] before [line] (default
 			current line).
 
-:[line]ip[ut] [x]					*:ip* *:iput*
-			Like |:put|, but adjust indent to the current line.
+							*:ip* *:iput*
+:[line]ip[ut] [x]	Like |:put|, but adjust indent to the current line.
 
 :[line]ip[ut]! [x]	Like |:put|!, but adjust indent to the current line.
 
-["x]]p							*]p*
-["x]]<MiddleMouse>					*]<MiddleMouse>*
-			Like "p", but adjust the indent to the current line.
+["x]]p		    or					*]p* *]<MiddleMouse>*
+["x]]<MiddleMouse>	Like "p", but adjust the indent to the current line.
 			Using the mouse only works when 'mouse' contains 'n'
 			or 'a'.
 
-["x][P							*[P*
-["x]]P							*]P*
-["x][p							*[p*
-["x][<MiddleMouse>					*[<MiddleMouse>*
-			Like "P", but adjust the indent to the current line.
+["x][P		    or					*[P*
+["x]]P		    or					*]P*
+["x][p		    or					*[p* *[<MiddleMouse>*
+["x][<MiddleMouse>	Like "P", but adjust the indent to the current line.
 			Using the mouse only works when 'mouse' contains 'n'
 			or 'a'.
 
-["x]zp							*zp*
-["x]zP							*zP*
-			Like "p" and "P", except without adding trailing
+["x]zp		    or					*zp* *zP*
+["x]zP			Like "p" and "P", except without adding trailing
 			spaces when pasting a block.  Thus the inserted text
 			will not always be a rectangle.  Especially useful in
 			combination with |v_zy|.
@@ -1328,22 +1307,26 @@ and ":put" commands and with CTRL-R.
 	completely from a mapping.
 
 -----------------------------------------------------------------------------
-6. Alternate file register "#                          *quote_#* *quote#* *@#*
+6. Alternate file register "#                               *quote_#* *quote#*
 
-Contains the |alternate-file| name for current window.
-This register is writable with `:let` and |setreg()|.  This changes which
-buffer CTRL-^ enters.  You can't yank or delete into this register.
-A String is matched against existing buffer names, like |:buffer|: >
-    let @# = 'buffer_name'
-Also supports using buffer number and |file-pattern|.
+Contains the name of the alternate file for the current window.  It will
+change how the |CTRL-^| command works. This register is writable, mainly to
+allow for restoring it after a plugin has
+changed it.
 
-Throws
-  |E86| when the buffer number does not exist
-  |E93| when more than one buffer matches
-  |E94| when none match
+It accepts buffer number: >
+     let altbuf = bufnr(@#)
+     ...
+     let @# = altbuf
 
-Clear the register with empty String: >
-    let @# = ''
+It will give error |E86| if you pass buffer number and this buffer does not
+exist.
+
+It can also accept a match with an existing buffer name: >
+     let @# = 'buffer_name'
+
+Error |E93| if there is more than one buffer matching the given name or
+|E94| if none of buffers matches the given name.
 
 -----------------------------------------------------------------------------
 7. Expression register "=                              *quote_=* *quote=* *@=*
@@ -1387,12 +1370,10 @@ register, nothing is returned.
 10. Last search pattern register "/			    *quote_/* *quote/*
 
 Contains the most recent search-pattern.  This is used for "n" and 'hlsearch'.
-This register is writable with `:let` and |setreg()|.  You can change it to have
-'hlsearch' highlight other matches without actually searching.  You can't yank
-or delete into this register.  The search direction is available in
-|v:searchforward|.
-Note that the value is restored when returning from a function
-|function-search-undo|.
+It is writable with `:let`, you can change it to have 'hlsearch' highlight
+other matches without actually searching.  You can't yank or delete into this
+register.  The search direction is available in |v:searchforward|. Note that
+the value is restored when returning from a function |function-search-undo|.
 
 							*@/*
 You can write to a register with a `:let` command |:let-@|.  Example: >
@@ -1410,8 +1391,8 @@ The next three commands always work on whole lines.
 			Copy the lines given by [range] to below the line
 			given by {address}.
 
-:t							*:t*
-			Synonym for copy.
+							*:t*
+:t			Synonym for copy.
 
 :[range]m[ove] {address}			*:m* *:mo* *:move* *E134*
 			Move the lines given by [range] to below the line
@@ -1428,12 +1409,13 @@ The next three commands always work on whole lines.
 			Right-align lines in [range] at [width] columns
 			(default 'textwidth' or 80 when 'textwidth' is 0).
 
-:[range]le[ft] [indent]					*:le* *:left*
+							*:le* *:left*
+:[range]le[ft] [indent]
 			Left-align lines in [range].  Sets the indent in the
 			lines to [indent] (default 0).
 
-gq{motion}						*gq*
-			Format the lines that {motion} moves over.
+							*gq*
+gq{motion}		Format the lines that {motion} moves over.
 			Formatting is done with one of three methods:
 			1. If 'formatexpr' is not empty the expression is
 			   evaluated.  This can differ for each buffer.
@@ -1451,27 +1433,25 @@ gq{motion}						*gq*
 			The cursor is left on the first non-blank of the last
 			formatted line.
 
-gqgq							*gqgq*
-gqq							*gqq*
-			Format the current line.  With a count format that
+gqgq							*gqgq* *gqq*
+gqq			Format the current line.  With a count format that
 			many lines.
 
-{Visual}gq						*v_gq*
-			Format the highlighted text.  (for {Visual} see
+							*v_gq*
+{Visual}gq		Format the highlighted text.  (for {Visual} see
 			|Visual-mode|).
 
-gw{motion}						*gw*
-			Format the lines that {motion} moves over.  Similar to
+							*gw*
+gw{motion}		Format the lines that {motion} moves over.  Similar to
 			|gq| but puts the cursor back at the same position in
 			the text.  However, 'formatprg' and 'formatexpr' are
 			not used.
 
-gwgw							*gwgw*
-gww							*gww*
-			Format the current line as with "gw".
+gwgw							*gwgw* *gww*
+gww			Format the current line as with "gw".
 
-{Visual}gw						*v_gw*
-			Format the highlighted text as with "gw".  (for
+							*v_gw*
+{Visual}gw		Format the highlighted text as with "gw".  (for
 			{Visual} see |Visual-mode|).
 
 Example: To format the current paragraph use:			*gqap*  >
@@ -1516,24 +1496,25 @@ $VIMRUNTIME/ftplugin directory, sets the 'formatexpr' option to: >
 That means, you will find the corresponding script, defining the
 xmlformat#Format() function, in the file `$VIMRUNTIME/autoload/xmlformat.vim`
 
-Here is an example that removes trailing whitespace from the selected text.
-Put it in your |ftplugin|:
->lua
-  vim.bo.formatexpr = function()
-    -- only reformat on explicit gq command
-    if vim.fn.mode() ~= 'n' then
-      -- fall back to the internal reformatting
+Here is an example script that removes trailing whitespace from the selected
+text.  Put it in your autoload directory, e.g. ~/.vim/autoload/format.vim:
+>vim
+  func! format#Format()
+    " only reformat on explicit gq command
+    if mode() != 'n'
+      " fall back to Vim's internal reformatting
       return 1
-    end
-    local lines = vim.fn.getline(vim.v.lnum, vim.v.lnum + vim.v.count - 1)
-    for i, val in ipairs(lines) do
-      lines[i] = (val:gsub('%s+$', ''))
-    end
-    vim.fn.setline('.', lines)
+    endif
+    let lines = getline(v:lnum, v:lnum + v:count - 1)
+    call map(lines, {key, val -> substitute(val, '\s\+$', '', 'g')})
+    call setline('.', lines)
 
-    -- do not run internal formatter!
+    " do not run internal formatter!
     return 0
-  end
+  endfunc
+
+You can then enable the formatting by executing: >
+  setlocal formatexpr=format#Format()
 
 Note: this function explicitly returns non-zero when called from insert mode
 (which basically means, text is inserted beyond the 'textwidth' limit).  This
@@ -1692,7 +1673,7 @@ You can use the 'formatoptions' option  to influence how Vim formats text.
 'formatoptions' is a string that can contain any of the letters below.  You
 can separate the option letters with commas for readability.
 
-letter   meaning when present in 'formatoptions'    ~
+letter	 meaning when present in 'formatoptions'    ~
 							*fo-t*
 t	Auto-wrap text using 'textwidth'
 							*fo-c*
@@ -1732,9 +1713,8 @@ n	When formatting text, recognize numbered lists.  This actually uses
 		1. the first item
 		   wraps
 		2. the second item
-<
-2							*fo-2*
-	When formatting text, use the indent of the second line of a paragraph
+<							*fo-2*
+2	When formatting text, use the indent of the second line of a paragraph
 	for the rest of the paragraph, instead of the indent of the first
 	line.  This supports paragraphs in which the first line has a
 	different indent than the rest.  Note that 'autoindent' must be set
@@ -1779,15 +1759,13 @@ B	When joining lines, don't insert a space between two multibyte
 	"utf-8".
 							*fo-j*
 j	Where it makes sense, remove a comment leader when joining lines.  For
-	example, joining: >
-		int i;   // the index
-			 // in the list
-<
-	Becomes: >
-		int i;   // the index in the list
-<
-p							*fo-p*
-	Don't break lines at single spaces that follow periods.  This is
+	example, joining:
+		int i;   // the index ~
+			 // in the list ~
+	Becomes:
+		int i;   // the index in the list ~
+							*fo-p*
+p	Don't break lines at single spaces that follow periods.  This is
 	intended to complement 'joinspaces' and |cpo-J|, for prose with
 	sentences separated by two spaces.  For example, with 'textwidth' set
 	to 28: >
@@ -1801,7 +1779,6 @@ p							*fo-p*
 
 
 With 't' and 'c' you can specify when Vim performs auto-wrapping:
-
 value	action	~
 ""	no automatic formatting (you can use "gq" for manual formatting)
 "t"	automatic formatting of text, but not comments
@@ -1889,7 +1866,8 @@ Vim has a sorting function and a sorting command.  The sorting function can be
 found here: |sort()|, |uniq()|.
 Also see |:uniq|.
 
-:[range]sor[t][!] [b][f][i][l][n][o][r][u][x] [/{pattern}/]	*:sor* *:sort*
+							*:sor* *:sort*
+:[range]sor[t][!] [b][f][i][l][n][o][r][u][x] [/{pattern}/]
 			Sort lines in [range].  When no range is given all
 			lines are sorted.
 
@@ -1989,7 +1967,8 @@ Vim has a deduplicating function and a deduplicating command.  The
 deduplicating function can be found here: |uniq()|.
 Also see |:sort-uniq|.
 
-:[range]uni[q][!] [i][l][r][u] [/{pattern}/]		*:uni* *:uniq*
+							*:uni* *:uniq*
+:[range]uni[q][!] [i][l][r][u] [/{pattern}/]
 			Remove duplicate lines that are adjacent to each other
 			in [range].  When no range is given, all lines are
 			processed.

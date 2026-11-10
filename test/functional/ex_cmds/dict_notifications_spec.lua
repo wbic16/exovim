@@ -1,13 +1,11 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local assert_alive = n.assert_alive
 local clear, source = n.clear, n.source
 local api = n.api
 local insert = n.insert
 local eq, next_msg = t.eq, n.next_msg
-local matches = t.matches
 local exec_lua = n.exec_lua
 local command = n.command
 local eval = n.eval
@@ -435,13 +433,6 @@ describe('Vimscript dictionary notifications', function()
     insert('t')
     eq('E937: Attempt to delete a buffer that is in use: [No Name]', api.nvim_get_vvar('errmsg'))
     assert_alive()
-
-    command([[enew | set modified | call dictwatcheradd(b:, 'changedtick', {-> execute('split')})]])
-    -- Used to instead leave a window open to a NULL buffer.
-    matches(
-      'E565: Not allowed to change text or change window: split$',
-      pcall_err(command, 'bdelete!')
-    )
   end)
 
   it('does not cause use-after-free when unletting from callback', function()

@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local feed = n.feed
@@ -12,8 +11,6 @@ local fn = n.fn
 local api = n.api
 local split = vim.split
 local dedent = t.dedent
-local eq = t.eq
-local write_file = t.write_file
 
 describe('multibyte rendering', function()
   local screen
@@ -305,35 +302,35 @@ describe('multibyte rendering', function()
     screen:expect([[
       ^🏳️‍⚧️                                                          |
       {1:~                                                           }|*4
-                                                1,1            All|
+                                                1,1           All |
     ]])
 
     feed('a word<esc>')
     screen:expect([[
       🏳️‍⚧️ wor^d                                                     |
       {1:~                                                           }|*4
-                                                1,21-7         All|
+                                                1,21-7        All |
     ]])
 
     feed('0')
     screen:expect([[
       ^🏳️‍⚧️ word                                                     |
       {1:~                                                           }|*4
-                                                1,1            All|
+                                                1,1           All |
     ]])
 
     feed('l')
     screen:expect([[
         🏳️‍⚧️^ word                                                     |
         {1:~                                                           }|*4
-                                                  1,17-3         All|
+                                                  1,17-3        All |
     ]])
 
     feed('h')
     screen:expect([[
       ^🏳️‍⚧️ word                                                     |
       {1:~                                                           }|*4
-                                                1,1            All|
+                                                1,1           All |
     ]])
 
     feed('o❤️ variant selected<esc>')
@@ -341,7 +338,7 @@ describe('multibyte rendering', function()
       🏳️‍⚧️ word                                                     |
       ❤️ variant selecte^d                                         |
       {1:~                                                           }|*3
-                                                2,23-19        All|
+                                                2,23-19       All |
     ]])
 
     feed('0')
@@ -349,7 +346,7 @@ describe('multibyte rendering', function()
       🏳️‍⚧️ word                                                     |
       ^❤️ variant selected                                         |
       {1:~                                                           }|*3
-                                                2,1            All|
+                                                2,1           All |
     ]])
 
     feed('l')
@@ -357,7 +354,7 @@ describe('multibyte rendering', function()
       🏳️‍⚧️ word                                                     |
       ❤️^ variant selected                                         |
       {1:~                                                           }|*3
-                                                2,7-3          All|
+                                                2,7-3         All |
     ]])
 
     feed('h')
@@ -365,7 +362,7 @@ describe('multibyte rendering', function()
       🏳️‍⚧️ word                                                     |
       ^❤️ variant selected                                         |
       {1:~                                                           }|*3
-                                                2,1            All|
+                                                2,1           All |
     ]])
 
     -- without selector: single width (note column 18 and not 19)
@@ -375,29 +372,8 @@ describe('multibyte rendering', function()
       ❤️ variant selected                                         |
       ❤ variant selecte^d                                          |
       {1:~                                                           }|*2
-                                                3,20-18        All|
+                                                3,20-18       All |
     ]])
-  end)
-
-  it('renders a line ending in an invalid multibyte sequence', function()
-    -- U+0603 (grapheme class Prepend) followed by 0xFD, which announces a
-    -- 6-byte sequence but is the last byte of the file. The cluster walk
-    -- used to advance past the end of the line buffer here
-    -- (heap-buffer-overflow read, #42559).
-    local file = 'nvim_42559.dat'
-    write_file(file, '\216\131\253') -- 0xD8 0x83 0xFD
-    command('edit ' .. file)
-    screen:expect([[
-    ^؃?                                                          |
-    {1:~                                                           }|*4
-                                                                |
-    ]])
-
-    -- strwidth() runs through the same cluster walk on NUL-terminated
-    -- strings, with every oversized invalid lead byte (5/6-byte class)
-    eq(2, fn.strwidth('\216\131\251')) -- 0xD8 0x83 0xFB
-    eq(2, fn.strwidth('\216\131\252')) -- 0xD8 0x83 0xFC
-    eq(2, fn.strwidth('\216\131\253')) -- 0xD8 0x83 0xFD
   end)
 end)
 

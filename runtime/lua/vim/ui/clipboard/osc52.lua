@@ -9,8 +9,6 @@ local function osc52(clipboard, contents)
   return string.format('\027]52;%s;%s\027\\', clipboard, contents)
 end
 
---- @param reg string
---- @return fun(lines: string[])
 function M.copy(reg)
   local clipboard = reg == '+' and 'c' or 'p'
   return function(lines)
@@ -20,23 +18,27 @@ function M.copy(reg)
   end
 end
 
---- @param reg string
---- @return fun(): string[]|0
 function M.paste(reg)
   local clipboard = reg == '+' and 'c' or 'p'
   return function()
     local contents = nil --- @type string?
-    -- timeout=0: we manage the staged 1s/9s timeout via vim.wait below.
-    local id = vim.tty.request(osc52(clipboard, '?'), { timeout = 0 }, function(resp)
-      local encoded = resp:match('\027%]52;%w?;([A-Za-z0-9+/=]*)')
-      if encoded then
-        contents = vim.base64.decode(encoded)
-        return true
-      end
-    end)
+    local id = vim.api.nvim_create_autocmd('TermResponse', {
+      callback = function(ev)
+        local resp = ev.data.sequence ---@type string
+        local encoded = resp:match('\027%]52;%w?;([A-Za-z0-9+/=]*)')
+        if encoded then
+          contents = vim.base64.decode(encoded)
+          return true
+        end
+      end,
+    })
+
+    vim.api.nvim_ui_send(osc52(clipboard, '?'))
+
+    local ok, res
 
     -- Wait 1s first for terminals that respond quickly
-    local ok, res = vim.wait(1000, function()
+    ok, res = vim.wait(1000, function()
       return contents ~= nil
     end)
 
@@ -53,7 +55,7 @@ function M.paste(reg)
     end
 
     if not ok then
-      pcall(vim.api.nvim_del_autocmd, id)
+      vim.api.nvim_del_autocmd(id)
       if res == -1 then
         vim.notify(
           'Timed out waiting for a clipboard response from the terminal',
@@ -61,7 +63,7 @@ function M.paste(reg)
         )
       elseif res == -2 then
         -- Clear message area
-        vim.api.nvim_echo({ { '' } }, false)
+        vim.api.nvim_echo({ { '' } }, false, {})
       end
       return 0
     end

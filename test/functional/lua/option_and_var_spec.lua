@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local NIL = vim.NIL
 local feed = n.feed
 local command = n.command
@@ -527,95 +526,6 @@ describe('lua stdlib', function()
   end)
 
   describe('options', function()
-    describe('vim.o', function()
-      it('works for boolean values', function()
-        eq_exec_lua(false, function()
-          vim.o.number = false
-          return vim.o.number
-        end)
-      end)
-
-      it('works for number values', function()
-        eq_exec_lua(10, function()
-          vim.o.tabstop = 10
-          return vim.o.tabstop
-        end)
-      end)
-
-      it('works for string values', function()
-        eq_exec_lua('hello world', function()
-          vim.o.makeprg = 'hello world'
-          return vim.o.makeprg
-        end)
-      end)
-
-      it('works for array type options', function()
-        eq_exec_lua('hello,world', function()
-          vim.o.wildignore = { 'hello', 'world' }
-          return vim.o.wildignore
-        end)
-      end)
-
-      it('works for key:value type options using string', function()
-        eq_exec_lua('eol:~,space:-', function()
-          vim.o.listchars = 'eol:~,space:-'
-          return vim.o.listchars
-        end)
-      end)
-
-      it('works for key:value type options using list of strings', function()
-        eq_exec_lua('eol:~,space:-', function()
-          vim.o.listchars = { 'eol:~', 'space:-' }
-          return vim.o.listchars
-        end)
-      end)
-
-      it('works for key:value type options using table', function()
-        eq_exec_lua('eol:~,space:.', function()
-          vim.o.listchars = { eol = '~', space = '.' }
-          return vim.o.listchars
-        end)
-      end)
-
-      it('works for set type flaglists', function()
-        eq_exec_lua('tcro', function()
-          vim.o.formatoptions = 'tcro'
-          return vim.o.formatoptions
-        end)
-      end)
-
-      it('works for set type flaglists using tables', function()
-        eq_exec_lua({ t = true, c = true, r = true, o = true }, function()
-          vim.o.formatoptions = { t = true, c = true, r = true, o = true }
-          -- use vim.opt to convert to lua value
-          return vim.opt.formatoptions:get()
-        end)
-      end)
-
-      it('works for weird number options', function()
-        eq_exec_lua(9, function()
-          vim.o.wildchar = '<Tab>'
-          return vim.o.wildchar
-        end)
-      end)
-
-      it('expands env vars', function()
-        eq_exec_lua('/dev/null', function()
-          vim.fn.setenv('INCLUDE', '/dev/null')
-          vim.o.path = '$INCLUDE'
-          return vim.o.path
-        end)
-      end)
-
-      it('expands ~', function()
-        eq_exec_lua('/dev/null', function()
-          vim.fn.setenv('HOME', '/dev/null')
-          vim.o.rtp = '~'
-          return vim.o.rtp
-        end)
-      end)
-    end)
-
     describe('vim.bo', function()
       it('can get and set options', function()
         eq('', fn.luaeval 'vim.bo.filetype')
@@ -848,42 +758,6 @@ describe('lua stdlib', function()
           end)
         end)
 
-        it('reads options in a non-modifiable buffer #42393', function()
-          command('setglobal fileencoding=utf-8 fileformat=unix')
-          command('setlocal fileencoding=latin1 fileformat=dos nomodifiable')
-          eq_exec_lua({ { 'latin1', 'dos' }, { 'latin1', 'dos' }, { 'utf-8', 'unix' } }, function()
-            local values = {}
-            for _, opts in ipairs({ vim.opt, vim.opt_local, vim.opt_global }) do
-              values[#values + 1] = { opts.fileencoding:get(), opts.fileformat:get() }
-            end
-            return values
-          end)
-          eq(false, api.nvim_get_option_value('modifiable', {}))
-        end)
-
-        it('reads saved listchars after character widths change', function()
-          eq_exec_lua({ eol = '·' }, function()
-            vim.o.ambiwidth = 'single'
-            vim.opt.listchars = { eol = '·' }
-            local saved = vim.opt.listchars
-            vim.opt.listchars = { eol = '$' }
-            vim.o.ambiwidth = 'double'
-            return saved:get()
-          end)
-          eq('eol:$', api.nvim_get_option_value('listchars', {}))
-        end)
-
-        it('returns independent tables for computed option values', function()
-          eq_exec_lua({ { eol = '~', space = '.' }, { eol = '!' } }, function()
-            vim.opt.listchars = { eol = '~' }
-            local saved = vim.opt.listchars + { space = '.' }
-            local value = saved:get()
-            value.eol = '$'
-            vim.opt.listchars = { eol = '!' }
-            return { saved:get(), vim.opt.listchars:get() }
-          end)
-        end)
-
         it('works for set type flaglists', function()
           local formatoptions = exec_lua(function()
             vim.opt.formatoptions = 'tcro'
@@ -933,37 +807,6 @@ describe('lua stdlib', function()
           end)
         end)
 
-        it("returns structured values for a dict option ('diffopt')", function()
-          -- Bare flags -> true; sub-values stay strings (option sub-value types are not exposed).
-          eq_exec_lua({ internal = true, filler = true, context = '4' }, function()
-            vim.opt.diffopt = 'internal,filler,context:4'
-            return vim.opt.diffopt:get()
-          end)
-        end)
-
-        it('roundtrips a dict option through :set', function()
-          eq_exec_lua('context:4,filler,internal', function()
-            vim.opt.diffopt = 'internal,filler,context:4'
-            vim.opt.diffopt = vim.opt.diffopt:get()
-            return vim.go.diffopt
-          end)
-        end)
-
-        -- Dict option accepts a table and :get() returns a map. #18875
-        it("roundtrips a window-local dict option ('breakindentopt')", function()
-          eq_exec_lua({ sbr = true, shift = '3' }, function()
-            vim.opt.breakindentopt = { sbr = true, shift = 3 }
-            return vim.opt.breakindentopt:get()
-          end)
-        end)
-
-        it("roundtrips a table for 'mousescroll'", function()
-          eq_exec_lua({ hor = '6', ver = '3' }, function()
-            vim.opt.mousescroll = { hor = 6, ver = 3 }
-            return vim.opt.mousescroll:get()
-          end)
-        end)
-
         it('works for key-value pair options', function()
           eq_exec_lua({ tab = '> ', space = '_' }, function()
             vim.opt.listchars = 'tab:> ,space:_'
@@ -1004,17 +847,12 @@ describe('lua stdlib', function()
           end)
         end)
 
-        it('does not allow adding dict style multiple times', function()
-          matches(
-            'Multiple vim.opt infix operations unsupported',
-            pcall_err(
-              exec_lua,
-              [[
-              vim.opt.listchars = { eol = '~', space = '.' }
-              vim.opt.listchars = vim.opt.listchars + { space = '-' } + { space = '_' }
-            ]]
-            )
-          )
+        it('allows adding dict style', function()
+          eq_exec_lua('eol:~,space:_', function()
+            vim.opt.listchars = { eol = '~', space = '.' }
+            vim.opt.listchars = vim.opt.listchars + { space = '-' } + { space = '_' }
+            return vim.o.listchars
+          end)
         end)
 
         it('allows completely new keys', function()
@@ -1031,38 +869,22 @@ describe('lua stdlib', function()
             vim.opt.listchars = vim.opt.listchars - 'space'
             return vim.o.listchars
           end)
+        end)
 
-          eq_exec_lua('tab:>-', function()
-            vim.opt.listchars = { tab = '>-', eol = '~', space = '.' }
-            vim.opt.listchars:remove { 'eol', 'space' } -- Removes by key.
+        it('allows subtracting dict style', function()
+          eq_exec_lua('', function()
+            vim.opt.listchars = { eol = '~', space = '.' }
+            vim.opt.listchars = vim.opt.listchars - 'space' - 'eol'
             return vim.o.listchars
           end)
         end)
 
-        it('does not allow subtracting dict style multiple times', function()
-          matches(
-            'Multiple vim.opt infix operations unsupported',
-            pcall_err(
-              exec_lua,
-              [[
-              vim.opt.listchars = { eol = '~', space = '.' }
-              vim.opt.listchars = vim.opt.listchars - 'space' - 'eol'
-            ]]
-            )
-          )
-        end)
-
-        it('does not allow subtracting dict style multiple times with the same key', function()
-          matches(
-            'Multiple vim.opt infix operations unsupported',
-            pcall_err(
-              exec_lua,
-              [[
-              vim.opt.listchars = { eol = '~', space = '.' }
-              vim.opt.listchars = vim.opt.listchars - 'space' - 'space'
-            ]]
-            )
-          )
+        it('allows subtracting dict style multiple times', function()
+          eq_exec_lua('eol:~', function()
+            vim.opt.listchars = { eol = '~', space = '.' }
+            vim.opt.listchars = vim.opt.listchars - 'space' - 'space'
+            return vim.o.listchars
+          end)
         end)
 
         it('allows adding a key:value string to a listchars', function()
@@ -1076,7 +898,6 @@ describe('lua stdlib', function()
         it('allows prepending a key:value string to a listchars', function()
           eq_exec_lua('eol:~,space:.,tab:>~', function()
             vim.opt.listchars = { eol = '~', space = '.' }
-            -- Operator overloading is cursed.
             vim.opt.listchars = vim.opt.listchars ^ 'tab:>~'
             return vim.o.listchars
           end)
@@ -1092,24 +913,10 @@ describe('lua stdlib', function()
       end)
 
       it('automatically sets when calling remove with a table', function()
-        eq_exec_lua('bar', function()
+        eq_exec_lua('foo', function()
           vim.opt.wildignore = 'foo,bar,baz'
-          vim.opt.wildignore:remove { 'foo', 'baz' } -- *Non-adjacent* items too.
+          vim.opt.wildignore:remove { 'bar', 'baz' }
           return vim.o.wildignore
-        end)
-      end)
-
-      it('removes flags from a set when calling remove with a table: #41953', function()
-        eq_exec_lua({ j = true, q = true, l = true }, function()
-          vim.opt.formatoptions = 'jcqrol'
-          vim.opt.formatoptions:remove { 'c', 'r', 'o' } -- *Non-adjacent* flags too.
-          return vim.opt.formatoptions:get()
-        end)
-
-        eq_exec_lua('jql', function()
-          vim.opt.formatoptions = 'jcqrol'
-          vim.opt.formatoptions:remove { c = true, r = true, o = true } -- Set style.
-          return vim.o.formatoptions
         end)
       end)
 
@@ -1158,17 +965,12 @@ describe('lua stdlib', function()
         end)
       end)
 
-      it('does not allow adding multiple times', function()
-        matches(
-          'Multiple vim.opt infix operations unsupported',
-          pcall_err(
-            exec_lua,
-            [[
-            vim.opt.wildignore = 'foo'
-            vim.opt.wildignore = vim.opt.wildignore + 'bar' + 'baz'
-          ]]
-          )
-        )
+      it('allows adding multiple times', function()
+        eq_exec_lua('foo,bar,baz', function()
+          vim.opt.wildignore = 'foo'
+          vim.opt.wildignore = vim.opt.wildignore + 'bar' + 'baz'
+          return vim.o.wildignore
+        end)
       end)
 
       it('removes values when you use minus', function()
@@ -1216,19 +1018,19 @@ describe('lua stdlib', function()
           end)
 
           matches(
-            "Invalid 'tabstop': expected a valid type, got String",
+            "Invalid option type 'string' for 'tabstop'",
             pcall_err(exec_lua, [[vim.opt.tabstop = '4']])
           )
           matches(
-            "Invalid 'tabstop': expected a valid type, got Boolean",
+            "Invalid option type 'boolean' for 'tabstop'",
             pcall_err(exec_lua, [[vim.opt.tabstop = true]])
           )
           matches(
-            "Invalid 'tabstop': expected a valid type, got Array",
+            "Invalid option type 'table' for 'tabstop'",
             pcall_err(exec_lua, [[vim.opt.tabstop = {4, 2}]])
           )
           matches(
-            "Invalid 'tabstop': expected a valid type, got Function",
+            "Invalid option type 'function' for 'tabstop'",
             pcall_err(exec_lua, [[vim.opt.tabstop = function() return 4 end]])
           )
         end)
@@ -1240,19 +1042,19 @@ describe('lua stdlib', function()
           end)
 
           matches(
-            "Invalid 'undofile': expected a valid type, got Integer",
+            "Invalid option type 'number' for 'undofile'",
             pcall_err(exec_lua, [[vim.opt.undofile = 0]])
           )
           matches(
-            "Invalid 'undofile': expected a valid type, got Array",
+            "Invalid option type 'table' for 'undofile'",
             pcall_err(exec_lua, [[vim.opt.undofile = {true}]])
           )
           matches(
-            "Invalid 'undofile': expected a valid type, got String",
+            "Invalid option type 'string' for 'undofile'",
             pcall_err(exec_lua, [[vim.opt.undofile = 'true']])
           )
           matches(
-            "Invalid 'undofile': expected a valid type, got Function",
+            "Invalid option type 'function' for 'undofile'",
             pcall_err(exec_lua, [[vim.opt.undofile = function() return true end]])
           )
         end)
@@ -1269,15 +1071,15 @@ describe('lua stdlib', function()
           end)
 
           matches(
-            "Invalid 'backspace': expected a valid type, got Boolean",
+            "Invalid option type 'boolean' for 'backspace'",
             pcall_err(exec_lua, [[vim.opt.backspace = true]])
           )
           matches(
-            "Invalid 'backspace': expected a valid type, got Integer",
+            "Invalid option type 'number' for 'backspace'",
             pcall_err(exec_lua, [[vim.opt.backspace = 2]])
           )
           matches(
-            "Invalid 'backspace': expected a valid type, got Function",
+            "Invalid option type 'function' for 'backspace'",
             pcall_err(exec_lua, [[vim.opt.backspace = function() return 'indent,eol,start' end]])
           )
         end)
@@ -1294,15 +1096,15 @@ describe('lua stdlib', function()
           end)
 
           matches(
-            "Invalid 'listchars': expected a valid type, got Boolean",
+            "Invalid option type 'boolean' for 'listchars'",
             pcall_err(exec_lua, [[vim.opt.listchars = true]])
           )
           matches(
-            "Invalid 'listchars': expected a valid type, got Integer",
+            "Invalid option type 'number' for 'listchars'",
             pcall_err(exec_lua, [[vim.opt.listchars = 2]])
           )
           matches(
-            "Invalid 'listchars': expected a valid type, got Function",
+            "Invalid option type 'function' for 'listchars'",
             pcall_err(
               exec_lua,
               [[vim.opt.listchars = function() return "eol:~,space:.,tab:>~" end]]
@@ -1322,31 +1124,31 @@ describe('lua stdlib', function()
           end)
 
           matches(
-            "Invalid 'whichwrap': expected a valid type, got Boolean",
+            "Invalid option type 'boolean' for 'whichwrap'",
             pcall_err(exec_lua, [[vim.opt.whichwrap = true]])
           )
           matches(
-            "Invalid 'whichwrap': expected a valid type, got Integer",
+            "Invalid option type 'number' for 'whichwrap'",
             pcall_err(exec_lua, [[vim.opt.whichwrap = 2]])
           )
           matches(
-            "Invalid 'whichwrap': expected a valid type, got Function",
+            "Invalid option type 'function' for 'whichwrap'",
             pcall_err(exec_lua, [[vim.opt.whichwrap = function() return "b,s,<,>,[,]" end]])
           )
         end)
       end)
 
-      -- The raw string keeps the ",," literal-comma convention; the structured view splits on every
-      -- comma and does not reconstruct literal commas.
+      -- isfname=a,b,c,,,d,e,f
       it('can handle isfname ,,,', function()
-        eq_exec_lua({ { 'a', 'b', 'c' }, 'a,b,,,c' }, function()
+        eq_exec_lua({ { ',', 'a', 'b', 'c' }, 'a,b,,,c' }, function()
           vim.opt.isfname = 'a,b,,,c'
           return { vim.opt.isfname:get(), vim.go.isfname }
         end)
       end)
 
+      -- isfname=a,b,c,^,,def
       it('can handle isfname ,^,,', function()
-        eq_exec_lua({ { 'a', 'b', '^', 'c' }, 'a,b,^,,c' }, function()
+        eq_exec_lua({ { '^,', 'a', 'b', 'c' }, 'a,b,^,,c' }, function()
           vim.opt.isfname = 'a,b,^,,c'
           return { vim.opt.isfname:get(), vim.go.isfname }
         end)
@@ -1409,22 +1211,6 @@ describe('lua stdlib', function()
           end)
         end)
       end)
-
-      it('expands env vars', function()
-        eq_exec_lua({ '/dev/null' }, function()
-          vim.env.INCLUDE = '/dev/null'
-          vim.opt.path = '$INCLUDE'
-          return vim.opt.path:get()
-        end)
-      end)
-
-      it('expands ~', function()
-        eq_exec_lua({ '/dev/null' }, function()
-          vim.env.HOME = '/dev/null'
-          vim.opt.rtp = '~'
-          return vim.opt.rtp:get()
-        end)
-      end)
     end) -- vim.opt
 
     describe('vim.opt_local', function()
@@ -1434,14 +1220,6 @@ describe('lua stdlib', function()
           vim.opt_local.tags:append('baz')
           vim.opt_local.tags:append('qux')
           return vim.bo.tags
-        end)
-      end)
-
-      it('removes a table of flags from a flag-list option: #41953', function()
-        eq_exec_lua('jql', function()
-          vim.opt_local.formatoptions = 'jcqrol'
-          vim.opt_local.formatoptions:remove { 'c', 'r', 'o' } -- *Non-adjacent* flags too.
-          return vim.bo.formatoptions
         end)
       end)
     end)

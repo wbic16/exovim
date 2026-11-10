@@ -20,7 +20,6 @@ local options_list = {
       'startofline',
       N_ 'many jump commands move the cursor to the first non-blank\ncharacter of a line',
     },
-    { 'follow', N_ 'multicursor: motions cascade to all cursors' },
     { 'paragraphs', N_ 'nroff macro names that separate paragraphs' },
     { 'sections', N_ 'nroff macro names that separate sections' },
     { 'path', N_ 'list of directory names used for file searching' },
@@ -60,7 +59,6 @@ local options_list = {
     { 'scroll', N_ 'number of lines to scroll for CTRL-U and CTRL-D' },
     { 'smoothscroll', N_ 'scroll by screen line' },
     { 'scrolloff', N_ 'number of screen lines to show around the cursor' },
-    { 'scrolloffpad', N_ 'vertically center cursor even at end of file' },
     { 'wrap', N_ 'long lines wrap' },
     { 'linebreak', N_ "wrap long lines at a character in 'breakat'" },
     { 'breakindent', N_ 'preserve indentation in wrapped text' },
@@ -130,10 +128,8 @@ local options_list = {
     { 'winfixwidth', N_ 'keep the width of the window' },
     { 'winwidth', N_ 'minimal number of columns used for the current window' },
     { 'winminwidth', N_ 'minimal number of columns used for any window' },
-    { 'winpinned', N_ 'prevent closing window with :only and :fclose' },
     { 'helpheight', N_ 'initial height of the help window' },
     { 'previewheight', N_ 'default height for the preview window' },
-    { 'previewpopup', N_ 'use floating window for preview' },
     { 'previewwindow', N_ 'identifies the preview window' },
     { 'winbar', N_ 'custom format for the window bar' },
     { 'winborder', N_ 'border of floating window' },
@@ -458,16 +454,13 @@ local options_list = {
     { 'termpastefilter', N_ 'characters removed when pasting into terminal window' },
     { 'scrollback', N_ 'number of lines kept beyond the visible screen in terminal buffer' },
     { 'ttyfast', N_ 'assume terminal responds quickly, enabling more features' },
-    { 'packlockfile', N_ 'sets the path used for vim.pack lockfile' },
   },
 }
 
 local local_to_window = N_ '(local to window)'
 local local_to_buffer = N_ '(local to buffer)'
-local local_to_tabpage = N_ '(local to tabpage)'
 local global_or_local_to_buffer = N_ '(global or local to buffer)'
 local global_or_local_to_window = N_ '(global or local to window)'
-local global_or_local_to_tabpage = N_ '(global or local to tabpage)'
 
 local lines = {
   N_ '" Each "set" line shows the current value of an option (on the left).',
@@ -506,14 +499,10 @@ for header_number, options in ipairs(options_list) do
       table.insert(lines, '\t' .. global_or_local_to_buffer)
     elseif info.scope == 'win' and info.global_local then
       table.insert(lines, '\t' .. global_or_local_to_window)
-    elseif info.scope == 'tab' and info.global_local then
-      table.insert(lines, '\t' .. global_or_local_to_tabpage)
     elseif info.scope == 'buf' then
       table.insert(lines, '\t' .. local_to_buffer)
     elseif info.scope == 'win' then
       table.insert(lines, '\t' .. local_to_window)
-    elseif info.scope == 'tab' then
-      table.insert(lines, '\t' .. local_to_tabpage)
     end
 
     local shortname = info.shortname or name
@@ -556,7 +545,7 @@ local function line_get_type(line)
   return 'other'
 end
 
----@return integer
+---@return integer|false
 local function find_window_to_have_options_in()
   local thiswin = vim.fn.winnr()
   local altwin = vim.fn.winnr('#')
@@ -571,10 +560,11 @@ local function find_window_to_have_options_in()
   if
     altwin == 0
     or altwin == thiswin
-    or vim.fn.winnr('$') < altwin
     or vim.bo[vim.fn.winbufnr(altwin)].filetype == 'help'
+    or vim.fn.winnr('$') < altwin
   then
-    return vim.fn.win_getid(thiswin)
+    vim.notify("Don't know in which window")
+    return false
   end
 
   return vim.fn.win_getid(altwin)
@@ -589,19 +579,22 @@ local function update_current_line()
   ---@type string
   local name
   if line:find('=') then
-    name = assert(line:match('^ \tset (.-)='))
+    name = line:match('^ \tset (.-)=')
   else
-    name = assert(line:match('^ \tset ([a-z]*)')):gsub('^no', '') --[[@as string]]
+    name = line:match('^ \tset ([a-z]*)'):gsub('^no', '') --[[@as string]]
   end
 
   local info = vim.api.nvim_get_option_info2(name, {})
 
   ---@type any
   local value
-  if info.global_local or info.scope == 'global' or info.scope == 'tab' then
+  if info.global_local or info.scope == 'global' then
     value = vim.o[name] --[[@as any]]
   else
     local win = find_window_to_have_options_in()
+    if not win then
+      return
+    end
 
     value = vim._with({
       win = win,
@@ -627,30 +620,32 @@ local function current_line_set_option()
     return
   end
 
-  ---@type string?
+  ---@type string
   local name
-  ---@type string|boolean|integer?
+  ---@type string|boolean|integer
   local value
   if line:find('=') then
     name, value = line:match('^ \tset (.-)=(.*)')
   else
-    local option = assert(line:match('^ \tset ([a-z]*)'))
+    local option = line:match('^ \tset ([a-z]*)')
     name = option:gsub('^no', '') --[[@as string]]
     value = vim.startswith(option, 'no')
   end
-  assert(name and value ~= nil)
 
   local info = vim.api.nvim_get_option_info2(name, {})
 
   if info.type == 'number' then
-    value = vim._assert_integer(value)
+    value = assert(tonumber(value), value .. ' is not a number')
   end
 
-  if info.global_local or info.scope == 'global' or info.scope == 'tab' then
+  if info.global_local or info.scope == 'global' then
     ---@diagnostic disable-next-line: no-unknown
     vim.o[name] = value
   else
     local win = find_window_to_have_options_in()
+    if not win then
+      return
+    end
 
     vim._with({
       win = win,
@@ -704,7 +699,7 @@ else
     elseif line_type == 'header' then
       vim.fn.search(line, 'w')
     elseif line_type == 'opt-desc' then
-      local name = assert(line:match('[^\t]*'))
+      local name = line:match('[^\t]*')
       vim.cmd.help(("'%s'"):format(name))
     end
   end, { buf = buf })

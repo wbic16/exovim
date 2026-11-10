@@ -108,7 +108,6 @@ endfunc
 
 " Test for displaying lines from an empty buffer in Ex mode
 func Test_Ex_emptybuf()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   new
   call assert_fails('call feedkeys("Q\<CR>", "xt")', 'E749:')
   call setline(1, "abc")
@@ -169,7 +168,6 @@ endfunc
 " Test for :g/pat/visual to run vi commands in Ex mode
 " This used to hang Vim before 8.2.0274.
 func Test_Ex_global()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   new
   call setline(1, ['', 'foo', 'bar', 'foo', 'bar', 'foo'])
   call feedkeys("Q\<bs>g/bar/visual\<CR>$rxQ$ryQvisual\<CR>j", "xt")
@@ -237,15 +235,13 @@ endfunc
 
 " In Ex-mode, a backslash escapes a newline
 func Test_Ex_escape_enter()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   call feedkeys("gQlet l = \"a\\\<kEnter>b\"\<cr>vi\<cr>", 'xt')
   call assert_equal("a\rb", l)
 endfunc
 
 " Test for :append! command in Ex mode
 func Test_Ex_append()
-  " feedkeys('x') implies ex_normal_busy; Ex mode cannot run inside :normal.
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
+  throw 'Skipped: Nvim only supports Vim Ex mode'
   new
   call setline(1, "\t   abc")
   call feedkeys("Qappend!\npqr\nxyz\n.\nvisual\n", 'xt')
@@ -260,7 +256,7 @@ endfunc
 
 func Test_ex_mode_errors()
   " Not allowed to enter ex mode when text is locked
-  au InsertCharPre <buffer> normal! 1q:<CR>
+  au InsertCharPre <buffer> normal! gQ<CR>
   let caught_e565 = 0
   try
     call feedkeys("ix\<esc>", 'xt')
@@ -298,7 +294,7 @@ func Test_ex_mode_with_global()
     " call ch_logfile('logfile', 'w')
     pedit
     func FeedQ(id)
-      call feedkeys('1q:', 't')
+      call feedkeys('gQ', 't')
     endfunc
     call timer_start(10, 'FeedQ')
     g/^/vi|HJ
@@ -309,7 +305,6 @@ func Test_ex_mode_with_global()
   call assert_equal(1, RunVim([], [], '-e -s -S Xexmodescript'))
   call assert_equal(['done'], readfile('Xdidexmode'))
 
-  call delete('logfile')
   call delete('Xdidexmode')
   call delete('Xexmodescript')
 endfunc
@@ -320,7 +315,7 @@ func Test_ex_mode_count_overflow()
 
   " this used to cause a crash
   let lines =<< trim END
-    call feedkeys("\<Esc>1q:\<CR>")
+    call feedkeys("\<Esc>gQ\<CR>")
     v9|9silent! vi|333333233333y32333333%O
     call writefile(['done'], 'Xdidexmode')
     qall!
@@ -374,7 +369,6 @@ endfunc
 
 " Testing implicit print command
 func Test_implicit_print()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   new
   call setline(1, ['one', 'two', 'three'])
   call feedkeys('Q:let a=execute(":1,2")', 'xt')
@@ -386,8 +380,6 @@ endfunc
 
 " Test inserting text after the trailing bar
 func Test_insert_after_trailing_bar()
-  " feedkeys('x') implies ex_normal_busy; Ex mode cannot run inside :normal.
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   new
   call feedkeys("Qi|\nfoo\n.\na|bar\nbar\n.\nc|baz\n.", "xt")
   call assert_equal(['', 'foo', 'bar', 'baz'], getline(1, '$'))
@@ -396,7 +388,6 @@ endfunc
 
 " Test global insert of a newline without terminating period
 func Test_global_insert_newline()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   new
   call setline(1, ['foo'])
   call feedkeys("Qg/foo/i\\\n", "xt")
@@ -406,7 +397,6 @@ endfunc
 
 " An empty command followed by a newline shouldn't cause E749 in Ex mode.
 func Test_ex_empty_command_newline()
-  throw 'Skipped: Nvim implements interactive Ex mode as a cmdwin script'
   let g:var = 0
   call feedkeys("gQexecute \"\\nlet g:var = 1\"\r", 'xt')
   call assert_equal(1, g:var)

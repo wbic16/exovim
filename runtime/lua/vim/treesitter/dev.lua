@@ -1,5 +1,4 @@
 local api = vim.api
-local nvim_on = require('vim._core.util').nvim_on
 
 local Range = require('vim.treesitter._range')
 
@@ -12,6 +11,7 @@ local M = {}
 ---@field named vim.treesitter.dev.Node[]
 local TSTreeView = {}
 
+---@private
 ---@class (private) vim.treesitter.dev.TSTreeViewOpts
 ---@field anon boolean If true, display anonymous nodes.
 ---@field lang boolean If true, display the language alongside each node.
@@ -147,8 +147,9 @@ function TSTreeView:new(buf, lang)
     },
   }
 
+  setmetatable(t, self)
   self.__index = self
-  return setmetatable(t, self)
+  return t
 end
 
 local decor_ns = api.nvim_create_namespace('nvim.treesitter.dev')
@@ -189,7 +190,7 @@ end
 --- Updates the cursor position in the inspector to match the node under the cursor.
 ---
 --- @param treeview vim.treesitter.dev.TSTreeView
---- @param lang string?
+--- @param lang string
 --- @param source_buf integer
 --- @param inspect_buf integer
 --- @param inspect_win integer
@@ -312,8 +313,6 @@ end
 ---@return integer
 ---@package
 function TSTreeView:iter()
-  -- TODO(lewis6991): EmmyLua 0.25.1's ipairs annotation omits the table and initial index.
-  --- @diagnostic disable-next-line: missing-return-value
   return ipairs(self.opts.anon and self.nodes or self.named)
 end
 
@@ -337,7 +336,7 @@ end
 ---
 --- Title of the window. If a function, it accepts the buffer number of the
 --- source buffer as its only argument and should return a string.
---- @field title? string|fun(bufnr:integer):string
+--- @field title (string|fun(bufnr:integer):string|nil)
 
 --- @nodoc
 --- @param opts vim.treesitter.dev.inspect_tree.Opts?
@@ -353,7 +352,7 @@ function M.inspect_tree(opts)
   local win = api.nvim_get_current_win()
   local treeview, err = TSTreeView:new(buf, opts.lang)
   if err and err:match('no parser for lang') then
-    api.nvim_echo({ { err, 'WarningMsg' } }, true)
+    api.nvim_echo({ { err, 'WarningMsg' } }, true, {})
     return
   elseif not treeview then
     error(err)
@@ -391,8 +390,6 @@ function M.inspect_tree(opts)
     title = ('Syntax tree for %s'):format(vim.fs.relpath('.', bufname) or bufname)
   elseif type(opts_title) == 'function' then
     title = opts_title(buf)
-  else
-    title = opts_title
   end
 
   assert(type(title) == 'string', 'Window title must be a string')
@@ -409,7 +406,7 @@ function M.inspect_tree(opts)
     nowait = true,
     callback = function()
       local row = api.nvim_win_get_cursor(w)[1]
-      local lnum, col = assert(treeview:get(row)).node:start()
+      local lnum, col = treeview:get(row).node:start()
 
       -- update source window if original was closed
       if not api.nvim_win_is_valid(win) then
@@ -470,85 +467,109 @@ function M.inspect_tree(opts)
     nowait = true,
   })
 
-  local group = api.nvim_create_augroup('nvim.treesitter.dev')
+  local group = api.nvim_create_augroup('nvim.treesitter.dev', {})
 
-  nvim_on('CursorMoved', group, { buf = b }, function()
-    if not api.nvim_buf_is_loaded(buf) then
+  api.nvim_create_autocmd('CursorMoved', {
+    group = group,
+    buf = b,
+    callback = function()
+      if not api.nvim_buf_is_loaded(buf) then
+        return true
+      end
+
+      w = api.nvim_get_current_win()
+      api.nvim_buf_clear_namespace(buf, treeview.ns, 0, -1)
+      local row = api.nvim_win_get_cursor(w)[1]
+      local lnum, col, end_lnum, end_col = treeview:get(row).node:range()
+      api.nvim_buf_set_extmark(buf, treeview.ns, lnum, col, {
+        end_row = end_lnum,
+        end_col = math.max(0, end_col),
+        hl_group = 'Visual',
+      })
+
+      -- update source window if original was closed
+      if not api.nvim_win_is_valid(win) then
+        win = assert(vim.fn.win_findbuf(buf)[1])
+      end
+
+      local topline, botline = vim.fn.line('w0', win), vim.fn.line('w$', win)
+
+      -- Move the cursor if highlighted range is completely out of view
+      if lnum < topline and end_lnum < topline then
+        api.nvim_win_set_cursor(win, { end_lnum + 1, 0 })
+      elseif lnum > botline and end_lnum > botline then
+        api.nvim_win_set_cursor(win, { lnum + 1, 0 })
+      end
+    end,
+  })
+
+  api.nvim_create_autocmd('CursorMoved', {
+    group = group,
+    buf = buf,
+    callback = function()
+      if not api.nvim_buf_is_loaded(b) then
+        return true
+      end
+
+      set_inspector_cursor(treeview, opts.lang, buf, b, w)
+    end,
+  })
+
+  api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave' }, {
+    group = group,
+    buf = buf,
+    callback = function()
+      if not api.nvim_buf_is_loaded(b) then
+        return true
+      end
+
+      local treeview_opts = treeview.opts
+      treeview = assert(TSTreeView:new(buf, opts.lang))
+      treeview.opts = treeview_opts
+      treeview:draw(b)
+    end,
+  })
+
+  api.nvim_create_autocmd('BufLeave', {
+    group = group,
+    buf = b,
+    callback = function()
+      if not api.nvim_buf_is_loaded(buf) then
+        return true
+      end
+      api.nvim_buf_clear_namespace(buf, treeview.ns, 0, -1)
+    end,
+  })
+
+  api.nvim_create_autocmd('BufLeave', {
+    group = group,
+    buf = buf,
+    callback = function()
+      if not api.nvim_buf_is_loaded(b) then
+        return true
+      end
+      api.nvim_buf_clear_namespace(b, treeview.ns, 0, -1)
+    end,
+  })
+
+  api.nvim_create_autocmd({ 'BufHidden', 'BufUnload', 'QuitPre' }, {
+    group = group,
+    buf = buf,
+    callback = function()
+      -- don't close inpector window if source buffer
+      -- has more than one open window
+      if #vim.fn.win_findbuf(buf) > 1 then
+        return
+      end
+
+      -- close all tree windows
+      for _, window in pairs(vim.fn.win_findbuf(b)) do
+        close_win(window)
+      end
+
       return true
-    end
-
-    w = api.nvim_get_current_win()
-    api.nvim_buf_clear_namespace(buf, treeview.ns, 0, -1)
-    local row = api.nvim_win_get_cursor(w)[1]
-    local lnum, col, end_lnum, end_col = assert(treeview:get(row)).node:range()
-    api.nvim_buf_set_extmark(buf, treeview.ns, lnum, col, {
-      end_row = end_lnum,
-      end_col = math.max(0, end_col),
-      hl_group = 'Visual',
-    })
-
-    -- update source window if original was closed
-    if not api.nvim_win_is_valid(win) then
-      win = assert(vim.fn.win_findbuf(buf)[1])
-    end
-
-    local topline, botline = vim.fn.line('w0', win), vim.fn.line('w$', win)
-
-    -- Move the cursor if highlighted range is completely out of view
-    if lnum < topline and end_lnum < topline then
-      api.nvim_win_set_cursor(win, { end_lnum + 1, 0 })
-    elseif lnum > botline and end_lnum > botline then
-      api.nvim_win_set_cursor(win, { lnum + 1, 0 })
-    end
-  end)
-
-  nvim_on('CursorMoved', group, { buf = buf }, function()
-    if not api.nvim_buf_is_loaded(b) then
-      return true
-    end
-
-    set_inspector_cursor(treeview, opts.lang, buf, b, w)
-  end)
-
-  nvim_on({ 'TextChanged', 'InsertLeave' }, group, { buf = buf }, function()
-    if not api.nvim_buf_is_loaded(b) then
-      return true
-    end
-
-    local treeview_opts = treeview.opts
-    treeview = assert(TSTreeView:new(buf, opts.lang))
-    treeview.opts = treeview_opts
-    treeview:draw(b)
-  end)
-
-  nvim_on('BufLeave', group, { buf = b }, function()
-    if not api.nvim_buf_is_loaded(buf) then
-      return true
-    end
-    api.nvim_buf_clear_namespace(buf, treeview.ns, 0, -1)
-  end)
-
-  nvim_on('BufLeave', group, { buf = buf }, function()
-    if not api.nvim_buf_is_loaded(b) then
-      return true
-    end
-    api.nvim_buf_clear_namespace(b, treeview.ns, 0, -1)
-  end)
-
-  nvim_on({ 'BufHidden', 'BufUnload', 'QuitPre' }, group, { buf = buf }, function()
-    -- don't close inpector window if source buffer
-    -- has more than one open window
-    if #vim.fn.win_findbuf(buf) > 1 then
-      return
-    end
-
-    -- close all tree windows
-    for _, window in pairs(vim.fn.win_findbuf(b)) do
-      close_win(window)
-    end
-
-    return true
-  end)
+    end,
+  })
 end
 
 local edit_ns = api.nvim_create_namespace('nvim.treesitter.dev_edit')
@@ -641,7 +662,7 @@ function M.edit_query(lang)
   local query_buf = api.nvim_win_get_buf(query_win)
 
   vim.b[buf].dev_edit = query_win
-  vim.bo[query_buf].omnifunc = vim.treesitter.query.omnifunc
+  vim.bo[query_buf].omnifunc = 'v:lua.vim.treesitter.query.omnifunc'
   set_dev_options(query_win, query_buf)
 
   -- Note that omnifunc guesses the language based on the containing folder,
@@ -649,44 +670,54 @@ function M.edit_query(lang)
   -- can infer the language later.
   api.nvim_buf_set_name(query_buf, string.format('%s/query_editor.scm', lang))
 
-  local group = api.nvim_create_augroup('nvim.treesitter.dev_edit')
-  nvim_on({ 'TextChanged', 'InsertLeave' }, group, {
+  local group = api.nvim_create_augroup('nvim.treesitter.dev_edit', {})
+  api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave' }, {
+    group = group,
     buf = query_buf,
     desc = 'Update query editor diagnostics when the query changes',
-  }, function()
-    vim.treesitter.query.lint(query_buf, { langs = lang, clear = false })
-  end)
-  nvim_on({ 'TextChanged', 'InsertLeave', 'CursorMoved', 'BufEnter' }, group, {
+    callback = function()
+      vim.treesitter.query.lint(query_buf, { langs = lang, clear = false })
+    end,
+  })
+  api.nvim_create_autocmd({ 'TextChanged', 'InsertLeave', 'CursorMoved', 'BufEnter' }, {
+    group = group,
     buf = query_buf,
     desc = 'Update query editor highlights when the cursor moves',
-  }, function()
-    if api.nvim_win_is_valid(win) then
-      update_editor_highlights(query_win, win, lang)
-    end
-  end)
-  nvim_on('BufLeave', group, {
+    callback = function()
+      if api.nvim_win_is_valid(win) then
+        update_editor_highlights(query_win, win, lang)
+      end
+    end,
+  })
+  api.nvim_create_autocmd('BufLeave', {
+    group = group,
     buf = query_buf,
     desc = 'Clear highlights when leaving the query editor',
-  }, function()
-    api.nvim_buf_clear_namespace(buf, edit_ns, 0, -1)
-  end)
-  nvim_on('BufLeave', group, {
+    callback = function()
+      api.nvim_buf_clear_namespace(buf, edit_ns, 0, -1)
+    end,
+  })
+  api.nvim_create_autocmd('BufLeave', {
+    group = group,
     buf = buf,
     desc = 'Clear the query editor highlights when leaving the source buffer',
-  }, function()
-    if not api.nvim_buf_is_loaded(query_buf) then
-      return true
-    end
+    callback = function()
+      if not api.nvim_buf_is_loaded(query_buf) then
+        return true
+      end
 
-    api.nvim_buf_clear_namespace(query_buf, edit_ns, 0, -1)
-  end)
-  nvim_on({ 'BufHidden', 'BufUnload' }, group, {
+      api.nvim_buf_clear_namespace(query_buf, edit_ns, 0, -1)
+    end,
+  })
+  api.nvim_create_autocmd({ 'BufHidden', 'BufUnload' }, {
+    group = group,
     buf = buf,
     desc = 'Close the editor window when the source buffer is hidden or unloaded',
     once = true,
-  }, function()
-    close_win(query_win)
-  end)
+    callback = function()
+      close_win(query_win)
+    end,
+  })
 
   api.nvim_buf_set_lines(query_buf, 0, -1, false, {
     ';; Write queries here (see $VIMRUNTIME/queries/ for examples).',

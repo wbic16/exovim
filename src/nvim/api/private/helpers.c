@@ -439,7 +439,7 @@ Array string_to_array(const String input, bool crlf, Arena *arena)
     // If line ends at end-of-buffer, add empty final item.
     // This is "readfile()-style", see also ":help channel-lines".
     if (i + 1 == input.size && (*end == NL || (crlf && *end == CAR))) {
-      kvi_push(ret, STRING_OBJ(CBUF_TO_ARENA_STR(arena, "", 0)));
+      kvi_push(ret, STRING_OBJ(STRING_INIT));
     }
   }
 
@@ -540,7 +540,6 @@ Array arena_take_arraybuilder(Arena *arena, ArrayBuilder *arr)
 void api_free_object(Object value)
 {
   switch (value.type) {
-  case kObjectTypeUnset:
   case kObjectTypeNil:
   case kObjectTypeBoolean:
   case kObjectTypeInteger:
@@ -660,7 +659,6 @@ Dict copy_dict(Dict dict, Arena *arena)
 Object copy_object(Object obj, Arena *arena)
 {
   switch (obj.type) {
-  case kObjectTypeUnset:
   case kObjectTypeBuffer:
   case kObjectTypeTabpage:
   case kObjectTypeWindow:
@@ -742,8 +740,6 @@ int object_to_hl_id(Object obj, const char *what, Error *err)
 char *api_typename(ObjectType t)
 {
   switch (t) {
-  case kObjectTypeUnset:
-    return "unset";
   case kObjectTypeNil:
     return "nil";
   case kObjectTypeBoolean:
@@ -804,7 +800,7 @@ bool api_dict_to_keydict(void *retval, FieldHashfn hashy, Dict dict, Error *err)
 {
   for (size_t i = 0; i < dict.size; i++) {
     String k = dict.items[i].key;
-    const KeySetLink *field = hashy(k.data, k.size);
+    KeySetLink *field = hashy(k.data, k.size);
     if (!field) {
       api_set_error(err, kErrorTypeValidation, "Invalid key: '%.*s'", (int)k.size, k.data);
       return false;

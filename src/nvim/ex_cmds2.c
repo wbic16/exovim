@@ -17,8 +17,6 @@
 #include "nvim/bufwrite.h"
 #include "nvim/change.h"
 #include "nvim/channel.h"
-#include "nvim/context.h"
-#include "nvim/dialog.h"
 #include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
@@ -47,7 +45,6 @@
 #include "nvim/quickfix.h"
 #include "nvim/runtime.h"
 #include "nvim/types_defs.h"
-#include "nvim/ui.h"
 #include "nvim/undo.h"
 #include "nvim/vim_defs.h"
 #include "nvim/window.h"
@@ -206,8 +203,7 @@ void dialog_changed(buf_T *buf, bool checkall)
     .forceit = false,
   };
 
-  const char *fname = buf->b_fname ? buf->b_fname : _("Untitled");
-  snprintf(buff, sizeof buff, _("Save changes to \"%s\"?"), fname);
+  dialog_msg(buff, _("Save changes to \"%s\"?"), buf->b_fname);
   if (checkall) {
     ret = vim_dialog_yesnoallcancel(VIM_QUESTION, NULL, buff, 1);
   } else {
@@ -271,8 +267,8 @@ bool dialog_close_terminal(buf_T *buf)
 {
   char buff[DIALOG_MSG_SIZE];
 
-  snprintf(buff, sizeof buff, _("Close \"%s\"?"),
-           (buf->b_fname != NULL) ? buf->b_fname : "?");
+  dialog_msg(buff, _("Close \"%s\"?"),
+             (buf->b_fname != NULL) ? buf->b_fname : "?");
 
   int ret = vim_dialog_yesnocancel(VIM_QUESTION, NULL, buff, 1);
 
@@ -399,9 +395,7 @@ bool check_changed_any(bool hidden, bool unload)
         && msg_didany) {
       int save = no_wait_return;
       no_wait_return = false;
-      if (!ui_has(kUIMessages)) {
-        wait_return(false);
-      }
+      wait_return(false);
       no_wait_return = save;
     }
   }
@@ -464,10 +458,7 @@ int buf_write_all(buf_T *buf, bool forceit)
 /// ":argdo", ":windo", ":bufdo", ":tabdo", ":cdo", ":ldo", ":cfdo" and ":lfdo"
 void ex_listdo(exarg_T *eap)
 {
-  // ":windo" and ":tabdo" only visit existing windows/tabpages, they don't
-  // change the current window's buffer, so they can't escape a 'winfixbuf'
-  // window (which would create a split).
-  if (curwin->w_p_wfb && eap->cmdidx != CMD_windo && eap->cmdidx != CMD_tabdo) {
+  if (curwin->w_p_wfb) {
     if ((eap->cmdidx == CMD_ldo || eap->cmdidx == CMD_lfdo) && !eap->forceit) {
       // Disallow :ldo if 'winfixbuf' is applied
       emsg(_(e_winfixbuf_cannot_go_to_buffer));
@@ -493,7 +484,7 @@ void ex_listdo(exarg_T *eap)
 
   char *save_ei = NULL;
 
-  // Temporarily override kShmOver and kShmOverall to avoid that file
+  // Temporarily override SHM_OVER and SHM_OVERALL to avoid that file
   // message overwrites output from the command.
   msg_listdo_overwrite++;
 
@@ -598,7 +589,7 @@ void ex_listdo(exarg_T *eap)
           break;
         }
         assert(wp);
-        execute = !wp->w_floating || win_is_focusable(wp);
+        execute = !wp->w_floating || (!wp->w_config.hide && wp->w_config.focusable);
         if (execute) {
           win_goto(wp);
           if (curwin != wp) {
@@ -698,7 +689,7 @@ void ex_listdo(exarg_T *eap)
   msg_listdo_overwrite--;
   if (save_ei != NULL) {
     buf_T *bnext;
-    CtxSwitch aco = { 0 };
+    aco_save_T aco;
 
     au_event_restore(save_ei);
 
@@ -713,9 +704,9 @@ void ex_listdo(exarg_T *eap)
           apply_autocmds(EVENT_SYNTAX, curbuf->b_p_syn, curbuf->b_fname, true,
                          curbuf);
         } else {
-          ctx_switch(&aco, NULL, NULL, buf, 0);
+          aucmd_prepbuf(&aco, buf);
           apply_autocmds(EVENT_SYNTAX, buf->b_p_syn, buf->b_fname, true, buf);
-          ctx_restore(&aco);
+          aucmd_restbuf(&aco);
         }
 
         // start over, in case autocommands messed things up.

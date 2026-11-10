@@ -295,7 +295,7 @@ void *vim_findfile_init(char *path, char *filename, size_t filenamelen, char *st
   // If path is absolute, we do that later.
   if (path[0] == '.'
       && (vim_ispathsep(path[1]) || path[1] == NUL)
-      && (!tagfile || vim_strchr(p_cpo, kCpoDottag) == NULL)
+      && (!tagfile || vim_strchr(p_cpo, CPO_DOTTAG) == NULL)
       && rel_fname != NULL) {
     size_t len = (size_t)(path_tail(rel_fname) - rel_fname);
 
@@ -407,9 +407,7 @@ void *vim_findfile_init(char *path, char *filename, size_t filenamelen, char *st
         ff_expand_buffer.data[ff_expand_buffer.size++] = *wc_part++;
         ff_expand_buffer.data[ff_expand_buffer.size++] = *wc_part++;
 
-        errpt = wc_part;
-        // Use def=255 so that overflow/too-large values keep the "max expand" behavior.
-        llevel = getdigits(&errpt, false, 255);
+        llevel = strtol(wc_part, &errpt, 10);
         if (errpt != wc_part && llevel > 0 && llevel < 255) {
           ff_expand_buffer.data[ff_expand_buffer.size++] = (char)llevel;
         } else if (errpt != wc_part && llevel == 0) {
@@ -934,8 +932,8 @@ char *vim_findfile(void *search_ctx_arg)
       if (strncmp(stackp->ffs_wc_path.data, "**", 2) == 0) {
         for (int i = stackp->ffs_filearray_cur;
              i < stackp->ffs_filearray_size; i++) {
-          if (path_equal(stackp->ffs_filearray[i],
-                         stackp->ffs_fix_path.data, kPathCmpLiteral)) {
+          if (path_fnamecmp(stackp->ffs_filearray[i],
+                            stackp->ffs_fix_path.data) == 0) {
             continue;             // don't repush same directory
           }
           if (!os_isdir(stackp->ffs_filearray[i])) {
@@ -1071,7 +1069,7 @@ static ff_visited_list_hdr_T *ff_get_visited_list(char *filename, size_t filenam
   if (*list_headp != NULL) {
     retptr = *list_headp;
     while (retptr != NULL) {
-      if (path_equal(filename, retptr->ffvl_filename, kPathCmpLiteral)) {
+      if (path_fnamecmp(filename, retptr->ffvl_filename) == 0) {
 #ifdef FF_VERBOSE
         if (p_verbose >= 5) {
           verbose_enter_scroll();
@@ -1171,7 +1169,7 @@ static int ff_check_visited(ff_visited_T **visited_list, char *fname, size_t fna
 
   // check against list of already visited files
   for (vp = *visited_list; vp != NULL; vp = vp->ffv_next) {
-    if ((url && path_equal(vp->ffv_fname, ff_expand_buffer.data, kPathCmpLiteral))
+    if ((url && path_fnamecmp(vp->ffv_fname, ff_expand_buffer.data) == 0)
         || (!url && vp->file_id_valid
             && os_fileid_equal(&(vp->file_id), &file_id))) {
       // are the wildcard parts equal
@@ -1327,7 +1325,7 @@ static bool ff_path_in_stoplist(char *path, size_t path_len, String *stopdirs_v)
     // match for parent directory. So '/home' also matches
     // '/home/rks'. Check for PATHSEP in stopdirs_v[i], else
     // '/home/r' would also match '/home/rks'
-    if (path_cmp(p_fic, stopdirs_v[i].data, path, path_len) == 0
+    if (path_fnamencmp(stopdirs_v[i].data, path, path_len) == 0
         && (stopdirs_v[i].size <= path_len
             || vim_ispathsep(stopdirs_v[i].data[path_len]))) {
       return true;
@@ -1377,7 +1375,7 @@ char *find_file_in_path(char *ptr, size_t len, int options, int first, char *rel
                                   file_to_find, search_ctx);
 }
 
-#ifdef EXITFREE
+#if defined(EXITFREE)
 void free_findfile(void)
 {
   API_CLEAR_STRING(ff_expand_buffer);
@@ -1439,7 +1437,7 @@ char *find_file_in_path_option(char *ptr, size_t len, int options, int first, ch
     // copy file name into NameBuff, expanding environment variables
     char save_char = ptr[len];
     ptr[len] = NUL;
-    file_to_findlen = expand_env_esc(ptr, NameBuff, MAXPATHL, NULL, true, NULL);
+    file_to_findlen = expand_env_esc(ptr, NameBuff, MAXPATHL, false, true, NULL);
     ptr[len] = save_char;
 
     xfree(*file_to_find);
@@ -1465,7 +1463,7 @@ char *find_file_in_path_option(char *ptr, size_t len, int options, int first, ch
   if (vim_isAbsName(*file_to_find)
       // "..", "../path", "." and "./path": don't use the path_option
       || rel_to_curdir
-#ifdef MSWIN
+#if defined(MSWIN)
       // handle "\tmp" as absolute path
       || vim_ispathsep((*file_to_find)[0])
       // handle "c:name" as absolute path
@@ -1505,19 +1503,20 @@ char *find_file_in_path_option(char *ptr, size_t len, int options, int first, ch
         }
 
         // When the file doesn't exist, try adding parts of 'suffixesadd'.
+        size_t NameBufflen = l;
         char *suffix = suffixes;
         while (true) {
           if ((os_path_exists(NameBuff)
                && (find_what == FINDFILE_BOTH
                    || ((find_what == FINDFILE_DIR) == os_isdir(NameBuff))))) {
-            file_name = xmemdupz(NameBuff, simplify_filename(NameBuff));
+            file_name = xmemdupz(NameBuff, NameBufflen);
             goto theend;
           }
           if (*suffix == NUL) {
             break;
           }
           assert(MAXPATHL >= l);
-          copy_option_part(&suffix, NameBuff + l, MAXPATHL - l, ",");
+          NameBufflen = l + copy_option_part(&suffix, NameBuff + l, MAXPATHL - l, ",");
         }
       }
     }
@@ -1594,8 +1593,7 @@ theend:
 char *grab_file_name(int count, linenr_T *file_lnum)
 {
   int options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
-  char *fname;
-  if (Visual.active) {
+  if (VIsual_active) {
     size_t len;
     char *ptr;
     if (get_visual_text(NULL, &ptr, &len) == FAIL) {
@@ -1607,12 +1605,9 @@ char *grab_file_name(int count, linenr_T *file_lnum)
 
       *file_lnum = getdigits_int32(&p, false, 0);
     }
-    fname = find_file_name_in_path(ptr, len, options, count, curbuf->b_ffname);
-  } else {
-    fname = file_name_at_cursor(options | FNAME_HYP, count, file_lnum);
+    return find_file_name_in_path(ptr, len, options, count, curbuf->b_ffname);
   }
-  TO_SLASH(fname);
-  return fname;
+  return file_name_at_cursor(options | FNAME_HYP, count, file_lnum);
 }
 
 /// Return the file name under or after the cursor.
@@ -1742,13 +1737,9 @@ static char *eval_includeexpr(const char *const ptr, const size_t len)
   set_vim_var_string(VV_FNAME, ptr, (ptrdiff_t)len);
   current_sctx = curbuf->b_p_script_ctx[kBufOptIncludeexpr];
 
-  const bool use_sandbox = was_set_insecurely(curwin, kOptIncludeexpr, OPT_LOCAL);
-  typval_T tv;
-  char *res = NULL;
-  if (eval_expr_option_tv(&curbuf->b_p_inex, use_sandbox, &tv)) {
-    res = xstrdup(tv_get_string(&tv));
-    tv_clear(&tv);
-  }
+  char *res = eval_to_string_safe(curbuf->b_p_inex,
+                                  was_set_insecurely(curwin, kOptIncludeexpr, OPT_LOCAL),
+                                  true);
 
   set_vim_var_string(VV_FNAME, NULL, 0);
   current_sctx = save_sctx;
@@ -1775,7 +1766,7 @@ char *find_file_name_in_path(char *ptr, size_t len, int options, long count, cha
     len -= off;
   }
 
-  if ((options & FNAME_INCL) && curbuf->b_p_inex.type != kCallbackNone) {
+  if ((options & FNAME_INCL) && *curbuf->b_p_inex != NUL) {
     tofree = eval_includeexpr(ptr, len);
     if (tofree != NULL) {
       ptr = tofree;
@@ -1793,7 +1784,7 @@ char *find_file_name_in_path(char *ptr, size_t len, int options, long count, cha
     // If the file could not be found in a normal way, try applying
     // 'includeexpr' (unless done already).
     if (file_name == NULL
-        && !(options & FNAME_INCL) && curbuf->b_p_inex.type != kCallbackNone) {
+        && !(options & FNAME_INCL) && *curbuf->b_p_inex != NUL) {
       tofree = eval_includeexpr(ptr, len);
       if (tofree != NULL) {
         ptr = tofree;
@@ -1853,9 +1844,6 @@ void do_autocmd_dirchanged(char *new_dir, CdScope scope, CdCause cause, bool pre
   case kCdScopeTabpage:
     snprintf(buf, sizeof(buf), "tabpage");
     break;
-  case kCdScopeBuffer:
-    snprintf(buf, sizeof(buf), "buffer");
-    break;
   case kCdScopeWindow:
     snprintf(buf, sizeof(buf), "window");
     break;
@@ -1863,6 +1851,13 @@ void do_autocmd_dirchanged(char *new_dir, CdScope scope, CdCause cause, bool pre
     // Should never happen.
     abort();
   }
+
+#ifdef BACKSLASH_IN_FILENAME
+  char new_dir_buf[MAXPATHL];
+  STRCPY(new_dir_buf, new_dir);
+  slash_adjust(new_dir_buf);
+  new_dir = new_dir_buf;
+#endif
 
   if (pre) {
     tv_dict_add_str(dict, S_LEN("directory"), new_dir);
@@ -1876,7 +1871,6 @@ void do_autocmd_dirchanged(char *new_dir, CdScope scope, CdCause cause, bool pre
   switch (cause) {
   case kCdCauseManual:
   case kCdCauseWindow:
-  case kCdCauseBuffer:
     break;
   case kCdCauseAuto:
     snprintf(buf, sizeof(buf), "auto");
@@ -1908,7 +1902,7 @@ int vim_chdirfile(char *fname, CdCause cause)
     NameBuff[0] = NUL;
   }
 
-  if (path_equal(dir, NameBuff, kPathCmpLiteral)) {
+  if (pathcmp(dir, NameBuff, -1) == 0) {
     // nothing to do
     return OK;
   }

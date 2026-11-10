@@ -2,9 +2,7 @@
 -- Set 'undolevels' to make changelist for sourced file
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 
-local describe, it, setup = t.describe, t.it, t.setup
 local clear, feed, insert = n.clear, n.feed, n.insert
 local feed_command, expect = n.feed_command, n.expect
 

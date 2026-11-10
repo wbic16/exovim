@@ -2,9 +2,9 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local t_lsp = require('test.functional.plugin.lsp.testutil')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local eq = t.eq
+local pcall_err = t.pcall_err
 local exec_lua = n.exec_lua
 
 local create_server_definition = t_lsp.create_server_definition
@@ -30,7 +30,7 @@ describe(':lsp', function()
       env = { VIMRUNTIME = 'non-existent' },
     }
     t.matches(
-      [[.*module 'vim%.lsp' not found:]],
+      [[Vim%(lsp%):Lua: .*module 'vim%.lsp' not found:]],
       vim.split(t.pcall_err(n.command, 'lsp enable dummy'), '\n')[1]
     )
   end)
@@ -93,54 +93,6 @@ describe(':lsp', function()
       eq(0, running_clients)
     end)
   end
-
-  it('stop, restart, disable a client that has not initialized', function()
-    local starts = t.tmpname()
-    eq(
-      { { 'dummy' }, true, true, true },
-      exec_lua(function()
-        local server = _G._create_server({ handlers = { initialize = function() end } })
-        vim.lsp.config('dummy', {
-          cmd = function(...)
-            vim.fn.writefile({ 'start' }, starts, 'a')
-            return server.cmd(...)
-          end,
-        })
-        local function clients()
-          return vim.lsp.get_clients({ _uninitialized = true })
-        end
-        local function stopped()
-          return vim.wait(1000, function()
-            return #clients() == 0
-          end)
-        end
-        vim.lsp.enable('dummy')
-        local old_id = clients()[1].id
-        local completion = vim.fn.getcompletion('lsp stop ', 'cmdline')
-
-        vim.cmd('lsp restart dummy')
-        local restarted = vim.wait(1000, function()
-          return #clients() == 1 and clients()[1].id ~= old_id
-        end)
-
-        vim.cmd('lsp stop')
-        local stopped_by_stop = stopped()
-
-        vim.lsp.enable('dummy')
-        vim.cmd('lsp disable')
-        return { completion, restarted, stopped_by_stop, stopped() }
-      end)
-    )
-
-    -- No restart while Nvim exits: nothing would stop the new client.
-    n.expect_exit(exec_lua, function()
-      vim.fn.writefile({}, starts)
-      vim.lsp.enable('dummy')
-      vim.cmd('lsp restart dummy')
-      vim.cmd('qall!')
-    end)
-    eq('start\n', t.read_file(starts))
-  end)
 
   it('subcommand completion', function()
     local completions = exec_lua(function()

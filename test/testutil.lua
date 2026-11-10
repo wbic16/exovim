@@ -1,4 +1,3 @@
----@type test.assert
 local test_assert = require('test.assert')
 ---@type test.harness
 local harness = require('test.harness')
@@ -9,16 +8,6 @@ local Paths = require('test.cmakeconfig.paths')
 --- @class test.testutil
 local M = {
   paths = Paths,
-
-  -- Test framework:
-  after_each = harness.after_each,
-  before_each = harness.before_each,
-  describe = harness.describe,
-  finally = harness.finally,
-  it = harness.it,
-  pending = harness.pending,
-  setup = harness.setup,
-  teardown = harness.teardown,
 }
 
 --- @param path string
@@ -111,9 +100,6 @@ local check_logs_useless_lines = {
 
 function M.eq(expected, actual, context)
   return test_assert.eq(expected, actual, context)
-end
-function M.eq_partial(expected, actual, context)
-  return test_assert.eq_partial(expected, actual, context)
 end
 function M.neq(expected, actual, context)
   return test_assert.neq(expected, actual, context)
@@ -339,73 +325,45 @@ function M.glob(initial_path, re, exc_re)
   return ret
 end
 
---- Reads sanitizer/valgrind log file lines, filtering out useless warnings.
---- Waits briefly for the ASAN "SUMMARY" line so we don't read a truncated report
---- (the crashing process may still be writing when we check).
-local function read_sanitizer_log(file)
-  local lines = {} --- @type string[]
-  local has_summary = false
-  -- Poll for up to 2 seconds for the log to be complete.
-  for _ = 1, 20 do
-    lines = {}
-    local warning_line = 0
-    local fd = assert(io.open(file))
-    for line in fd:lines() do
-      local cur_warning_line = check_logs_useless_lines[line]
-      if cur_warning_line == warning_line + 1 then
-        warning_line = cur_warning_line
-      else
-        lines[#lines + 1] = line
-      end
-      if line:find('SUMMARY') then
-        has_summary = true
-      end
-    end
-    fd:close()
-    if has_summary or #lines == 0 then
-      break
-    end
-    uv.sleep(100)
-  end
-  if not has_summary and #lines > 0 then
-    lines[#lines + 1] = '(WARNING: sanitizer log may be truncated, no SUMMARY line found)'
-  end
-  return lines
-end
-
 function M.check_logs()
   local log_dir = os.getenv('LOG_DIR')
-  local runtime_errors = {} --- @type string[]
-  local runtime_errors_detail = {} --- @type string[]
+  local runtime_errors = {}
   if log_dir and M.isdir(log_dir) then
     for tail in vim.fs.dir(log_dir) do
       if tail:sub(1, 30) == 'valgrind-' or tail:find('san%.') then
-        local file = ('%s/%s'):format(log_dir, tail)
-        local lines = read_sanitizer_log(file)
+        local file = log_dir .. '/' .. tail
+        local fd = assert(io.open(file))
+        local start_msg = ('='):rep(20) .. ' File ' .. file .. ' ' .. ('='):rep(20)
+        local lines = {} --- @type string[]
+        local warning_line = 0
+        for line in fd:lines() do
+          local cur_warning_line = check_logs_useless_lines[line]
+          if cur_warning_line == warning_line + 1 then
+            warning_line = cur_warning_line
+          else
+            lines[#lines + 1] = line
+          end
+        end
+        fd:close()
         if #lines > 0 then
-          local start_msg = ('%s File %s %s'):format(('='):rep(20), file, ('='):rep(20))
-          local end_msg = select(1, start_msg:gsub('.', '='))
-          local lines_str = ('= %s'):format(table.concat(lines, '\n= '))
-          local detail = ('%s\n%s\n%s'):format(start_msg, lines_str, end_msg)
           --- @type boolean?, file*?
           local status, f
+          local out = io.stdout
           if os.getenv('SYMBOLIZER') then
             status, f = pcall(M.repeated_read_cmd, os.getenv('SYMBOLIZER'), '-l', file)
           end
-          local out = io.stdout
           out:write(start_msg .. '\n')
           if status then
             assert(f)
             for line in f:lines() do
-              out:write(('= %s\n'):format(line))
+              out:write('= ' .. line .. '\n')
             end
             f:close()
           else
-            out:write(lines_str .. '\n')
+            out:write('= ' .. table.concat(lines, '\n= ') .. '\n')
           end
-          out:write(end_msg .. '\n')
+          out:write(select(1, start_msg:gsub('.', '=')) .. '\n')
           table.insert(runtime_errors, file)
-          table.insert(runtime_errors_detail, detail)
         end
         os.remove(file)
       end
@@ -413,10 +371,7 @@ function M.check_logs()
   end
   test_assert(
     0 == #runtime_errors,
-    string.format(
-      'Found runtime errors in logfile(s):\n%s',
-      table.concat(runtime_errors_detail, '\n')
-    )
+    string.format('Found runtime errors in logfile(s): %s', table.concat(runtime_errors, ', '))
   )
 end
 
@@ -611,18 +566,6 @@ function M.repeated_read_cmd(...)
   return table.concat(data)
 end
 
---- Projects the named fields of `t` (a nil field stays absent).
---- @param t table<string,any>
---- @param ... string Field names.
---- @return table<string,any>
-function M.pick(t, ...)
-  local r = {} --- @type table<string,any>
-  for _, f in ipairs({ ... }) do
-    r[f] = t[f]
-  end
-  return r
-end
-
 --- @generic T
 --- @param orig T
 --- @return T
@@ -802,9 +745,9 @@ function M.read_file_list(filename, start)
   local i = 1
   local line = file:read('*l')
   while line ~= nil do
-    if i >= lnum then
+    if i >= start then
       table.insert(lines, line)
-      if maxlines and #lines > maxlines then
+      if #lines > maxlines then
         table.remove(lines, 1)
       end
     end
@@ -895,7 +838,9 @@ end
 --- @return boolean
 function M.skip(cond, reason)
   if cond then
-    M.pending(reason or 'FIXME')
+    --- @type fun(reason: string)
+    local pending = getfenv(2).pending
+    pending(reason or 'FIXME')
     return true
   end
   return false
@@ -919,76 +864,6 @@ end
 
 function M.translations_enabled()
   return M.paths.translations_enabled
-end
-
---- Sorts timing `samples` and prints + returns min/q25/median/q75/max/mean.
----
---- Shared reporter for `test/benchmark/`. Pair it with `M.bench()` (in-process) or `n.bench()`
---- (Nvim-under-test), or call it directly with samples you collected yourself.
----
---- @param samples number[]  Per-iteration durations, in nanoseconds. Sorted in place.
---- @param opts? { label?: string, unit?: 'ms'|'us' }
---- @return { n: integer, min: number, q25: number, median: number, q75: number, max: number, mean: number }
-function M.bench_report(samples, opts)
-  opts = opts or {}
-  local n = #samples
-  assert(n > 0, 'bench_report: no samples')
-  local unit = opts.unit or 'ms'
-  local scale = unit == 'us' and 1e3 or 1e6
-
-  table.sort(samples)
-  local sum = 0
-  for _, v in ipairs(samples) do
-    sum = sum + v
-  end
-  --- @param p number percentile in [0,1]
-  local function pct(p)
-    return samples[math.max(1, math.min(n, 1 + math.floor(n * p)))] / scale
-  end
-  local stats = {
-    n = n,
-    min = samples[1] / scale,
-    q25 = pct(0.25),
-    median = pct(0.5),
-    q75 = pct(0.75),
-    max = samples[n] / scale,
-    mean = (sum / n) / scale,
-  }
-
-  print(
-    ('\n%smin %.4f  q25 %.4f  median %.4f  q75 %.4f  max %.4f  mean %.4f  (%s, n=%d)'):format(
-      opts.label and (opts.label .. '\n  ') or '',
-      stats.min,
-      stats.q25,
-      stats.median,
-      stats.q75,
-      stats.max,
-      stats.mean,
-      unit,
-      n
-    )
-  )
-  return stats
-end
-
---- Benchmarks `fn` in the test-runner process: runs it `opts.n` times, timing each run, then reports.
----
---- Note: see `testnvim.bench()` to run in the Nvim-under-test.
----
---- @param fn fun()
---- @param opts { n: integer, label?: string, unit?: 'ms'|'us', warmup?: integer }
---- @return table stats  See `M.bench_report()`.
-function M.bench(fn, opts)
-  for _ = 1, (opts.warmup or 0) do
-    fn()
-  end
-  local samples = {} --- @type number[]
-  for i = 1, opts.n do
-    local t0 = uv.hrtime()
-    fn()
-    samples[i] = uv.hrtime() - t0
-  end
-  return M.bench_report(samples, opts)
 end
 
 return M

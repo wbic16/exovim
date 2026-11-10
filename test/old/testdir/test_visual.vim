@@ -505,10 +505,8 @@ func Test_visual_mode_op()
 
   call setline(1, 'apple banana cherry')
   call cursor(1, 1)
-  " Nvim: "." re-executes the captured keysequence (|visual-repeat|): the final
-  " "." replays "3vd", multiplying the previous (grown) selection again.
   normal lvld.l3vd.
-  call assert_equal('a ', getline(1))
+  call assert_equal('a y', getline(1))
 
   call setline(1, ['line 1 line 1', 'line 2 line 2', 'line 3 line 3',
         \ 'line 4 line 4', 'line 5 line 5', 'line 6 line 6'])
@@ -520,10 +518,10 @@ func Test_visual_mode_op()
   call setline(1, ['xxxxxxxxxxxxx', 'xxxxxxxxxxxxx', 'xxxxxxxxxxxxx',
         \ 'xxxxxxxxxxxxx'])
   exe "normal \<C-V>jlc  \<Esc>l.l2\<C-V>c----\<Esc>l."
-  call assert_equal(['    --------',
-        \ '    --------',
-        \ 'xxxx--------',
-        \ 'xxxx--------'], getline(1, '$'))
+  call assert_equal(['    --------x',
+        \ '    --------x',
+        \ 'xxxx--------x',
+        \ 'xxxx--------x'], getline(1, '$'))
 
   bwipe!
 endfunc
@@ -547,18 +545,15 @@ func Test_visual_mode_maps()
   vnoremap W /\u/s-1<CR>
   vnoremap iW :<C-U>call SelectInCaps()<CR>
 
-  " Nvim: a selection extended by a search or Ex motion is not replayable:
-  " "." falls back to an equal-size reselect ("1v"), like Vim. But "." after
-  " "2vd" re-executes "2vd", multiplying the previous (grown) area again.
   call setline(1, 'KiwiRaspberryDateWatermelonPeach')
   call cursor(1, 1)
   exe "normal vWcNo\<Esc>l.fD2vd."
-  call assert_equal('NoNo', getline(1))
+  call assert_equal('NoNoberryach', getline(1))
 
   call setline(1, 'JambuRambutanBananaTangerineMango')
   call cursor(1, 1)
   exe "normal llviWc-\<Esc>l.l2vdl."
-  call assert_equal('--a', getline(1))
+  call assert_equal('--ago', getline(1))
 
   vunmap W
   vunmap iW
@@ -949,47 +944,6 @@ func Test_visual_force_motion_feedkeys()
     ounmap i-
 endfunc
 
-" Test that a one-column block of a forced blockwise motion is not empty
-func Test_visual_force_motion_one_column_block()
-  new
-  " An exclusive motion: the block has one column, as in Visual block mode.
-  for [line, keys, expected] in [
-        \ ['ab', "0mxd\<C-V>`x", 'b'],
-        \ ['ab', "0mxc\<C-V>`xX\<Esc>", 'Xb'],
-        \ ['ab', "0d\<C-V>0", 'b'],
-        \ ]
-    call setline(1, line)
-    exe 'normal! ' .. keys
-    call assert_equal(expected, getline(1), keys)
-  endfor
-
-  " Visual block mode, for comparison.
-  call setline(1, 'ab')
-  exe "normal! 0\<C-V>d"
-  call assert_equal('b', getline(1))
-
-  set selection=exclusive
-  call setline(1, 'abcd')
-  exe "normal! 0d\<C-V>l"
-  call assert_equal('bcd', getline(1))
-  set selection&
-
-  " With 'cpoptions' "E" the block is not an empty region.
-  set cpoptions+=E
-  call setline(1, 'ab')
-  call setreg('"', '')
-  exe "normal! 0mxy\<C-V>`x"
-  call assert_equal('a', @")
-  set cpoptions-=E
-
-  " A characterwise exclusive motion still makes an empty region.
-  call setline(1, 'ab')
-  normal! 0mxd`x
-  call assert_equal('ab', getline(1))
-
-  bwipe!
-endfunc
-
 " Test block-insert using cursor keys for movement
 func Test_visual_block_insert_cursor_keys()
   new
@@ -1052,28 +1006,6 @@ func Test_virtualedit_visual_block()
         \ '       x     x   line3'], getline(1, 3))
   set ve=
   bwipe!
-endfunc
-
-func Test_virtualedit_visual_block_reselect()
-  set ve=all
-  new
-  call append(0, ['###', '###', '###', '#####'])
-  call cursor(1, 1)
-  exe "norm! \<C-V>lljj"
-  call assert_equal([0, 3, 3, 0], getpos('.'))
-  call assert_equal([0, 1, 1, 0], getpos('v'))
-  norm! y
-  call assert_equal(['###', '###', '###'], getreg('"', v:true, v:true))
-  call cursor(2, 6)
-  call assert_equal([0, 2, 4, 2], getpos('.'))
-  norm! 1v
-  call assert_equal([0, 4, 6, 2], getpos('.'))
-  call assert_equal([0, 2, 4, 2], getpos('v'))
-  norm! r!
-  call assert_equal(['###  !!!', '###  !!!', '#####!!!'], getline(2, 4))
-
-  bwipe!
-  set ve&
 endfunc
 
 " Test for changing case
@@ -1389,11 +1321,10 @@ func Test_visual_block_with_virtualedit()
     set virtualedit=block
     normal G
   END
-  call writefile(lines, 'XTest_block', 'D')
+  call writefile(lines, 'XTest_block')
 
   let buf = RunVimInTerminal('-S XTest_block', {'rows': 8, 'cols': 50})
   call term_sendkeys(buf, "\<C-V>gg$")
-  call WaitForAssert({-> assert_match('VISUAL.*\dx\d', term_getline(buf, 8))}, 1000)
   call VerifyScreenDump(buf, 'Test_visual_block_with_virtualedit', {})
 
   call term_sendkeys(buf, "\<Esc>gg\<C-V>G$")
@@ -1402,6 +1333,7 @@ func Test_visual_block_with_virtualedit()
   " clean up
   call term_sendkeys(buf, "\<Esc>")
   call StopVimInTerminal(buf)
+  call delete('XTest_block')
 endfunc
 
 func Test_visual_block_ctrl_w_f()
@@ -1669,42 +1601,6 @@ func Test_heap_buffer_overflow()
 
   %bwipe!
   set updatecount&
-endfunc
-
-func s:ScreenAttr(row, col)
-  redraw
-  return screenattr(a:row, a:col)
-endfunc
-
-func Test_charwise_visual_hl_inclusive_and_exclusive_selection()
-  new
-  call setline(1, '12345')
-
-  normal! V$
-  const visual_attr = s:ScreenAttr(1, 1)
-  let VisualCols = {-> range(1, strlen(getline(1)))->filter({_, c ->
-        \ s:ScreenAttr(1, c) == visual_attr})}
-
-  exe "normal! \<Esc>"
-  call assert_true(visual_attr != s:ScreenAttr(1, 1),
-        \ "sanity check: Visual displayed differently to Normal")
-
-  set selection=inclusive
-  normal! ggf2vf4
-  call assert_equal([2, 3, 4], VisualCols())
-
-  set selection=exclusive
-  exe "normal! \<Esc>ggf2vll"
-  call assert_equal([2, 3], VisualCols())  " (Character under cursor excluded.)
-  normal! o
-  call assert_equal(2, col('.'), "sanity check: cursor column after 'o'")
-  call assert_equal([2, 3], VisualCols())
-  normal! y
-  call assert_equal('23', @",
-        \ "sanity check: yanked text matches visual selection")
-
-  set selection&
-  bwipe!
 endfunc
 
 " Test Visual highlight with cursor at end of screen line and 'showbreak'
@@ -2712,113 +2608,12 @@ func Test_visual_getregion()
   call CheckLegacyAndVim9Success(lines)
 endfunc
 
-" Test the "bounds" option of getregionpos(), which returns only the outer
-" endpoints of the region as a single pair.
-func Test_visual_getregionpos_bounds()
-  new
-  call setline(1, [
-        \ 'one two',
-        \ '',
-        \ "a\tb\tc",
-        \ 'ábĉdé',
-        \ "e\u0301x\u0301",
-        \ "\U0001f1e6\u00ab\U0001f1e7\u00ab\U0001f1e8",
-        \ 'last line',
-        \ ])
-  let b = bufnr('%')
-
-  " The pair is the start on the first line and the end on the last line.
-  call assert_equal([[[b, 1, 5, 0], [b, 3, 3, 0]]],
-        \ getregionpos([0, 1, 5, 0], [0, 3, 3, 0], #{bounds: v:true}))
-  call assert_equal([[[b, 1, 1, 0], [b, 3, 5, 0]]],
-        \ getregionpos([0, 1, 5, 0], [0, 3, 3, 0],
-        \              #{type: 'V', bounds: v:true}))
-
-  " For a blockwise region that is a diagonal of the block, not its corners.
-  call assert_equal([[[b, 1, 3, 0], [b, 3, 5, 0]]],
-        \ getregionpos([0, 1, 3, 0], [0, 3, 5, 0],
-        \              #{type: "\<C-v>", bounds: v:true}))
-  call assert_equal([[[b, 1, 3, 0], [b, 3, 2, 5]]],
-        \ getregionpos([0, 1, 3, 0], [0, 3, 5, 0],
-        \              #{type: "\<C-v>4", bounds: v:true}))
-
-  " When the first line is empty and "eol" is false its "col" is 0, while the
-  " "col" of the end position is not.
-  call assert_equal([[[b, 2, 0, 0], [b, 4, 5, 0]]],
-        \ getregionpos([0, 2, 1, 0], [0, 4, 5, 0], #{bounds: v:true}))
-  call assert_equal([[[b, 2, 1, 0], [b, 4, 5, 0]]],
-        \ getregionpos([0, 2, 1, 0], [0, 4, 5, 0],
-        \              #{eol: v:true, bounds: v:true}))
-
-  " Region within one line, also with the positions reversed.
-  call assert_equal([[[b, 4, 3, 0], [b, 4, 8, 0]]],
-        \ getregionpos([0, 4, 3, 0], [0, 4, 7, 0], #{bounds: v:true}))
-  call assert_equal([[[b, 4, 3, 0], [b, 4, 8, 0]]],
-        \ getregionpos([0, 4, 7, 0], [0, 4, 3, 0], #{bounds: v:true}))
-
-  " Combining characters and v:maxcol.
-  call assert_equal([[[b, 5, 1, 0], [b, 6, 16, 0]]],
-        \ getregionpos([0, 5, 1, 0], [0, 6, v:maxcol, 0], #{bounds: v:true}))
-
-  " The pair is always what indexing the full result gives.
-  for ve in ['', 'all', 'block', 'onemore']
-    let &virtualedit = ve
-    for sel in ['inclusive', 'exclusive']
-      let &selection = sel
-      for type in ['v', 'V', "\<C-v>", "\<C-v>3"]
-        for excl in [#{}, #{exclusive: v:false}, #{exclusive: v:true}]
-          for eol in [v:false, v:true]
-            let opts = extend(#{type: type, eol: eol}, excl)
-            for p1 in [[0, 1, 3, 0], [0, 2, 1, 0], [0, 3, 4, 0], [0, 5, 1, 0]]
-              for p2 in [[0, 3, 2, 0], [0, 4, 6, 0],
-                    \    [0, 6, v:maxcol, 0], [0, 7, 10, 0]]
-                for args in [[p1, p2], [p2, p1]]
-                  let full = getregionpos(args[0], args[1], opts)
-                  call assert_equal([[full[0][0], full[-1][1]]],
-                        \ getregionpos(args[0], args[1],
-                        \              extend(copy(opts), #{bounds: v:true})),
-                        \ printf('%s ve=%s sel=%s %s',
-                        \        string(args), ve, sel, string(opts)))
-                endfor
-              endfor
-            endfor
-          endfor
-        endfor
-      endfor
-    endfor
-  endfor
-  set virtualedit& selection&
-
-  " "bounds" does not change the errors for invalid arguments.
-  call assert_fails('call getregionpos(1, 2, #{bounds: v:true})', 'E1211:')
-  call assert_fails('call getregionpos([0, 1, 1, 0], [0, 1, 1, 0],
-        \ #{type: "", bounds: v:true})', 'E475:')
-  call assert_fails('call getregionpos([0, 0, 1, 0], [0, 1, 1, 0],
-        \ #{bounds: v:true})', 'E966:')
-  call assert_fails('call getregionpos([0, 1, 0, 0], [0, 1, 1, 0],
-        \ #{bounds: v:true})', 'E964:')
-
-  " Positions in two different buffers still give an empty list, not a pair.
-  new
-  call setline(1, ['other buffer'])
-  let other = bufnr('%')
-  normal! mA
-  wincmd p
-  call assert_equal([],
-        \ getregionpos(getpos('.'), getpos("'A"), #{bounds: v:true}))
-  call assert_equal([],
-        \ getregionpos(getpos("'A"), getpos('.'), #{bounds: v:true}))
-
-  exe other .. 'bwipe!'
-  bwipe!
-endfunc
-
 func Test_getregion_invalid_buf()
   new
   help index
-  call cursor(9, 6)
+  call cursor(7, 6)
   norm! mA
-  call cursor(9, 18)
+  call cursor(7, 18)
   norm! mB
   call assert_equal(['file contains'], getregion(getpos("'A"), getpos("'B")))
   " close the help window
@@ -3113,100 +2908,4 @@ func Test_getregionpos_block_linebreak_matches_getpos()
   let &columns = save_columns
   bw!
 endfunc
-
-func Test_visual_ended_in_wiped_buffer()
-  edit Xfoo
-  edit Xbar
-  setlocal bufhidden=wipe
-  augroup testing
-    autocmd BufWipeout * ++once normal! v
-  augroup END
-  " Must be the last window.
-  call assert_equal(1, winnr('$'))
-  call assert_equal(1, tabpagenr('$'))
-  " Was a member access on a NULL curbuf from Vim ending Visual mode.
-  buffer #
-  call assert_equal(0, bufexists('Xbar'))
-  call assert_equal('n', mode())
-
-  autocmd! testing
-  %bw!
-endfunc
-
-func Test_visual_ended_in_unloaded_buffer()
-  throw 'Skipped: needs clipboard=autoselect'
-  CheckFeature clipboard
-  CheckNotGui
-  set clipboard+=autoselect
-  edit Xfoo
-  edit Xbar
-  call setline(1, 'hi')
-  setlocal nomodified
-  let s:fired = 0
-  augroup testing
-    autocmd BufUnload Xbar call assert_equal('Xbar', bufname())
-          \| execute 'normal! V'
-          \| call assert_equal('V', mode())
-
-    " From Vim ending Visual mode.  Used to occur too late, after the buffer was
-    " unloaded, so @* didn't contain the selection.  Window also had a NULL
-    " w_buffer here!
-    autocmd TextYankPost * ++once let s:fired = 1
-          \| if has('clipboard_working') | call assert_equal("hi\n", @*) | endif
-          \| call tabpagebuflist() " was a NULL member access on w_buffer
-  augroup END
-
-  buffer Xfoo
-  call assert_equal(0, bufloaded('Xbar'))
-  call assert_equal('n', mode())
-  call assert_equal(1, s:fired)
-
-  augroup testing
-    autocmd!
-    autocmd BufHidden Xfoo ++once call assert_equal('Xfoo', bufname())
-          \| execute 'normal! v'
-          \| call assert_equal('v', mode())
-
-    " Check b_nwindows is not decremented too early when Visual mode ends in a
-    " loaded buffer.  Buffer should not be considered hidden in TextYankPost, as
-    " by that point it's still loaded and displayed in the current window.
-    autocmd TextYankPost * ++once let s:fired = 2
-          \| call assert_equal(1, bufloaded(bufnr()))
-          \| call assert_equal(0, getbufinfo(bufnr())[0].hidden)
-  augroup END
-  edit Xbar
-  edit Xfoo
-  only
-  hide buffer #
-  call assert_equal('n', mode())
-  call assert_equal(2, s:fired)
-
-  autocmd! testing
-  unlet! s:fired
-  set clipboard&
-  %bw!
-endfunc
-
-" Check that visual selection is updated properly with the last line of the
-" window partially visible.
-func Test_visual_update_lastline()
-  CheckScreendump
-
-  let lines =<< trim END
-    call setline(1, ['aaa', 'bbb', 'ccc', repeat('d', 500), 'eee'])
-    split
-  END
-  call writefile(lines, 'XTest_visual_update_lastline', 'D')
-
-  let buf = RunVimInTerminal('-S XTest_visual_update_lastline', {'rows': 15, 'cols': 50})
-  call VerifyScreenDump(buf, 'Test_visual_update_lastline_1', {})
-  call term_sendkeys(buf, 'vipo')
-  call VerifyScreenDump(buf, 'Test_visual_update_lastline_2', {})
-  call term_sendkeys(buf, "\<Esc>")
-  call term_wait(buf, 100)
-  call VerifyScreenDump(buf, 'Test_visual_update_lastline_1', {})
-
-  call StopVimInTerminal(buf)
-endfunc
-
 " vim: shiftwidth=2 sts=2 expandtab

@@ -354,9 +354,7 @@ endfunc
 "     2 2
 func Test_visual_increment_14()
   call setline(1, repeat(["1 1"], 2))
-  " Nvim: "." re-executes the keysequence, so the replayed "k" needs a line
-  " above: repeat from the last line, like the original.
-  exec "norm! G\<C-V>k\<C-A>Gw."
+  exec "norm! G\<C-V>k\<C-A>w."
   call assert_equal(["2 2", "2 2"], getline(1, '$'))
   call assert_equal([0, 1, 3, 0], getpos('.'))
 endfunc
@@ -443,9 +441,7 @@ endfunc
 func Test_visual_increment_18()
   call setline(1, repeat(["0"], 4))
   exec "norm! GV3kg\<C-A>"
-  " Nvim: "." re-executes "V3kg<C-A>": replay from the last line, like the
-  " original.
-  exec "norm! G.G."
+  exec "norm! .."
   call assert_equal(["3", "6", "9", "12"], getline(1, '$'))
   call assert_equal([0, 1, 1, 0], getpos('.'))
 endfunc
@@ -688,12 +684,9 @@ endfunc
 " Tab code, spaces and character-visual increment and redo
 func Test_visual_increment_35()
   call setline(1, ["\<TAB>123", "        123", "\<TAB>123", "\<TAB>123"])
-  " Nvim: "." re-executes "vjf3<C-A>"; the replayed "f3" fails (the numbers
-  " are now "124"), aborting the replay and (in :norm) flushing the rest.
   exec "norm! ggvjf3\<C-A>..."
-  exe "norm! \<Esc>"
-  call assert_equal(["\<TAB>124", "        124", "\<TAB>123", "\<TAB>123"], getline(1, '$'))
-  call assert_equal([0, 2, 9, 0], getpos('.'))
+  call assert_equal(["\<TAB>127", "        127", "\<TAB>123", "\<TAB>123"], getline(1, '$'))
+  call assert_equal([0, 1, 2, 0], getpos('.'))
 endfunc
 
 " Tab code, spaces and blockwise-visual increment and redo
@@ -703,9 +696,7 @@ func Test_visual_increment_36()
   call assert_equal(["           123", "\<TAB>556789"], getline(1, '$'))
   call assert_equal([0, 1, 1, 0], getpos('.'))
 
-  " Nvim: "." re-executes "<C-V>kl<C-A>": replay from the last line, like the
-  " original.
-  exec "norm! G0.G0.G0."
+  exec "norm! ..."
   call assert_equal(["           123", "\<TAB>856789"], getline(1, '$'))
   call assert_equal([0, 1, 1, 0], getpos('.'))
 endfunc

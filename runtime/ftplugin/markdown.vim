@@ -3,13 +3,12 @@
 " Maintainer:   Tim Pope <https://github.com/tpope/vim-markdown>
 " Last Change:  2023 Dec 28
 "               2024 May 24 by Riley Bruins <ribru17@gmail.com> ('commentstring')
-"               2026 Jun 27 by Vim Project (normalize recommended style guard)
 
 if exists("b:did_ftplugin")
   finish
 endif
 
-runtime! ftplugin/html[.]{vim,lua} ftplugin/html_*.{vim,lua} ftplugin/html/*.{vim,lua}
+runtime! ftplugin/html.vim ftplugin/html_*.vim ftplugin/html/*.vim
 
 let s:keepcpo= &cpo
 set cpo&vim
@@ -24,8 +23,7 @@ else
   let b:undo_ftplugin = "setl cms< com< fo< flp< et< ts< sts< sw<"
 endif
 
-if get(g:, 'markdown_recommended_style',
-      \ get(g:, 'filetype_recommended_style', 1))
+if get(g:, 'markdown_recommended_style', 1)
   setlocal expandtab tabstop=4 softtabstop=4 shiftwidth=4
 endif
 

@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local request = n.request
 local eq = t.eq
 local ok = t.ok
@@ -539,7 +538,7 @@ describe('API/extmarks', function()
   end)
 
   it('marks move with char inserts', function()
-    -- insertchar in insert.c (the ins_str branch)
+    -- insertchar in edit.c (the ins_str branch)
     screen = Screen.new(15, 10)
     set_extmark(ns, marks[1], 0, 3)
     feed('0')
@@ -556,7 +555,7 @@ describe('API/extmarks', function()
 
   -- gravity right as definted in tk library
   it('marks have gravity right', function()
-    -- insertchar in insert.c (the ins_str branch)
+    -- insertchar in edit.c (the ins_str branch)
     set_extmark(ns, marks[1], 0, 2)
     feed('03l')
     insert('X')
@@ -569,7 +568,7 @@ describe('API/extmarks', function()
   end)
 
   it('we can insert multibyte chars', function()
-    -- insertchar in insert.c
+    -- insertchar in edit.c
     feed('a<cr>12345<esc>')
     set_extmark(ns, marks[1], 1, 2)
     -- Insert a fullwidth (two col) tilde, NICE
@@ -888,17 +887,16 @@ describe('API/extmarks', function()
     set_extmark(ns, marks[1], 1, 2)
     feed('0<c-v>k>')
     check_undo_redo(ns, marks[1], 1, 2, 1, 6)
-    -- "gg0": the cursor after undo/redo depends on |restore-undo-cursor|.
-    feed('gg0<c-v>j>')
+    feed('<c-v>j>')
     expect('\t12345\n\t12345')
     check_undo_redo(ns, marks[1], 1, 6, 1, 3)
 
-    feed('gg0<c-v>j<LT>')
+    feed('<c-v>j<LT>')
     check_undo_redo(ns, marks[1], 1, 3, 1, 6)
   end)
 
   it('tab works with expandtab', function()
-    -- ins_tab in insert.c
+    -- ins_tab in edit.c
     feed(':set expandtab<cr><esc>')
     feed(':set shiftwidth=2<cr><esc>')
     set_extmark(ns, marks[1], 0, 2)
@@ -907,7 +905,7 @@ describe('API/extmarks', function()
   end)
 
   it('tabs work', function()
-    -- ins_tab in insert.c
+    -- ins_tab in edit.c
     feed(':set noexpandtab<cr><esc>')
     feed(':set shiftwidth=2<cr><esc>')
     feed(':set softtabstop=2<cr><esc>')
@@ -982,47 +980,6 @@ describe('API/extmarks', function()
     feed('<c-r>')
     rv = get_extmarks(ns, { 0, 0 }, { -1, -1 })
     eq(2, #rv)
-  end)
-
-  it('undo and redo of a mark created during an edit #30331', function()
-    local function range(id)
-      local m = get_extmark_by_id(ns, id, { details = true })
-      return { m[1], m[2], m[3].end_row, m[3].end_col, m[3].invalid }
-    end
-    -- Create the marks over text the edit added, while the undo block is still open.
-    feed('ggdGifoobar')
-    set_extmark(ns, marks[1], 0, 3, { end_col = 6 })
-    set_extmark(ns, marks[2], 0, 3, { end_col = 6, invalidate = true })
-    feed('<esc>')
-    eq({ 0, 3, 0, 6 }, range(marks[1]))
-    feed('u')
-    -- The text is gone, so the range collapses; the invalidating mark also goes invalid.
-    eq({ 0, 0, 0, 0 }, range(marks[1]))
-    eq({ 0, 0, 0, 0, true }, range(marks[2]))
-    feed('<c-r>')
-    -- Redo re-applies the position each side of the range was set to, and revives the
-    -- invalidated mark; replaying the splices alone leaves the range collapsed.
-    eq({ 0, 3, 0, 6 }, range(marks[1]))
-    eq({ 0, 3, 0, 6 }, range(marks[2]))
-  end)
-
-  it('undo and redo of a mark explicitly moved during an edit', function()
-    feed('ggdGiabcdef<esc>')
-    set_extmark(ns, marks[1], 0, 4)
-    -- Insert at col 0; while the undo block is still open, explicitly
-    -- move the mark.
-    feed('0i!!')
-    set_extmark(ns, marks[1], 0, 1)
-    feed('<esc>')
-    eq({ 0, 1 }, get_extmark_by_id(ns, marks[1]))
-    feed('u')
-    -- Back where it was before the edit (the recorded set-time position,
-    -- shifted back by the splice reversal).
-    eq({ 0, 4 }, get_extmark_by_id(ns, marks[1]))
-    feed('<c-r>')
-    -- Redo restores the explicit position: splice adjustment alone would
-    -- leave the mark at col 6.
-    eq({ 0, 1 }, get_extmark_by_id(ns, marks[1]))
   end)
 
   it('undo and redo of marks deleted during edits', function()
@@ -1781,50 +1738,6 @@ describe('API/extmarks', function()
       },
     }, get_extmark_by_id(ns, marks[3], { details = true }))
 
-    -- verify 'wrap' is returned through get_extmark_by_id to validate flag comparison
-    set_extmark(ns, marks[4], 0, 0, {
-      priority = 0,
-      ui_watched = true,
-      virt_lines = { { { '', 'Macro' }, { '' }, { '', '' } } },
-      virt_lines_overflow = 'wrap',
-    })
-    eq({
-      0,
-      0,
-      {
-        ns_id = ns,
-        right_gravity = true,
-        ui_watched = true,
-        priority = 0,
-        virt_lines = { { { '', 'Macro' }, { '' }, { '', '' } } },
-        virt_lines_above = false,
-        virt_lines_leftcol = false,
-        virt_lines_overflow = 'wrap',
-      },
-    }, get_extmark_by_id(ns, marks[4], { details = true }))
-
-    -- verify 'auto' is returned through get_extmark_by_id to validate flag comparison
-    set_extmark(ns, marks[5], 0, 0, {
-      priority = 0,
-      ui_watched = true,
-      virt_lines = { { { '', 'Macro' }, { '' }, { '', '' } } },
-      virt_lines_overflow = 'auto',
-    })
-    eq({
-      0,
-      0,
-      {
-        ns_id = ns,
-        right_gravity = true,
-        ui_watched = true,
-        priority = 0,
-        virt_lines = { { { '', 'Macro' }, { '' }, { '', '' } } },
-        virt_lines_above = false,
-        virt_lines_leftcol = false,
-        virt_lines_overflow = 'auto',
-      },
-    }, get_extmark_by_id(ns, marks[5], { details = true }))
-
     set_extmark(ns, marks[4], 0, 0, { cursorline_hl_group = 'Statement' })
     eq({
       0,
@@ -2053,7 +1966,7 @@ describe('API/extmarks', function()
     api.nvim_buf_set_lines(buf, 0, 0, false, { 'foo', 'bar' })
     local id = api.nvim_buf_set_extmark(buf, ns, 1, 0, { invalidate = true })
     api.nvim_buf_delete(buf, { unload = true })
-    local mark = { 0, 0, { invalid = true, invalidate = true, ns_id = ns, right_gravity = true } }
+    local mark = { 0, 0, { invalid = true, invalidate = true, ns_id = 3, right_gravity = true } }
     eq(mark, api.nvim_buf_get_extmark_by_id(buf, ns, id, { details = true }))
   end)
 end)

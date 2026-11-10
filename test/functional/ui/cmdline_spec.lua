@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, pending = t.describe, t.it, t.before_each, t.pending
 local clear, feed = n.clear, n.feed
 local source = n.source
 local command = n.command
@@ -241,7 +240,7 @@ local function test_cmdline(linegrid)
     ]])
   end)
 
-  it('with cmdwin', function()
+  it('works with cmdline window', function()
     feed(':make')
     screen:expect {
       grid = [[
@@ -256,22 +255,25 @@ local function test_cmdline(linegrid)
     screen:expect([[
                                |
       {2:[No Name]                }|
-      {1::}mak^e                    |
+      {1::}make^                    |
       {3:[Command Line]           }|
                                |
     ]])
 
-    -- cmdwin is a plain window so `:yank` opens a top-level cmdline. No nesting allowed. #40312
+    -- nested cmdline
     feed(':yank')
     screen:expect {
       grid = [[
                                  |
         {2:[No Name]                }|
-        {1::}mak^e                    |
+        {1::}make^                    |
         {3:[Command Line]           }|
                                  |
       ]],
-      cmdline = { { firstc = ':', content = { { 'yank' } }, pos = 4 } },
+      cmdline = {
+        nil,
+        { firstc = ':', content = { { 'yank' } }, pos = 4 },
+      },
     }
 
     command('mode')
@@ -279,11 +281,14 @@ local function test_cmdline(linegrid)
       grid = [[
                                  |
         {2:[No Name]                }|
-        {1::}mak^e                    |
+        {1::}make^                    |
         {3:[Command Line]           }|
                                  |
       ]],
-      cmdline = { { firstc = ':', content = { { 'yank' } }, pos = 4 } },
+      cmdline = {
+        nil,
+        { firstc = ':', content = { { 'yank' } }, pos = 4 },
+      },
       reset = true,
     }
 
@@ -292,14 +297,26 @@ local function test_cmdline(linegrid)
       grid = [[
                                  |
         {2:[No Name]                }|
-        {1::}mak^e                    |
+        {1::}make^                    |
         {3:[Command Line]           }|
                                  |
       ]],
-      cmdline = { { abort = true } },
+      cmdline = { [2] = { abort = true } },
     }
 
     feed('<c-c>')
+    screen:expect {
+      grid = [[
+        ^                         |
+        {2:[No Name]                }|
+        {1::}make                    |
+        {3:[Command Line]           }|
+                                 |
+      ]],
+      cmdline = { { firstc = ':', content = { { 'make' } }, pos = 4 } },
+    }
+
+    command('redraw!')
     screen:expect {
       grid = [[
         ^                         |
@@ -782,34 +799,35 @@ local function test_cmdline(linegrid)
   end)
 
   it('works with exmode', function()
-    screen:try_resize(60, 12)
-    feed('1q:')
-    screen:expect([[
-                                                                  |
-      {1:~                                                           }|
-      {2:[No Name]                                                   }|
-      {1::}^                                                           |
-      {1:~                                                           }|*6
-      {3:[Ex mode]                                                   }|
-      {5:-- INSERT --}                                                |
-    ]])
+    feed('gQ')
+    screen:expect({
+      grid = [[
+                                 |
+        {3:                         }|
+        Entering Ex mode.  Type "|
+        visual" to go to Normal m|
+        ode.^                     |
+      ]],
+      cmdline = { { content = { { '' } }, firstc = ':', pos = 0 } },
+    })
     feed('echo "foo"<CR>')
-    screen:expect([[
-                                                                  |
-      {1:~                                                           }|
-      {2:[No Name]                                                   }|
-      {1::}echo "foo"                                                 |
-      {1::}" foo                                                      |
-      {1::}^                                                           |
-      {1:~                                                           }|*4
-      {3:[Ex mode]                                                   }|
-      {5:-- INSERT --}                                                |
-    ]])
+    screen:expect({
+      grid = [[
+        {3:                         }|
+        Entering Ex mode.  Type "|
+        visual" to go to Normal m|
+        ode.                     |
+        foo^                      |
+      ]],
+      cmdline = { { content = { { '' } }, firstc = ':', pos = 0 } },
+      cmdline_block = { { { 'echo "foo"' } } },
+    })
+    -- Shouldn't crash for NULL cmdline_block event after <C-\><C-N> #39021.
     feed('<C-\\><C-N>vis<CR>')
     screen:expect([[
-      ^                                                            |
-      {1:~                                                           }|*10
-                                                                  |
+      ^                         |
+      {1:~                        }|*3
+                               |
     ]])
     assert_alive()
   end)
@@ -900,17 +918,20 @@ describe('cmdline redraw', function()
                                               |
       {1:~                                       }|*3
       {2:[No Name]                               }|
-      {1::}{17:^abc}                                    |
+      {1::}^a{17:bc}                                    |
       {1:~                                       }|*2
       {3:[Command Line]                          }|
       {5:-- VISUAL --}                            |
     ]])
-    -- Ctrl-C closes cmdwin and drops back into pre-filled cmdline. #40312
     feed('<C-C>')
     screen:expect([[
                                               |
-      {1:~                                       }|*8
-      :abc^                                    |
+      {1:~                                       }|*3
+      {2:[No Name]                               }|
+      {1::}a{17:bc}                                    |
+      {1:~                                       }|*2
+      {3:[Command Line]                          }|
+      :^abc                                    |
     ]])
   end)
 
@@ -1007,7 +1028,7 @@ describe('cmdline redraw', function()
       {3:                                                                           }|
       foo                                                                        |
       bar                                                                        |
-      Type number and <Enter> (q or empty cancels): ^                             |
+      Type number and <Enter> or click with the mouse (q or empty cancels): ^     |
     ]])
     command('redraw')
     screen:expect_unchanged()
@@ -1217,7 +1238,7 @@ end)
 
 it('tabline is not redrawn in Ex mode #24122', function()
   clear()
-  local screen = Screen.new(60, 8)
+  local screen = Screen.new(60, 5)
 
   exec([[
     set showtabline=2
@@ -1229,26 +1250,22 @@ it('tabline is not redrawn in Ex mode #24122', function()
     endfunction
   ]])
 
-  feed('1q:')
+  feed('gQ')
   screen:expect([[
     {2:foo                                                         }|
                                                                 |
-    {2:[No Name]                                                   }|
-    {1::}^                                                           |
-    {1:~                                                           }|*2
-    {3:[Ex mode]                                                   }|
-    {5:-- INSERT --}                                                |
+    {3:                                                            }|
+    Entering Ex mode.  Type "visual" to go to Normal mode.      |
+    :^                                                           |
   ]])
+
   feed('echo 1<CR>')
   screen:expect([[
-    {2:foo                                                         }|
-                                                                |
-    {2:[No Name]                                                   }|
-    {1::}echo 1                                                     |
-    {1::}" 1                                                        |
-    {1::}^                                                           |
-    {3:[Ex mode]                                                   }|
-    {5:-- INSERT --}                                                |
+    {3:                                                            }|
+    Entering Ex mode.  Type "visual" to go to Normal mode.      |
+    :echo 1                                                     |
+    1                                                           |
+    :^                                                           |
   ]])
 end)
 

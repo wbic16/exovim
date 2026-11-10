@@ -1,5 +1,3 @@
---- @diagnostic disable: annotation-usage-error
-
 -- Contains filetype detection functions for use in filetype.lua that are either:
 --  * used more than once or
 --  * complex (e.g. check more than one line or use conditionals).
@@ -33,37 +31,6 @@ local matchregex = vim.filetype._matchregex
 -- luacheck: push no unused args
 -- luacheck: push ignore 122
 
--- AL (Microsoft Dynamics 365 Business Central) or Perl AutoLoader
---- @type vim.filetype.mapfn
-function M.al(_, bufnr)
-  if vim.g.filetype_al then
-    return vim.g.filetype_al
-  end
-  -- AL sources declare an object as "<kind> <id> <name>" at the start of a
-  -- line, optionally preceded by namespace and using declarations.  Perl
-  -- AutoLoader chunks match neither.  Matching a bare keyword anywhere would
-  -- be wrong: table, page and report are ordinary English words, so the object
-  -- name must follow.  The match is case sensitive because AL tooling emits
-  -- lowercase keywords, while prose in Perl comments is usually capitalised.
-  for _, line in ipairs(getlines(bufnr, 1, 200)) do
-    if
-      matchregex(
-        line,
-        [[^\s*\%(codeunit\|page\|pageextension\|pagecustomization\|table\|tableextension\|]]
-          .. [[report\|reportextension\|xmlport\|query\|enum\|enumextension\|profile\|profileextension\|]]
-          .. [[controladdin\|interface\|permissionset\|permissionsetextension\|entitlement\)\>\s\+\%(\d\|"\|\u\)]]
-      )
-      or findany(
-        line,
-        { '^%s*dotnet%s*$', '^%s*namespace%s+[%w._]+%s*;', '^%s*using%s+[%w._]+%s*;' }
-      )
-    then
-      return 'al'
-    end
-  end
-  return 'perl'
-end
-
 -- Erlang Application Resource Files (*.app.src is matched by extension)
 -- See: https://erlang.org/doc/system/applications
 --- @type vim.filetype.mapfn
@@ -96,39 +63,19 @@ function M.app(path, bufnr)
   end
 end
 
--- This function checks for Kawasaki robots AS file or atlas file type.
---- @type vim.filetype.mapfn
-function M.as(_, bufnr)
-  if vim.g.filetype_as then
-    return vim.g.filetype_as
-  end
-  for _, line in ipairs(getlines(bufnr, 1, 30)) do
-    if line:find('^%.NETCONF') then
-      return 'kawasaki_as'
-    end
-  end
-  return 'atlas'
-end
-
 --- @param bufnr integer
 --- @return boolean
 local function is_objectscript_routime(bufnr)
   local line1 = getline(bufnr, 1)
   line1 = fn.substitute(line1, [[^\ufeff]], '', '')
-  if matchregex(line1, [[\c^\s*routine\>]]) then
-    return true
-  end
-  if matchregex(line1, [[\c\<iris\>]]) then
-    return true
-  end
-  return table.concat(getlines(bufnr, 1, 3), ''):find('%%RO') ~= nil
+  return matchregex(line1, [[\c^\s*routine\>\s\+[%A-Za-z][%A-Za-z0-9_.]*\%(\s*\[\|\s*;\|$\)]])
 end
 
 -- This function checks for the kind of assembly that is wanted by the user, or
 -- can be detected from the beginning of the file.
 --- @type vim.filetype.mapfn
 function M.asm(path, bufnr)
-  local syntax = vim.b[bufnr].asmsyntax ---@type string?
+  local syntax = vim.b[bufnr].asmsyntax
   if not syntax or syntax == '' then
     syntax = M.asm_syntax(path, bufnr)
   end
@@ -341,7 +288,7 @@ function M.cls(_, bufnr)
   local line = nonblank1
   while line do
     if matchregex(line, [[\c^\s*\%(import\|include\|includegenerator\)\>]]) then
-      line, lnum = nextnonblank(bufnr, assert(lnum) + 1)
+      line, lnum = nextnonblank(bufnr, lnum + 1)
     else
       nonblank1 = line
       break
@@ -358,7 +305,7 @@ function M.cls(_, bufnr)
     return 'objectscript'
   elseif nonblank1 and nonblank1:find('^[%%\\]') then
     return 'tex'
-  elseif nonblank1 and findany(nonblank1, { '^%s*/%*', '^%s*::[%w_]' }) then
+  elseif nonblank1 and findany(nonblank1, { '^%s*/%*', '^%s*::%w' }) then
     return 'rexx'
   end
   return 'st'
@@ -544,56 +491,26 @@ function M.dep3patch(path, bufnr)
   end
 end
 
----@param contents string[]
 local function diff(contents)
-  local l1, l2, l3, l4 = contents[1], contents[2], contents[3], contents[4]
-  if not l1 then
-    -- Need at least 1 line to detect a diff file.
-    return
-  end
-
-  -- Two-line diff headers.
   if
-    l2
-    and (
-      l1:find('^%-%-%- ') and l2:find('^%+%+%+ ')
-      or l1:find('^%* looking for ') and l2:find('^%* comparing to ')
-      or l1:find('^%*%*%* ') and l2:find('^%-%-%- ')
-    )
+    contents[1]:find('^%-%-%- ') and contents[2]:find('^%+%+%+ ')
+    or contents[1]:find('^%* looking for ') and contents[2]:find('^%* comparing to ')
+    or contents[1]:find('^%*%*%* ') and contents[2]:find('^%-%-%- ')
+    or contents[1]:find('^=== ') and ((contents[2]:find('^' .. string.rep('=', 66)) and contents[3]:find(
+      '^%-%-% '
+    ) and contents[4]:find('^%+%+%+')) or (contents[2]:find('^%-%-%- ') and contents[3]:find(
+      '^%+%+%+ '
+    )))
+    or findany(contents[1], { '^=== removed', '^=== added', '^=== renamed', '^=== modified' })
   then
     return 'diff'
   end
-
-  if l1:find('^=== ') then
-    if l2 and l3 then
-      -- Bazaar: old and new file headers without a separator.
-      if l2:find('^%-%-%- ') and l3:find('^%+%+%+ ') then
-        return 'diff'
-      end
-
-      -- SVK: separator followed by the old and new file headers.
-      if
-        l4
-        and l2:find('^' .. string.rep('=', 66))
-        and l3:find('^%-%-% ')
-        and l4:find('^%+%+%+')
-      then
-        return 'diff'
-      end
-    end
-
-    -- Bazaar operation headers can identify a diff on their own.
-    if findany(l1, { '^=== removed', '^=== added', '^=== renamed', '^=== modified' }) then
-      return 'diff'
-    end
-  end
 end
 
---- @param contents string[]
 local function dns_zone(contents)
   if
     findany(
-      table.concat(contents, '', 1, math.min(4, #contents)),
+      contents[1] .. contents[2] .. contents[3] .. contents[4],
       { '^; <<>> DiG [0-9%.]+.* <<>>', '%$ORIGIN', '%$TTL', 'IN%s+SOA' }
     )
   then
@@ -601,13 +518,8 @@ local function dns_zone(contents)
   end
   -- BAAN
   if -- Check for 1 to 80 '*' characters
-    #contents >= 2
-    and (
-      contents[1]:find('|%*' .. string.rep('%*?', 79)) and contents[2]:find('VRC ')
-      or #contents >= 3
-        and contents[2]:find('|%*' .. string.rep('%*?', 79))
-        and contents[3]:find('VRC ')
-    )
+    contents[1]:find('|%*' .. string.rep('%*?', 79)) and contents[2]:find('VRC ')
+    or contents[2]:find('|%*' .. string.rep('%*?', 79)) and contents[3]:find('VRC ')
   then
     return 'baan'
   end
@@ -644,9 +556,9 @@ local function modula2(bufnr)
 
   -- ignore unknown dialects or badly formatted tags
   for _, line in ipairs(getlines(bufnr, 1, 200)) do
-    local matched_dialect, matched_extension = line:match('%(%*!m2([%w_]+)%+([%w_]+)%*%)')
+    local matched_dialect, matched_extension = line:match('%(%*!m2(%w+)%+(%w+)%*%)')
     if not matched_dialect then
-      matched_dialect = line:match('%(%*!m2([%w_]+)%*%)')
+      matched_dialect = line:match('%(%*!m2(%w+)%*%)')
     end
     if matched_dialect then
       if vim.tbl_contains({ 'iso', 'pim', 'r10' }, matched_dialect) then
@@ -875,43 +787,28 @@ end
 
 --- @type vim.filetype.mapfn
 function M.header(_, bufnr)
-  if vim.g.filetype_h then
-    return vim.g.filetype_h
-  elseif vim.g.c_syntax_for_h then
-    return 'c'
-  elseif vim.g.ch_syntax_for_h then
-    return 'ch'
-  end
-
-  for _, line in ipairs(getlines(bufnr, 1, 100)) do
-    if
-      findany(line:lower(), { '^%s*@interface%f[^%w_]', '^%s*@end%f[^%w_]', '^%s*@class%f[^%w_]' })
-    then
+  for _, line in ipairs(getlines(bufnr, 1, 200)) do
+    if findany(line:lower(), { '^@interface', '^@end', '^@class' }) then
       if vim.g.c_syntax_for_h then
         return 'objc'
       else
         return 'objcpp'
       end
     end
-    if
-      findany(line:lower(), {
-        '^%s*class%f[^%w_]',
-        '^%s*namespace%f[^%w_]',
-        '^%s*template%f[^%w_]',
-        '^%s*using%f[^%w_]',
-      })
-    then
-      return 'cpp'
-    end
   end
-
-  return 'c'
+  if vim.g.c_syntax_for_h then
+    return 'c'
+  elseif vim.g.ch_syntax_for_h then
+    return 'ch'
+  else
+    return 'cpp'
+  end
 end
 
 --- Recursively search for Hare source files in a directory and any
 --- subdirectories, up to a given depth.
 --- @param dir string
---- @param depth integer
+--- @param depth number
 --- @return boolean
 local function is_hare_module(dir, depth)
   depth = math.max(depth, 0)
@@ -1033,11 +930,7 @@ function M.inc(path, bufnr)
     elseif findany(line, { '^%s{', '^%s%(%*' }) or matchregex(line, pascal_keywords) then
       return 'pascal'
     elseif
-      matchregex(line, [[^\s*\<\%(require\|inherit\)\>]])
-      or matchregex(
-        line,
-        [=[^\s*[A-Z][A-Za-z0-9_:${}/]*\%(\[[A-Za-z0-9_:/]\+\]\)*\s\+\%(??=\|[?:+.]=\|=[+.]\?\)\s\+]=]
-      )
+      findany(line, { '^%s*inherit ', '^%s*require ', '^%s*%u[%w_:${}/]*%s+%??[?:+.]?=.? ' })
     then
       return 'bitbake'
     end
@@ -1355,12 +1248,8 @@ end
 
 --- @type vim.filetype.mapfn
 function M.mm(_, bufnr)
-  if vim.g.filetype_mm then
-    return vim.g.filetype_mm
-  end
-
   for _, line in ipairs(getlines(bufnr, 1, 20)) do
-    if matchregex(line, [[\c^\s*\(//\|#\s*\(include\|import\)\>\|@import\>\|/\*\)]]) then
+    if matchregex(line, [[\c^\s*\(#\s*\(include\|import\)\>\|@import\>\|/\*\)]]) then
       return 'objcpp'
     end
   end
@@ -1530,7 +1419,6 @@ function M.prg(_, bufnr)
   end
 end
 
---- @param ptcap_type string
 function M.printcap(ptcap_type)
   if fn.did_filetype() == 0 then
     return 'ptcap', function(bufnr)
@@ -1745,8 +1633,8 @@ function M.sc(_, bufnr)
         'var%s<',
         'classvar%s<',
         '%^this.*',
-        '|[%w_]+|',
-        '%+%s[%w_]*%s{',
+        '|%w+|',
+        '%+%s%w*%s{',
         '%*ar%s',
       })
     then
@@ -1812,7 +1700,6 @@ local function sh(path, contents, name)
   local on_detect --- @type fun(b: integer)?
 
   if name:find('^ksh$') or matchregex(name, [[^#!.\{-2,}\<ksh\>]]) then
-    --- @param b integer
     on_detect = function(b)
       vim.b[b].is_kornshell = 1
       vim.b[b].is_bash = nil
@@ -1823,14 +1710,12 @@ local function sh(path, contents, name)
     or name:find('^bash2?$')
     or matchregex(name, [[^#!.\{-2,}\<bash2\=\>]])
   then
-    --- @param b integer
     on_detect = function(b)
       vim.b[b].is_bash = 1
       vim.b[b].is_kornshell = nil
       vim.b[b].is_sh = nil
     end
   elseif findany(name, { '^sh$', '^dash$' }) or matchregex(name, [[^#!.\{-2,}\<\%(da\)\=sh\>]]) then -- Ubuntu links "sh" to "dash"
-    --- @param b integer
     on_detect = function(b)
       vim.b[b].is_sh = 1
       vim.b[b].is_kornshell = nil
@@ -1984,23 +1869,12 @@ end
 -- Determine if a *.tf file is TF (TinyFugue) mud client or terraform
 --- @type vim.filetype.mapfn
 function M.tf(_, bufnr)
-  if vim.g.filetype_tf then
-    return vim.g.filetype_tf
-  end
-
-  local continuation = false
-  for _, line in ipairs(getlines(bufnr, 1, 100)) do
-    -- TF supports backslash line continuation, so a continued line may begin
-    -- with any character.  Only test the first character of a line that does
-    -- not continue a previous one.
-    if not continuation then
-      -- Assume terraform file on a non-empty line (not whitespace-only)
-      -- and when the first non-whitespace character is not a ; or /
-      if not line:find('^%s*$') and not line:find('^%s*[;/]') then
-        return 'terraform'
-      end
+  for _, line in ipairs(getlines(bufnr)) do
+    -- Assume terraform file on a non-empty line (not whitespace-only)
+    -- and when the first non-whitespace character is not a ; or /
+    if not line:find('^%s*$') and not line:find('^%s*[;/]') then
+      return 'terraform'
     end
-    continuation = not not line:find('\\$')
   end
   return 'tf'
 end
@@ -2090,7 +1964,7 @@ function M.v(_, bufnr)
         or line:find('%(%*') and not line:find('/[/*].*%(%*')
       then
         return 'coq'
-      elseif findany(line, { ';%s*$', ';%s*/[/*]', '^%s*module%s+[%w_]+%s*%(' }) then
+      elseif findany(line, { ';%s*$', ';%s*/[/*]', '^%s*module%s+%w+%s*%(' }) then
         return 'verilog'
       end
     end
@@ -2176,7 +2050,6 @@ end
 
 local patterns_hashbang = {
   ['^zsh\\>'] = { 'zsh', { vim_regex = true } },
-  ['^bats\\>'] = { 'bats', { vim_regex = true } },
   ['^\\(tclsh\\|wish\\|expectk\\|itclsh\\|itkwish\\)\\>'] = { 'tcl', { vim_regex = true } },
   ['^expect\\>'] = { 'expect', { vim_regex = true } },
   ['^gnuplot\\>'] = { 'gnuplot', { vim_regex = true } },
@@ -2222,7 +2095,6 @@ local patterns_hashbang = {
   ['^execlineb\\>'] = { 'execline', { vim_regex = true } },
   ['^bpftrace\\>'] = { 'bpftrace', { vim_regex = true } },
   ['^vim\\>'] = { 'vim', { vim_regex = true } },
-  ['^ed\\>'] = { 'ed', { vim_regex = true } },
 }
 
 --- File starts with "#!".
@@ -2257,8 +2129,6 @@ local function match_from_hashbang(contents, path, dispatch_extension)
     name = fn.substitute(first_line, [[^#!.*\<env\>\s\+\(\i\+\).*]], '\\1', '')
   elseif matchregex(first_line, [[^#!\s*[^/\\ ]*\>\([^/\\]\|$\)]]) then
     name = fn.substitute(first_line, [[^#!\s*\([^/\\ ]*\>\).*]], '\\1', '')
-  elseif matchregex(first_line, [[^#!.*\<busybox\>]]) then
-    name = fn.substitute(first_line, [[^#!.*\<busybox\>\s\+\(\i\+\).*]], '\\1', '')
   else
     name = fn.substitute(first_line, [[^#!\s*\S*[/\\]\(\f\+\).*]], '\\1', '')
   end
@@ -2269,7 +2139,7 @@ local function match_from_hashbang(contents, path, dispatch_extension)
     name = 'wish'
   end
 
-  if matchregex(name, [[^\(bash\d*\|d\?ash\|ksh\d*\|sh\)\>]]) then
+  if matchregex(name, [[^\(bash\d*\|dash\|ksh\d*\|sh\)\>]]) then
     -- Bourne-like shell scripts: bash bash2 dash ksh ksh93 sh
     return sh(path, contents, first_line)
   elseif matchregex(name, [[^csh\>]]) then
@@ -2284,10 +2154,6 @@ local function match_from_hashbang(contents, path, dispatch_extension)
     if opts.vim_regex and matchregex(name, k) or name:find(k) then
       return ft
     end
-  end
-
-  if name == 'uv' and matchregex(first_line, [[\<uv run\>]]) then
-    return 'python'
   end
 
   -- If nothing matched, check the extension table. For a hashbang like
@@ -2441,8 +2307,7 @@ local patterns_text = {
 --- @return string?
 --- @return fun(b: integer)?
 local function match_from_text(contents, path)
-  assert(#contents >= 1)
-  if contents[1]:find('^:$') then
+  if assert(contents[1]):find('^:$') then
     -- Bourne-like shell scripts: sh ksh bash bash2
     return sh(path, contents)
   elseif
@@ -2458,7 +2323,7 @@ local function match_from_text(contents, path)
   for k, v in pairs(patterns_text) do
     if type(v) == 'string' then
       -- Check the first line only
-      if contents[1]:find(k) then
+      if assert(contents[1]):find(k) then
         return v
       end
     elseif type(v) == 'function' then

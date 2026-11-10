@@ -59,6 +59,10 @@ local legacy_names = {
     nvim_list_uis = true,
     nvim_list_wins = true,
   },
+  ['runtime/lua/vim/uri.lua'] = {
+    uri_from_bufnr = true,
+    uri_to_bufnr = true,
+  },
   ['runtime/lua/vim/_core/shared.lua'] = {
     _ensure_list = true,
     _list_insert = true,

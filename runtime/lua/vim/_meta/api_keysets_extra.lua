@@ -22,7 +22,7 @@ error('Cannot require a meta file')
 --- @field hl_group? string
 --- @field hl_eol? boolean
 ---
---- @field conceal? string|false
+--- @field conceal? string
 --- @field spell? boolean
 --- @field ui_watched? boolean
 --- @field url? string
@@ -76,7 +76,6 @@ error('Cannot require a meta file')
 --- @field match string expanded value of <amatch>
 --- @field buf integer expanded value of <abuf>
 --- @field file string expanded value of <afile>
---- @field win integer id of the window for the event, see |window-ID|
 --- @field data? any arbitrary data passed from |nvim_exec_autocmds()|
 
 --- @class vim.api.keyset.create_user_command.command_args
@@ -113,7 +112,7 @@ error('Cannot require a meta file')
 ---
 --- Command modifiers in a structured format. Has the same structure as the
 --- "mods" key of |nvim_parse_cmd()|.
---- @field smods vim.api.keyset.cmd_mods_ret
+--- @field smods table
 
 --- @class vim.api.keyset.command_info
 --- @field name string
@@ -131,7 +130,6 @@ error('Cannot require a meta file')
 --- @field range? string
 --- @field addr? string
 --- @field callback? function
---- @field desc? string
 
 --- @class vim.api.keyset.hl_info.base
 --- @field reverse? true
@@ -161,7 +159,6 @@ error('Cannot require a meta file')
 --- @field default? true
 --- @field fg? integer
 --- @field fg_indexed? boolean
---- @field font? string
 --- @field link? string
 --- @field sp? integer
 
@@ -202,7 +199,7 @@ error('Cannot require a meta file')
 --- @class vim.api.keyset.get_option_info
 --- @field name string
 --- @field shortname string
---- @field scope 'buf'|'win'|'global'|'tab'
+--- @field scope 'buf'|'win'|'global'
 --- @field global_local boolean
 --- @field commalist boolean
 --- @field flaglist boolean
@@ -214,31 +211,27 @@ error('Cannot require a meta file')
 --- @field default string|boolean|integer
 --- @field allows_duplicates boolean
 
---- @class vim.api.keyset.cmd_ret : vim.api.keyset.cmd
---- @field mods vim.api.keyset.cmd_mods_ret
-
--- Parsed commands and callback modifiers include defaults for every modifier.
---- @class vim.api.keyset.cmd_mods_ret : vim.api.keyset.cmd_mods
---- @field filter { force: boolean, pattern: string }
---- @field silent boolean
---- @field emsg_silent boolean
---- @field unsilent boolean
---- @field sandbox boolean
---- @field noautocmd boolean
---- @field tab integer
---- @field verbose integer
---- @field browse boolean
---- @field confirm boolean
---- @field hide boolean
---- @field keepalt boolean
---- @field keepjumps boolean
---- @field keepmarks boolean
---- @field keeppatterns boolean
---- @field lockmarks boolean
---- @field noswapfile boolean
---- @field vertical boolean
---- @field horizontal boolean
---- @field split ''|'botright'|'topleft'|'belowright'|'aboveleft'
+--- @class vim.api.keyset.cmd.mods
+--- @field filter? { force: boolean, pattern: string }
+--- @field silent? boolean
+--- @field emsg_silent? boolean
+--- @field unsilent? boolean
+--- @field sandbox? boolean
+--- @field noautocmd? boolean
+--- @field tab? integer
+--- @field verbose? integer
+--- @field browse? boolean
+--- @field confirm? boolean
+--- @field hide? boolean
+--- @field keepalt? boolean
+--- @field keepjumps? boolean
+--- @field keepmarks? boolean
+--- @field keeppatterns? boolean
+--- @field lockmarks? boolean
+--- @field noswapfile? boolean
+--- @field vertical? boolean
+--- @field horizontal? boolean
+--- @field split? ''|'botright'|'topleft'|'belowright'|'aboveleft'
 
 --- @class vim.api.keyset.cmd.magic
 --- @field bar boolean

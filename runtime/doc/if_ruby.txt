@@ -3,7 +3,6 @@
 
 		  VIM REFERENCE MANUAL	  by Shugo Maeda
 
-==============================================================================
 The Ruby Interface to Vim				*if_ruby* *ruby* *Ruby*
 
 See |provider-ruby| for more information.
@@ -56,16 +55,16 @@ To see what version of Ruby you have: >
 	:ruby print RUBY_VERSION
 <
 
-:[range]rubyd[o] {cmd}				*:rubydo* *:rubyd* *E265*
-			Evaluate Ruby command {cmd} for each line in the
+						*:rubydo* *:rubyd* *E265*
+:[range]rubyd[o] {cmd}	Evaluate Ruby command {cmd} for each line in the
 			[range], with $_ being set to the text of each line in
 			turn, without a trailing <EOL>.  Setting $_ will
 			change the text, but note that it is not possible to
 			add or delete lines using this command.
 			The default for [range] is the whole file: "1,$".
 
-:rubyf[ile] {file}					*:rubyfile* *:rubyf*
-			Execute the Ruby script in {file}.  This is the same
+							*:rubyfile* *:rubyf*
+:rubyf[ile] {file}	Execute the Ruby script in {file}.  This is the same
 			as `:ruby load 'file'`, but allows file name completion.
 
 Executing Ruby commands is not possible in the |sandbox|.
@@ -100,18 +99,22 @@ Overview >
 
 Module Functions:
 
-VIM::message({msg})					*ruby-message*
+							*ruby-message*
+VIM::message({msg})
 	Displays the message {msg}.
 
-VIM::set_option({arg})					*ruby-set_option*
+							*ruby-set_option*
+VIM::set_option({arg})
 	Sets a vim option.  {arg} can be any argument that the ":set" command
 	accepts.  Note that this means that no spaces are allowed in the
 	argument!  See |:set|.
 
-VIM::command({cmd})					*ruby-command*
+							*ruby-command*
+VIM::command({cmd})
 	Executes Ex command {cmd}.
 
-VIM::evaluate({expr})					*ruby-evaluate*
+							*ruby-evaluate*
+VIM::evaluate({expr})
 	Evaluates {expr} using the vim internal expression evaluator (see
 	|expression|).  Returns the expression result as a string.
 	A |List| is turned into a string by joining the items and inserting
@@ -124,7 +127,6 @@ VIM::Buffer objects represent vim buffers.
 
 Class Methods:
 
-Method		Description ~
 current		Returns the current buffer object.
 count		Returns the number of buffers.
 self[{n}]	Returns the buffer object for the number {n}.  The first
@@ -155,7 +157,6 @@ VIM::Window objects represent vim windows.
 
 Class Methods:
 
-Method		Description ~
 current		Returns the current window object.
 count		Returns the number of windows.
 self[{n}]	Returns the window object for the number {n}.  The first
@@ -178,7 +179,6 @@ cursor = [{row}, {col}]
 
 There are two global variables.
 
-Variable	Description ~
 $curwin		The current window object.
 $curbuf		The current buffer object.
 

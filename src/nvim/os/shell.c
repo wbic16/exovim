@@ -49,6 +49,7 @@
 #include "nvim/ui.h"
 #include "nvim/vim_defs.h"
 
+#define NS_1_SECOND         1000000000U     // 1 second, in nanoseconds
 #define OUT_DATA_THRESHOLD  1024 * 10U      // 10KB, "a few screenfuls" of data.
 
 #define SHELL_SPECIAL "\t \"&'$;<>()\\|\n"
@@ -71,7 +72,7 @@ static void save_patterns(int num_pat, char **pat, int *num_file, char ***file)
 static bool have_wildcard(int num, char **file)
 {
   for (int i = 0; i < num; i++) {
-    if (path_has_wildcard(file[i], true)) {
+    if (path_has_wildcard(file[i])) {
       return true;
     }
   }
@@ -130,13 +131,13 @@ int os_expand_wildcards(int num_pat, char **pat, int *num_file, char ***file, in
   bool ampersand = false;
   // vimglob() function to define for Posix shell
   static char *sh_vimglob_func =
-    "vimglob() { while [ $# -ge 1 ]; do printf '%s\n' \"$1\"; shift; done }; vimglob >";
+    "vimglob() { while [ $# -ge 1 ]; do echo \"$1\"; shift; done }; vimglob >";
   // vimglob() function with globstar setting enabled, only for bash >= 4.X
   static char *sh_globstar_opt =
     "[[ ${BASH_VERSINFO[0]} -ge 4 ]] && shopt -s globstar; ";
 
   bool is_fish_shell =
-#ifdef UNIX
+#if defined(UNIX)
     strncmp(invocation_path_tail(p_sh, NULL), "fish", 4) == 0;
 #else
     false;
@@ -700,7 +701,6 @@ int os_call_shell(char *cmd, int opts, char *extra_args)
 
   if (!emsg_silent && exitcode != 0 && !(opts & kShellOptSilent)) {
     msg_ext_set_kind("shell_ret");
-    msg_ext_no_fast();
     if (!ui_has(kUIMessages)) {
       msg_putchar('\n');
     }
@@ -728,9 +728,7 @@ int call_shell(char *cmd, int opts, char *extra_shell_arg)
   if (p_verbose > 3) {
     verbose_enter();
     smsg(0, _("Executing command: \"%s\""), cmd == NULL ? p_sh : cmd);
-    if (!ui_has(kUIMessages)) {
-      msg_putchar('\n');
-    }
+    msg_putchar('\n');
     verbose_leave();
   }
 
@@ -812,6 +810,7 @@ char *get_cmd_output(char *cmd, char *infile, int flags, size_t *ret_len)
   buffer = xmalloc(len + 1);
   size_t i = fread(buffer, 1, len, fd);
   fclose(fd);
+  os_remove(tempname);
   if (i != len) {
     semsg(_(e_cant_read_file_str), tempname);
     XFREE_CLEAR(buffer);
@@ -829,7 +828,6 @@ char *get_cmd_output(char *cmd, char *infile, int flags, size_t *ret_len)
   }
 
 done:
-  os_remove(tempname);
   xfree(tempname);
   return buffer;
 }
@@ -1048,10 +1046,10 @@ static bool out_data_decide_throttle(size_t size)
     started = os_hrtime();
   } else {
     uint64_t since = os_hrtime() - started;
-    if (since < (visit * (NS_PER_SEC / 10))) {
+    if (since < (visit * (NS_1_SECOND / 10))) {
       return true;
     }
-    if (since > (3 * NS_PER_SEC)) {
+    if (since > (3 * NS_1_SECOND)) {
       received = visit = 0;
       return false;
     }
@@ -1128,7 +1126,6 @@ static void out_data_event(void **argv)
   int hl = (int)(intptr_t)argv[2] == STDERR_FILENO ? HLF_SE : HLF_SO;
   msg_ext_set_kind((int)(intptr_t)argv[2] == STDERR_FILENO ? "shell_err" : "shell_out");
   msg_ext_set_append(true);
-  msg_ext_no_fast();
   msg_multiline(cbuf_as_string((char *)argv[0], (size_t)argv[1]), hl, false, false, &need_clear);
   xfree(argv[0]);
   ui_flush();

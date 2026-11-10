@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local eq = t.eq
 local pcall_err = t.pcall_err
 local feed = n.feed
@@ -424,19 +423,6 @@ describe('inputdialog()', function()
       {EOB:~                        }|*3
       {RBP1:(}{RBP2:()}{RBP1:)}^                     |
     ]])
-  end)
-end)
-
-describe('inputlist()', function()
-  it("only offers the mouse when 'mouse' applies to cmdline mode", function()
-    screen:try_resize(75, 5)
-    feed(':call inputlist(["foo", "bar"])<CR>')
-    screen:expect({ any = vim.pesc('Type number and <Enter> (q or empty cancels): ') })
-    feed('q')
-    command('set mouse=a')
-    feed(':call inputlist(["foo", "bar"])<CR>')
-    screen:expect({ any = vim.pesc('Type number and <Enter> or click with the mouse') })
-    feed('q')
   end)
 end)
 

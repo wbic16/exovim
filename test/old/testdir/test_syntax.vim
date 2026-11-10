@@ -73,13 +73,6 @@ func Test_syn_iskeyword()
   redir END
   call assert_equal("\nsyntax iskeyword @,48-57,_,192-255", @c)
 
-  call assert_fails("syntax iskeyword invalid_value", "E474:")
-  redir @c
-  syn iskeyword
-  redir END
-  " did not change
-  call assert_equal("\nsyntax iskeyword @,48-57,_,192-255", @c)
-
   setlocal isk-=_
   call assert_equal('DLTD_BY', GetSyntaxItem('DLTD'))
   /\<D\k\+\>/:norm! ygn
@@ -110,15 +103,10 @@ func Test_syntax_after_reload()
   call delete('Xsomefile')
 endfunc
 
-func Test_syntax_filetype_syntax()
-  set filetype=syntax
-  syntax on
-  syntax off
-  set filetype= syntax=
-endfunc
-
 func Test_syntime()
-  CheckFeature profile
+  if !has('profile')
+    return
+  endif
 
   syntax on
   syntime on
@@ -715,44 +703,6 @@ func Test_syn_zsub()
 
   set re&
   bw!
-endfunc
-
-func s:SynDumpBuffer(ft, lines)
-  new
-  syntax on
-  execute 'setfiletype ' .. a:ft
-  call setline(1, a:lines)
-  let result = []
-  for lnum in range(1, line('$'))
-    for col in range(1, max([1, len(getline(lnum))]))
-      call add(result, synIDattr(synID(lnum, col, 1), 'name'))
-    endfor
-  endfor
-  bwipe!
-  return result
-endfunc
-
-" The in_id_list() cache is a speed optimization only: highlighting must be
-" identical with the cache on (default) and off.  Compare full-buffer synID()
-" output both ways across filetypes that use "contains"/cluster lists.
-func Test_syntax_idlist_cache_unchanged()
-  throw 'Skipped: Nvim does not support test_override()'
-  let samples = {
-        \ 'c': ['#define M 0x1F', "char c = '\\n';",
-        \       'int f(int a) { return a + 0xAB; }'],
-        \ 'vim': ['func <SID>Foo() abort', '  let x = [1, 2] + {"k": 0z1f}',
-        \         'endfunc'],
-        \ 'python': ['class C:', '    def m(self): return {1: "s", 2: r"\d"}'],
-        \ 'sh': ['case $x in', '  a) echo "${y:-0xAB}";;', 'esac'],
-        \ }
-  for ft in sort(keys(samples))
-    call test_override('syn_idlist_cache', 0)
-    let l:on = s:SynDumpBuffer(ft, samples[ft])
-    call test_override('syn_idlist_cache', 1)
-    let l:off = s:SynDumpBuffer(ft, samples[ft])
-    call test_override('ALL', 0)
-    call assert_equal(l:off, l:on, 'filetype ' .. ft)
-  endfor
 endfunc
 
 " Using \z() in a region with NFA failing should not crash.

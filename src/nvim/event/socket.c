@@ -27,18 +27,19 @@
 ///
 /// @param address Address string
 /// @return pointer to the end of the host part of the address, or NULL if it is not a TCP address
-char *socket_address_tcp_host_end(const char *address)
+char *socket_address_tcp_host_end(char *address)
 {
   if (address == NULL) {
     return NULL;
   }
 
-  // Windows drive letter path: "X:/..." is a local path, not TCP.
-  if (ASCII_ISALPHA((uint8_t)address[0]) && address[1] == ':' && address[2] == '/') {
+  // Windows drive letter path: "X:\..." or "X:/..." is a local path, not TCP.
+  if (ASCII_ISALPHA((uint8_t)address[0]) && address[1] == ':'
+      && (address[2] == '\\' || address[2] == '/')) {
     return NULL;
   }
 
-  char *colon = strrchr((char *)address, ':');
+  char *colon = strrchr(address, ':');
   return colon != NULL && colon != address ? colon : NULL;
 }
 
@@ -103,18 +104,17 @@ static void connect_close_cb(Stream *stream, void *data)
   *closed = true;
 }
 
-/// Checks if a socket is alive by attempting to connect to it.
+/// Check if a socket is alive by attempting to connect to it.
 /// @param loop Event loop
-/// @param is_tcp Whether `addr` is a TCP "host:port", else a pipe.
 /// @param addr Socket address to probe
-/// @param[out] error Reason, if not alive.
 /// @return true if socket is alive (connection succeeded), false otherwise
-bool socket_alive(Loop *loop, bool is_tcp, const char *addr, const char **error)
+static bool socket_alive(Loop *loop, const char *addr)
 {
   RStream stream = { 0 };
+  const char *error = NULL;
 
   // Try to connect with a 500ms timeout (fast failure for dead sockets)
-  bool connected = socket_connect(loop, &stream, is_tcp, addr, 500, error);
+  bool connected = socket_connect(loop, &stream, false, addr, 500, &error);
   if (!connected) {
     return false;
   }
@@ -176,8 +176,7 @@ int socket_watcher_start(SocketWatcher *watcher, int backlog, socket_cb cb)
     if (result == UV_EACCES || result == UV_EADDRINUSE) {
       Loop *loop = watcher->stream->loop->data;
 
-      const char *error = NULL;
-      if (!socket_alive(loop, false, watcher->addr, &error)) {
+      if (!socket_alive(loop, watcher->addr)) {
         // Socket exists but is dead - remove it
         ILOG("Removing stale socket: %s", watcher->addr);
         int rm_result = os_remove(watcher->addr);

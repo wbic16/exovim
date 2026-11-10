@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local eq = t.eq
 local feed = n.feed
@@ -76,10 +75,8 @@ describe('CursorHold', function()
     sleep(50)
     eq(0, api.nvim_get_var('cursorhold'))
     feed('0')
-    -- Poll: CursorHold may take longer than one 'updatetime' to fire.
-    retry(nil, 1000, function()
-      eq(1, api.nvim_get_var('cursorhold'))
-    end)
+    sleep(50)
+    eq(1, api.nvim_get_var('cursorhold'))
   end)
 end)
 

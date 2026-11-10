@@ -1,6 +1,4 @@
-local strbuffer = require('vim._core.stringbuffer')
 local uv = vim.uv
-local M = {}
 
 --- @class vim.SystemOpts
 --- @inlinedoc
@@ -31,8 +29,8 @@ local M = {}
 --- Handle stdout and stderr as text. Normalizes line endings by replacing `\r\n` with `\n`.
 --- @field text? boolean
 ---
---- Run the command with a time limit (ms). Upon timeout the process is stopped
---- (|SystemObj:close()|) and exit code is 124.
+--- Run the command with a time limit in ms. Upon timeout the process is sent the TERM signal (15)
+--- and the exit code is set to 124.
 --- @field timeout? integer
 ---
 --- Spawn the child process in a detached state - this will make it a process group leader, and will
@@ -53,17 +51,13 @@ local M = {}
 --- @field timer?  uv.uv_timer_t
 --- @field pid? integer
 --- @field timeout? integer
---- @field stopped? 'timeout'|'close' Set when a timeout or `close()` stops the process.
+--- @field done? boolean|'timeout'
 --- @field stdin? uv.uv_stream_t
 --- @field stdout? uv.uv_stream_t
 --- @field stderr? uv.uv_stream_t
---- @field stdout_handler? fun(err: string?, data: string?) Reads `stdout`; closes it on EOF (nil).
---- @field stderr_handler? fun(err: string?, data: string?) Reads `stderr`; closes it on EOF (nil).
---- @field stdout_data? vim._core.stringbuffer
---- @field stderr_data? vim._core.stringbuffer
---- @field exit? { code: integer, signal: integer } Exit status, set when the process exits.
---- @field result? vim.SystemCompleted Set after the process exits and its output pipes close.
---- @field on_close? fun()[] Callbacks of `close()`, called after the process exits.
+--- @field stdout_data? string[]
+--- @field stderr_data? string[]
+--- @field result? vim.SystemCompleted
 
 --- @enum vim.SystemSig
 local SIG = {
@@ -81,53 +75,10 @@ local function close_handle(handle)
   end
 end
 
---- @param timeout integer
---- @param cb fun()
---- @return uv.uv_timer_t
-local function timer_oneshot(timeout, cb)
-  local timer = assert(uv.new_timer())
-  uv.update_time() -- See time_watcher_start().
-  timer:start(timeout, 0, function()
-    timer:stop()
-    timer:close()
-    cb()
-  end)
-  return timer
-end
-
---- Gets the result from the exit status and the output read so far.
---- @param state vim.SystemState
---- @return vim.SystemCompleted
-local function completed(state)
-  local exit = assert(state.exit)
-  local code = exit.code
-  if (code == 0 or code == 1) and state.stopped == 'timeout' then
-    code = 124 -- Stopped: code 0 (Unix) or 1 (Windows).
-  end
-  return {
-    code = code,
-    signal = exit.signal,
-    stdout = state.stdout_data and state.stdout_data:tostring() or nil,
-    stderr = state.stderr_data and state.stderr_data:tostring() or nil,
-  }
-end
-
---- Closes output pipes without waiting for EOF, which a descendant process may otherwise delay
---- indefinitely. Calls each pipe's handler with `nil` data, as EOF would.
---- @param state vim.SystemState
-local function end_output(state)
-  if state.stdout and not state.stdout:is_closing() then
-    assert(state.stdout_handler)(nil, nil)
-  end
-  if state.stderr and not state.stderr:is_closing() then
-    assert(state.stderr_handler)(nil, nil)
-  end
-end
-
 --- @class vim.SystemObj
 --- @field cmd string[] Command name and args
 --- @field pid integer Process ID
---- @field package _state vim.SystemState
+--- @field private _state vim.SystemState
 local SystemObj = {}
 
 --- @param state vim.SystemState
@@ -152,120 +103,51 @@ end
 ---
 --- @param signal integer|string Signal to send to the process. See |luv-constants|.
 function SystemObj:kill(signal)
-  assert(self._state.handle):kill(signal)
-end
-
---- Stops the process (SIGTERM, escalates to SIGKILL after 2s). On process-exit, closes its output
---- pipes without waiting for EOF (see `on_exit`), and calls `on_close`. Implements
---- |vim.async.Closable|, so closing a task that awaits |vim.system()| stops the process.
----
---- Example:
---- ```lua
---- local task = vim.async.run(function()
----   return vim.async.await(3, vim.system, { 'sleep', '10' }, {})
---- end)
---- task:close() -- Stops `sleep`.
---- ```
----
---- @param on_close? fun()
-function SystemObj:close(on_close)
-  local state = self._state
-  if state.result then -- Exited already.
-    if on_close then
-      on_close()
-    end
-    return
-  end
-  if on_close then
-    state.on_close = state.on_close or {}
-    table.insert(state.on_close, on_close)
-  end
-  state.stopped = state.stopped or 'close'
-  if state.exit then
-    end_output(state) -- Exited already (see `_on_exit()`).
-  elseif state.handle and state.handle:is_active() then
-    self:kill(SIG.TERM)
-    close_handle(state.timer) -- Stopping anyway: replaces the `timeout` timer.
-    state.timer = timer_oneshot(2000, function()
-      if state.handle and state.handle:is_active() then
-        self:kill(SIG.KILL)
-      end
-    end)
-  end
+  self._state.handle:kill(signal)
 end
 
 --- @package
-function SystemObj:_timeout()
-  if self._state.handle and self._state.handle:is_active() then
-    self._state.stopped = 'timeout'
-    self:close()
-  end
+--- @param signal? vim.SystemSig
+function SystemObj:_timeout(signal)
+  self._state.done = 'timeout'
+  self:kill(signal or SIG.TERM)
 end
 
---- Waits for the process to complete, and stops it on timeout or CTRL-C.
+--- Waits for the process to complete or until the specified timeout elapses.
 ---
---- Blocks until the process exits and its output pipes close, or until `timeout` (ms) or CTRL-C.
---- If `timeout` is not given it defaults to `opts.timeout`, else waits indefinitely.
+--- This method blocks execution until the associated process has exited or
+--- the optional `timeout` (in milliseconds) has been reached. If the process
+--- does not exit before the timeout, it is forcefully terminated with SIGKILL
+--- (signal 9), and the exit code is set to 124.
 ---
---- On timeout:
---- - Stops the process (|SystemObj:close()|) if it is running, and sets exit code 124.
---- - Waits for process exit (max 2s, escalates to SIGKILL), but not its output pipes (a descendant
----   may inherit them and keep them open, e.g. a browser started by `xdg-open`).
---- - Returns the output collected so far.
----
---- On CTRL-C:
---- - Stops the process (see above).
---- - Raises error "interrupted".
+--- If no `timeout` is provided, the method will wait indefinitely (or use the
+--- timeout specified in the options when the process was started).
 ---
 --- Example:
 --- ```lua
 --- local obj = vim.system({'echo', 'hello'}, { text = true })
 --- local result = obj:wait(1000) -- waits up to 1000ms
 --- print(result.code, result.signal, result.stdout, result.stderr)
----
---- -- Monitor a long-lived process that prints "READY".
---- local result = vim.system({ 'ssh', '-L', … }):wait(nil, function(stdout)
----   return stdout:find('READY') ~= nil
---- end)
 --- ```
 ---
---- @param timeout? integer Wait duration (ms).
---- @param cond? fun(stdout: string, stderr: string): boolean Stops waiting when it returns true,
---- without terminating the process. The `stdout` and `stderr` args have the accumulated output so
---- far. The result has no `code` or `signal`.
+--- @param timeout? integer
 --- @return vim.SystemCompleted
-function SystemObj:wait(timeout, cond)
+function SystemObj:wait(timeout)
   local state = self._state
 
-  --- @param buf? vim._core.stringbuffer
-  local function output(buf)
-    return buf and buf:tostring() or nil
-  end
-  local done, err = vim.wait(timeout or state.timeout or vim._maxint, function()
+  local done = vim.wait(timeout or state.timeout or vim._maxint, function()
     return state.result ~= nil
-      or (cond ~= nil and cond(output(state.stdout_data) or '', output(state.stderr_data) or ''))
-  end, 200, true)
-
-  if done and not state.result then
-    return { stdout = output(state.stdout_data), stderr = output(state.stderr_data) } --[[@as vim.SystemCompleted]]
-  end
+  end, nil, true)
 
   if not done then
-    if err == -2 then -- CTRL-C.
-      self:close()
-      error('interrupted', 0)
-    end
-    self:_timeout()
-    -- Exits within 2s (see `close()`).
-    done, err = vim.wait(vim._maxint, function()
-      return state.exit ~= nil
+    -- Send sigkill since this cannot be caught
+    self:_timeout(SIG.KILL)
+    vim.wait(timeout or state.timeout or vim._maxint, function()
+      return state.result ~= nil
     end, nil, true)
-    if err == -2 then
-      error('interrupted', 0)
-    end
   end
 
-  return state.result or completed(state)
+  return state.result
 end
 
 --- Writes data to the stdin of the process or closes stdin.
@@ -325,41 +207,36 @@ function SystemObj:is_closing()
   return handle == nil or handle:is_closing() or false
 end
 
---- @param output? fun(err: string?, data: string?)|boolean
+--- @param output? fun(err: string?, data: string?)|false
 --- @param text? boolean
 --- @return uv.uv_stream_t? pipe
---- @return integer? child_fd
 --- @return fun(err: string?, data: string?)? handler
---- @return vim._core.stringbuffer? data
+--- @return string[]? data
 local function setup_output(output, text)
   if output == false then
     return
   end
 
-  local bucket --- @type vim._core.stringbuffer?
+  local bucket --- @type string[]?
   local handler --- @type fun(err: string?, data: string?)
 
   if type(output) == 'function' then
     handler = output
   else
-    local buf = strbuffer.new()
-    bucket = buf
-    --- @param err string?
-    --- @param data string?
+    bucket = {}
     handler = function(err, data)
       if err then
         error(err)
       end
-      if data then
-        buf:put(text and (data:gsub('\r\n', '\n')) or data)
+      if text and data then
+        bucket[#bucket + 1] = data:gsub('\r\n', '\n')
+      else
+        bucket[#bucket + 1] = data
       end
     end
   end
 
-  --- @diagnostic disable-next-line:missing-fields,param-type-mismatch luvit/luv#827
-  local pipe_fd = assert(uv.pipe({ nonblock = true }, {}))
   local pipe = assert(uv.new_pipe(false))
-  pipe:open(pipe_fd.read)
 
   --- @param err? string
   --- @param data? string
@@ -371,12 +248,11 @@ local function setup_output(output, text)
     end
   end
 
-  return pipe, pipe_fd.write, handler_with_close, bucket
+  return pipe, handler_with_close, bucket
 end
 
 --- @param input? string|string[]|boolean
 --- @return uv.uv_stream_t?
---- @return integer? child_fd
 --- @return string|string[]?
 local function setup_input(input)
   if not input then
@@ -388,12 +264,7 @@ local function setup_input(input)
     towrite = input
   end
 
-  --- @diagnostic disable-next-line:missing-fields,param-type-mismatch luvit/luv#827
-  local pipe_fd = assert(uv.pipe({}, { nonblock = true }))
-  local pipe = assert(uv.new_pipe(false))
-  pipe:open(pipe_fd.write)
-
-  return pipe, pipe_fd.read, towrite
+  return assert(uv.new_pipe(false)), towrite
 end
 
 --- @return table<string,string>
@@ -431,32 +302,20 @@ end
 
 local is_win = vim.fn.has('win32') == 1
 
---- @class (private) vim.SystemSpawnOpts : uv.spawn.options
---- @field stdio [integer?, integer?, integer?]
-
 --- @param cmd string
---- @param opts vim.SystemSpawnOpts
+--- @param opts uv.spawn.options
 --- @param on_exit fun(code: integer, signal: integer)
 --- @param on_error fun()
---- @return uv.uv_process_t, integer
+--- @return uv.uv_process_t?, integer?
 local function spawn(cmd, opts, on_exit, on_error)
   if is_win then
     local cmd1 = vim.fn.exepath(cmd)
     if cmd1 ~= '' then
-      -- Use native separators when launching a resolved Windows executable.
-      cmd = cmd1:gsub('/', '\\')
+      cmd = cmd1
     end
   end
 
   local handle, pid_or_err = uv.spawn(cmd, opts, on_exit)
-  -- close child stdio fd:s regardless of error
-  for i = 1, 3 do
-    local fd = opts.stdio[i]
-    if fd then
-      uv.fs_close(fd)
-    end
-  end
-
   if not handle then
     on_error()
     if opts.cwd and not uv.fs_stat(opts.cwd) then
@@ -470,24 +329,33 @@ local function spawn(cmd, opts, on_exit, on_error)
   return handle, pid_or_err --[[@as integer]]
 end
 
+--- @param timeout integer
+--- @param cb fun()
+--- @return uv.uv_timer_t
+local function timer_oneshot(timeout, cb)
+  local timer = assert(uv.new_timer())
+  timer:start(timeout, 0, function()
+    timer:stop()
+    timer:close()
+    cb()
+  end)
+  return timer
+end
+
 --- @param state vim.SystemState
 --- @param code integer
 --- @param signal integer
 --- @param on_exit fun(result: vim.SystemCompleted)?
 local function _on_exit(state, code, signal, on_exit)
-  state.exit = { code = code, signal = signal }
   close_handle(state.handle)
   close_handle(state.stdin)
   close_handle(state.timer)
 
-  -- #30846: Do not close stdout/stderr here, as they may still have data to read. They close on EOF,
-  -- or if the process was stopped, in the check below: after the event-loop poll that reported the
-  -- exit, which also read the output that the process wrote.
+  -- #30846: Do not close stdout/stderr here, as they may still have data to
+  -- read. They will be closed in uv.read_start on EOF.
+
   local check = uv.new_check()
   check:start(function()
-    if state.stopped then
-      end_output(state)
-    end
     for _, pipe in pairs({ state.stdin, state.stdout, state.stderr }) do
       if not pipe:is_closing() then
         return
@@ -496,11 +364,26 @@ local function _on_exit(state, code, signal, on_exit)
     check:stop()
     check:close()
 
-    state.result = completed(state)
-
-    for _, on_close in ipairs(state.on_close or {}) do
-      on_close()
+    if state.done == nil then
+      state.done = true
     end
+
+    if (code == 0 or code == 1) and state.done == 'timeout' then
+      -- Unix: code == 0
+      -- Windows: code == 1
+      code = 124
+    end
+
+    local stdout_data = state.stdout_data
+    local stderr_data = state.stderr_data
+
+    state.result = {
+      code = code,
+      signal = signal,
+      stdout = stdout_data and table.concat(stdout_data) or nil,
+      stderr = stderr_data and table.concat(stderr_data) or nil,
+    }
+
     if on_exit then
       on_exit(state.result)
     end
@@ -523,37 +406,34 @@ end
 --- @param on_exit? fun(out: vim.SystemCompleted)
 --- @return vim.SystemObj
 local function run(cmd, opts, on_exit)
-  vim.validate('cmd', cmd, function(v)
-    return type(v) == 'table' and type(v[1]) == 'string'
-  end, 'non-empty list of strings')
-  --- @cast cmd string[] & { [1]: string }
+  vim.validate('cmd', cmd, 'table')
   vim.validate('opts', opts, 'table', true)
   vim.validate('on_exit', on_exit, 'function', true)
 
   opts = opts or {}
 
-  local stdout, stdout_child_fd, stdout_handler, stdout_data = setup_output(opts.stdout, opts.text)
-  local stderr, stderr_child_fd, stderr_handler, stderr_data = setup_output(opts.stderr, opts.text)
-  local stdin, stdin_child_fd, towrite = setup_input(opts.stdin)
+  local stdout, stdout_handler, stdout_data = setup_output(opts.stdout, opts.text)
+  local stderr, stderr_handler, stderr_data = setup_output(opts.stderr, opts.text)
+  local stdin, towrite = setup_input(opts.stdin)
 
   --- @type vim.SystemState
   local state = {
+    done = false,
     cmd = cmd,
     timeout = opts.timeout,
     stdin = stdin,
     stdout = stdout,
     stdout_data = stdout_data,
-    stdout_handler = stdout_handler,
     stderr = stderr,
     stderr_data = stderr_data,
-    stderr_handler = stderr_handler,
   }
 
+  --- @diagnostic disable-next-line:missing-fields
   state.handle, state.pid = spawn(cmd[1], {
     args = vim.list_slice(cmd, 2),
-    -- local function spawn() will close these
-    stdio = { stdin_child_fd, stdout_child_fd, stderr_child_fd },
+    stdio = { stdin, stdout, stderr },
     cwd = opts.cwd,
+    --- @diagnostic disable-next-line:assign-type-mismatch
     env = setup_env(opts.env, opts.clear_env),
     detached = opts.detach,
     hide = true,
@@ -580,7 +460,9 @@ local function run(cmd, opts, on_exit)
 
   if opts.timeout then
     state.timer = timer_oneshot(opts.timeout, function()
-      obj:_timeout()
+      if state.handle and state.handle:is_active() then
+        obj:_timeout()
+      end
     end)
   end
 
@@ -617,10 +499,8 @@ end
 ---
 --- @param cmd string[] Command to execute
 --- @param opts vim.SystemOpts?
---- @param on_exit? fun(out: vim.SystemCompleted) Called with the result on process exit and output
----   pipes closed. Delayed (possibly indefinitely) if a descendant process inherits the pipes and
----   does not close them (e.g. `cmd &` in a shell script). Note that |SystemObj:close()| closes
----   pipes, thus ensuring `on_exit` is called.
+--- @param on_exit? fun(out: vim.SystemCompleted) Called when subprocess exits. When provided, the command runs
+---   asynchronously. See return of SystemObj:wait().
 ---
 --- @return vim.SystemObj
 --- @overload fun(cmd: string[], on_exit: fun(out: vim.SystemCompleted)): vim.SystemObj
@@ -631,5 +511,3 @@ function vim.system(cmd, opts, on_exit)
   end
   return run(cmd, opts, on_exit)
 end
-
-return M

@@ -5,13 +5,10 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "nvim/errors.h"
 #include "nvim/garray.h"
-#include "nvim/gettext_defs.h"
 #include "nvim/log.h"
 #include "nvim/macros_defs.h"
 #include "nvim/memory.h"
-#include "nvim/message.h"
 #include "nvim/path.h"
 #include "nvim/strings.h"
 
@@ -113,7 +110,7 @@ void ga_remove_duplicate_strings(garray_T *gap)
 
   // loop over the growing array in reverse
   for (int i = gap->ga_len - 1; i > 0; i--) {
-    if (path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral)) {
+    if (path_fnamecmp(fnames[i - 1], fnames[i]) == 0) {
       xfree(fnames[i]);
 
       // close the gap (move all strings one slot lower)
@@ -189,10 +186,6 @@ void ga_concat_len(garray_T *const gap, const char *restrict s, const size_t len
   FUNC_ATTR_NONNULL_ALL
 {
   if (len == 0) {
-    return;
-  }
-  if (len > (size_t)(INT_MAX - gap->ga_len)) {
-    emsg(_(e_resulting_text_too_long));
     return;
   }
   ga_grow(gap, (int)len);

@@ -16,6 +16,7 @@
 #include "nvim/buffer_defs.h"
 #include "nvim/buffer_updates.h"
 #include "nvim/channel.h"
+#include "nvim/context.h"
 #include "nvim/decoration_provider.h"
 #include "nvim/drawline.h"
 #include "nvim/errors.h"
@@ -24,17 +25,14 @@
 #include "nvim/globals.h"
 #include "nvim/highlight.h"
 #include "nvim/highlight_group.h"
-#include "nvim/input_cmdatom.h"
 #include "nvim/insexpand.h"
 #include "nvim/lua/executor.h"
 #include "nvim/main.h"
 #include "nvim/map_defs.h"
 #include "nvim/mapping.h"
-#include "nvim/mcursor.h"
 #include "nvim/memfile.h"
 #include "nvim/memory.h"
 #include "nvim/message.h"
-#include "nvim/normal.h"
 #include "nvim/option_vars.h"
 #include "nvim/sign.h"
 #include "nvim/state_defs.h"
@@ -828,18 +826,18 @@ char *arena_strdup(Arena *arena, const char *str)
   return arena_memdupz(arena, str, strlen(str));
 }
 
-#ifdef EXITFREE
+#if defined(EXITFREE)
 
 # include "nvim/autocmd.h"
 # include "nvim/buffer.h"
 # include "nvim/cmdhist.h"
 # include "nvim/diff.h"
+# include "nvim/edit.h"
 # include "nvim/ex_cmds.h"
 # include "nvim/ex_docmd.h"
 # include "nvim/file_search.h"
+# include "nvim/getchar.h"
 # include "nvim/grid.h"
-# include "nvim/input.h"
-# include "nvim/insert.h"
 # include "nvim/mark.h"
 # include "nvim/msgpack_rpc/channel.h"
 # include "nvim/option.h"
@@ -861,10 +859,9 @@ void free_all_mem(void)
 {
   buf_T *buf, *nextbuf;
 
-  // If a routine below recurses into free_all_mem, don't try freeing everything again.
+  // When we cause a crash here it is caught and Vim tries to exit cleanly.
+  // Don't try freeing everything again.
   if (entered_free_all_mem) {
-    // Except the Lua state. #39675
-    nlua_free_all_mem();
     return;
   }
   entered_free_all_mem = true;
@@ -960,14 +957,15 @@ void free_all_mem(void)
     // callbacks are called, so free them before closing the buffer.
     buf_free_callbacks(buf);
 
-    close_buffer(NULL, buf, DOBUF_WIPE, false, false, false);
+    close_buffer(NULL, buf, DOBUF_WIPE, false, false);
     // Didn't work, try next one.
     buf = bufref_valid(&bufref) ? nextbuf : firstbuf;
   }
 
   // Clear registers.
   clear_registers();
-  redo_free_all();
+  ResetRedobuff();
+  ResetRedobuff();
 
   // highlight info
   free_highlight();
@@ -985,8 +983,7 @@ void free_all_mem(void)
   channel_free_all_mem();
   eval_clear();
   api_extmark_free_all_mem();
-  atom_free_all();
-  mc_free_all();
+  ctx_free_all();
 
   map_destroy(int, &buffer_handles);
   map_destroy(int, &window_handles);

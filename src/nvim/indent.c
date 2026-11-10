@@ -12,6 +12,7 @@
 #include "nvim/charset.h"
 #include "nvim/cursor.h"
 #include "nvim/drawscreen.h"
+#include "nvim/edit.h"
 #include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
@@ -25,7 +26,6 @@
 #include "nvim/globals.h"
 #include "nvim/indent.h"
 #include "nvim/indent_c.h"
-#include "nvim/insert.h"
 #include "nvim/mark_defs.h"
 #include "nvim/mbyte.h"
 #include "nvim/mbyte_defs.h"
@@ -37,7 +37,6 @@
 #include "nvim/option.h"
 #include "nvim/option_defs.h"
 #include "nvim/option_vars.h"
-#include "nvim/optionstr.h"
 #include "nvim/os/input.h"
 #include "nvim/plines.h"
 #include "nvim/pos_defs.h"
@@ -53,34 +52,30 @@
 
 #include "indent.c.generated.h"
 
-#include "options_keysets.generated.h"
-
 /// Set the integer values corresponding to the string setting of 'vartabstop'.
 /// "array" will be set, caller must free it if needed.
 ///
-/// @param errbuf  Buffer for error message, or NULL when only checking success.
-/// @return  an error message, or NULL on success.
-const char *tabstop_set(char *var, colnr_T **array, const CharBuf *errbuf)
+/// @return  false for an error.
+bool tabstop_set(char *var, colnr_T **array)
 {
   int valcount = 1;
 
   if (var[0] == NUL || (var[0] == '0' && var[1] == NUL)) {
     *array = NULL;
-    return NULL;
+    return true;
   }
 
   for (char *cp = var; *cp != NUL; cp++) {
     if (cp == var || cp[-1] == ',') {
-      char *end = cp;
+      char *end;
 
-      // Use def=1 so that overflow/too-large values pass this check and are
-      // instead rejected by the "n > TABSTOP_MAX" check in the loop below.
-      if (getdigits(&end, false, 1) <= 0) {
+      if (strtol(cp, &end, 10) <= 0) {
         if (cp != end) {
-          return e_positive;
+          emsg(_(e_positive));
+        } else {
+          semsg(_(e_invarg2), cp);
         }
-        var = cp;
-        goto invalid;
+        return false;
       }
     }
 
@@ -91,7 +86,8 @@ const char *tabstop_set(char *var, colnr_T **array, const CharBuf *errbuf)
       valcount++;
       continue;
     }
-    goto invalid;
+    semsg(_(e_invarg2), var);
+    return false;
   }
 
   *array = (colnr_T *)xmalloc((unsigned)(valcount + 1) * sizeof(int));
@@ -103,9 +99,9 @@ const char *tabstop_set(char *var, colnr_T **array, const CharBuf *errbuf)
 
     // Catch negative values, overflow and ridiculous big values.
     if (n <= 0 || n > TABSTOP_MAX) {
+      semsg(_(e_invarg2), cp);
       XFREE_CLEAR(*array);
-      var = cp;
-      goto invalid;
+      return false;
     }
     (*array)[t++] = n;
     while (*cp != NUL && *cp != ',') {
@@ -116,10 +112,7 @@ const char *tabstop_set(char *var, colnr_T **array, const CharBuf *errbuf)
     }
   }
 
-  return NULL;
-
-invalid:
-  return opt_error(errbuf, e_invarg2, var);
+  return true;
 }
 
 /// Calculate the number of screen spaces a tab will occupy.
@@ -283,6 +276,28 @@ void tabstop_fromto(colnr_T start_col, colnr_T end_col, int ts_arg, const colnr_
   *nspcs = spaces % (int)vts[tabcount];
 }
 
+/// See if two tabstop arrays contain the same values.
+static bool tabstop_eq(const colnr_T *ts1, const colnr_T *ts2)
+{
+  if ((ts1 == 0 && ts2) || (ts1 && ts2 == 0)) {
+    return false;
+  }
+  if (ts1 == ts2) {
+    return true;
+  }
+  if (ts1[0] != ts2[0]) {
+    return false;
+  }
+
+  for (int t = 1; t <= ts1[0]; t++) {
+    if (ts1[t] != ts2[t]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /// Copy a tabstop array, allocating space for the new array.
 int *tabstop_copy(const int *oldts)
 {
@@ -376,7 +391,7 @@ int get_indent_buf(buf_T *buf, linenr_T lnum)
 int indent_size_no_ts(char const *ptr)
   FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
 {
-  int tab_size = dy_escape_width;
+  int tab_size = byte2cells(TAB);
 
   int vcol = 0;
   while (true) {
@@ -730,7 +745,7 @@ int get_number_indent(linenr_T lnum)
   pos.lnum = 0;
 
   // In format_lines() (i.e. not insert mode), fo+=q is needed too...
-  if ((State & MODE_INSERT) || has_format_option(kFoQComs)) {
+  if ((State & MODE_INSERT) || has_format_option(FO_Q_COMS)) {
     lead_len = get_leader_len(ml_get(lnum), NULL, false, true);
   }
   regmatch.regprog = vim_regcomp(curbuf->b_p_flp, RE_MAGIC);
@@ -751,7 +766,7 @@ int get_number_indent(linenr_T lnum)
   if ((pos.lnum == 0) || (*ml_get_pos(&pos) == NUL)) {
     return -1;
   }
-  getvcol(curwin, &pos, &col, NULL, NULL, 0);
+  getvcol(curwin, &pos, &col, NULL, NULL);
   return (int)col;
 }
 
@@ -763,19 +778,59 @@ int get_number_indent(linenr_T lnum)
 /// @param wp      when NULL: only check "briopt"
 ///
 /// @return  FAIL for failure, OK otherwise.
-void briopt_check(win_T *wp)
+bool briopt_check(char *briopt, win_T *wp)
 {
-  if (wp == NULL) {
-    return;  // Setting the global value: nothing to apply to a window.
+  int bri_shift = 0;
+  int bri_min = 20;
+  bool bri_sbr = false;
+  int bri_list = 0;
+  int bri_vcol = 0;
+
+  char *p = empty_string_option;
+  if (briopt != NULL) {
+    p = briopt;
+  } else if (wp != NULL) {
+    p = wp->w_p_briopt;
   }
-  // 'breakindentopt' is stored as its ":set" string (validated when set); reify it into a keyset and
-  // map that onto the applied per-window fields.
-  OptKeyDict_briopt *v = opt_keyset(wp->w_p_briopt, kOptBreakindentopt, NULL);
-  wp->w_briopt_shift = HAS_KEY(v, briopt, shift) ? (int)v->shift : 0;
-  wp->w_briopt_min = HAS_KEY(v, briopt, min) ? (int)v->min : 20;
-  wp->w_briopt_sbr = HAS_KEY(v, briopt, sbr);
-  wp->w_briopt_list = HAS_KEY(v, briopt, list) ? (int)v->list : 0;
-  wp->w_briopt_vcol = HAS_KEY(v, briopt, column) ? (int)v->column : 0;
+
+  while (*p != NUL) {
+    // Note: Keep this in sync with opt_briopt_values.
+    if (strncmp(p, "shift:", 6) == 0
+        && ((p[6] == '-' && ascii_isdigit(p[7])) || ascii_isdigit(p[6]))) {
+      p += 6;
+      bri_shift = getdigits_int(&p, true, 0);
+    } else if (strncmp(p, "min:", 4) == 0 && ascii_isdigit(p[4])) {
+      p += 4;
+      bri_min = getdigits_int(&p, true, 0);
+    } else if (strncmp(p, "sbr", 3) == 0) {
+      p += 3;
+      bri_sbr = true;
+    } else if (strncmp(p, "list:", 5) == 0) {
+      p += 5;
+      bri_list = (int)getdigits(&p, false, 0);
+    } else if (strncmp(p, "column:", 7) == 0) {
+      p += 7;
+      bri_vcol = (int)getdigits(&p, false, 0);
+    }
+    if (*p != ',' && *p != NUL) {
+      return false;
+    }
+    if (*p == ',') {
+      p++;
+    }
+  }
+
+  if (wp == NULL) {
+    return OK;
+  }
+
+  wp->w_briopt_shift = bri_shift;
+  wp->w_briopt_min = bri_min;
+  wp->w_briopt_sbr = bri_sbr;
+  wp->w_briopt_list = bri_list;
+  wp->w_briopt_vcol = bri_vcol;
+
+  return true;
 }
 
 // Return appropriate space number for breakindent, taking influencing
@@ -953,7 +1008,7 @@ void op_reindent(oparg_T *oap, Indenter how)
         // Restore cursor to avoid redrawing curwin in msg_show callback.
         linenr_T save_lnum = curwin->w_cursor.lnum;
         curwin->w_cursor.lnum = start_lnum;
-        msg_progress(IObuff, "nvim.indent", "running", -1, 0, true, false, false);
+        msg_progress(IObuff, "indent", "running", 0, true, false);
         curwin->w_cursor.lnum = save_lnum;
       }
 
@@ -995,7 +1050,7 @@ void op_reindent(oparg_T *oap, Indenter how)
     i = oap->line_count - (i + 1);
     snprintf(IObuff, IOSIZE,
              NGETTEXT("%" PRId64 " line indented ", "%" PRId64 " lines indented ", i), (int64_t)i);
-    msg_progress(IObuff, "nvim.indent", "success", -1, 0, true, false, false);
+    msg_progress(IObuff, "indent", "success", 0, true, false);
   }
   if ((cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0) {
     // set '[ and '] marks
@@ -1015,7 +1070,7 @@ bool preprocs_left(void)
 /// @return  true if the conditions are OK for smart indenting.
 bool may_do_si(void)
 {
-  return curbuf->b_p_si && !curbuf->b_p_cin && curbuf->b_p_inde.type == kCallbackNone && !p_paste;
+  return curbuf->b_p_si && !curbuf->b_p_cin && *curbuf->b_p_inde == NUL && !p_paste;
 }
 
 // Try to do some very smart auto-indenting.
@@ -1025,7 +1080,7 @@ void ins_try_si(int c)
   pos_T *pos;
 
   // do some very smart indenting when entering '{' or '}'
-  if (((Ins.did_si || Ins.can_si_back) && c == '{') || (Ins.can_si && c == '}' && inindent(0))) {
+  if (((did_si || can_si_back) && c == '{') || (can_si && c == '}' && inindent(0))) {
     pos_T old_pos;
     char *ptr;
     int i;
@@ -1059,7 +1114,7 @@ void ins_try_si(int c)
       // when inserting '{' after "O" reduce indent, but not
       // more than indent of previous line
       temp = true;
-      if (c == '{' && Ins.can_si_back && curwin->w_cursor.lnum > 1) {
+      if (c == '{' && can_si_back && curwin->w_cursor.lnum > 1) {
         old_pos = curwin->w_cursor;
         i = get_indent();
         while (curwin->w_cursor.lnum > 1) {
@@ -1082,14 +1137,14 @@ void ins_try_si(int c)
   }
 
   // set indent of '#' always to 0
-  if (curwin->w_cursor.col > 0 && Ins.can_si && c == '#' && inindent(0)) {
+  if (curwin->w_cursor.col > 0 && can_si && c == '#' && inindent(0)) {
     // remember current indent for next line
     old_indent = get_indent();
     set_indent(0, SIN_CHANGED);
   }
 
-  // Adjust Ins.ai_col, the char at this position can be deleted.
-  Ins.ai_col = MIN(Ins.ai_col, curwin->w_cursor.col);
+  // Adjust ai_col, the char at this position can be deleted.
+  ai_col = MIN(ai_col, curwin->w_cursor.col);
 }
 
 /// Insert an indent (for <Tab> or CTRL-T) or delete an indent (for CTRL-D).
@@ -1102,7 +1157,7 @@ void ins_try_si(int c)
 /// @param call_changed_bytes  call changed_bytes()
 void change_indent(int type, int amount, int round, bool call_changed_bytes)
 {
-  int insstart_less;                    // reduction for Ins.start.col
+  int insstart_less;                    // reduction for Insstart.col
   colnr_T orig_col = 0;                 // init for GCC
   char *orig_line = NULL;     // init for GCC
 
@@ -1186,14 +1241,12 @@ void change_indent(int type, int amount, int round, bool call_changed_bytes)
       CSType cstype = init_charsize_arg(&csarg, curwin, 0, line);
       StrCharInfo ci = utf_ptr2StrCharInfo(line);
       while (true) {
-        ClusterInfo cli = utf_ClusterInfo(ci);
-        int next_vcol = vcol + win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &csarg,
-                                            cli.cells).width;
+        int next_vcol = vcol + win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &csarg).width;
         if (next_vcol > end_vcol) {
           break;
         }
         vcol = next_vcol;
-        ci = cli.next;
+        ci = utfc_next(ci);
         if (*ci.ptr == NUL) {
           break;
         }
@@ -1225,17 +1278,17 @@ void change_indent(int type, int amount, int round, bool call_changed_bytes)
 
   // May have to adjust the start of the insert.
   if (State & MODE_INSERT) {
-    if (curwin->w_cursor.lnum == Ins.start.lnum && Ins.start.col != 0) {
-      if ((int)Ins.start.col <= insstart_less) {
-        Ins.start.col = 0;
+    if (curwin->w_cursor.lnum == Insstart.lnum && Insstart.col != 0) {
+      if ((int)Insstart.col <= insstart_less) {
+        Insstart.col = 0;
       } else {
-        Ins.start.col -= insstart_less;
+        Insstart.col -= insstart_less;
       }
     }
-    if ((int)Ins.ai_col <= insstart_less) {
-      Ins.ai_col = 0;
+    if ((int)ai_col <= insstart_less) {
+      ai_col = 0;
     } else {
-      Ins.ai_col -= insstart_less;
+      ai_col -= insstart_less;
     }
   }
 
@@ -1429,6 +1482,9 @@ void ex_retab(exarg_T *eap)
   linenr_T last_line = 0;               // last changed line
   bool is_indent_only = false;
 
+  int save_list = curwin->w_p_list;
+  curwin->w_p_list = 0;             // don't want list mode here
+
   char *ptr = eap->arg;
   if (strncmp(ptr, "-indentonly", 11) == 0 && ascii_iswhite_or_nul(ptr[11])) {
     is_indent_only = true;
@@ -1436,10 +1492,7 @@ void ex_retab(exarg_T *eap)
   }
 
   new_ts_str = ptr;
-  const CharBuf errbuf = { (char[IOSIZE]){ 0 }, IOSIZE };
-  const char *errmsg = tabstop_set(ptr, &new_vts_array, &errbuf);
-  if (errmsg != NULL) {
-    emsg(_(errmsg));
+  if (!tabstop_set(ptr, &new_vts_array)) {
     return;
   }
   while (ascii_isdigit(*ptr) || *ptr == ',') {
@@ -1455,10 +1508,6 @@ void ex_retab(exarg_T *eap)
   } else {
     new_ts_str = xmemdupz(new_ts_str, (size_t)(ptr - new_ts_str));
   }
-
-  int save_list = curwin->w_p_list;
-  curwin->w_p_list = 0;             // don't want list mode here
-
   for (linenr_T lnum = eap->line1; !got_int && lnum <= eap->line2; lnum++) {
     ptr = ml_get(lnum);
     int old_len = ml_get_len(lnum);
@@ -1562,36 +1611,44 @@ void ex_retab(exarg_T *eap)
     emsg(_(e_interr));
   }
 
+  // If a single value was given then it can be considered equal to
+  // either the value of 'tabstop' or the value of 'vartabstop'.
+  if (tabstop_count(curbuf->b_p_vts_array) == 0
+      && tabstop_count(new_vts_array) == 1
+      && curbuf->b_p_ts == tabstop_first(new_vts_array)) {
+    // not changed
+  } else if (tabstop_count(curbuf->b_p_vts_array) > 0
+             && tabstop_eq(curbuf->b_p_vts_array, new_vts_array)) {
+    // not changed
+  } else {
+    redraw_curbuf_later(UPD_NOT_VALID);
+  }
   if (first_line != 0) {
     changed_lines(curbuf, first_line, 0, last_line + 1, 0, true);
   }
 
   curwin->w_p_list = save_list;         // restore 'list'
-  // Finish buffer cleanup before OptionSet can switch buffers.
-  u_clearline(curbuf);
 
   if (new_ts_str != NULL) {  // set the new tabstop
-    const handle_T win_handle = curwin->handle;
-    const handle_T buf_handle = curbuf->handle;
-
     // If 'vartabstop' is in use or if the value given to retab has more
     // than one tabstop then update 'vartabstop'.
-    if (tabstop_count(curbuf->b_p_vts_array) > 0 || tabstop_count(new_vts_array) > 1) {
-      set_option_value(kOptVartabstop, CSTR_AS_OBJ(new_ts_str), OPT_LOCAL, true, NULL);
+    colnr_T *old_vts_ary = curbuf->b_p_vts_array;
+
+    if (tabstop_count(old_vts_ary) > 0 || tabstop_count(new_vts_array) > 1) {
+      set_option_direct(kOptVartabstop, CSTR_AS_OPTVAL(new_ts_str), OPT_LOCAL, 0);
+      curbuf->b_p_vts_array = new_vts_array;
+      xfree(old_vts_ary);
     } else {
       // 'vartabstop' wasn't in use and a single value was given to
       // retab then update 'tabstop'.
-      set_option_value(kOptTabstop, INTEGER_OBJ(tabstop_first(new_vts_array)), OPT_LOCAL, true,
-                       NULL);
+      curbuf->b_p_ts = tabstop_first(new_vts_array);
+      xfree(new_vts_array);
     }
-    xfree(new_vts_array);
     xfree(new_ts_str);
-    // OptionSet may have left the command's window or buffer.
-    if (curwin->handle != win_handle || curbuf->handle != buf_handle) {
-      return;
-    }
   }
   coladvance(curwin, curwin->w_curswant);
+
+  u_clearline(curbuf);
 }
 
 /// Get indent level from 'indentexpr'.
@@ -1607,11 +1664,21 @@ int get_expr_indent(void)
   bool save_set_curswant = curwin->w_set_curswant;
   set_vim_var_nr(VV_LNUM, (varnumber_T)curwin->w_cursor.lnum);
 
+  if (use_sandbox) {
+    sandbox++;
+  }
   textlock++;
   current_sctx = curbuf->b_p_script_ctx[kBufOptIndentexpr];
 
-  int indent = eval_expr_option_number(&curbuf->b_p_inde, use_sandbox);
+  // Need to make a copy, the 'indentexpr' option could be changed while
+  // evaluating it.
+  char *inde_copy = xstrdup(curbuf->b_p_inde);
+  int indent = (int)eval_to_number(inde_copy, true);
+  xfree(inde_copy);
 
+  if (use_sandbox) {
+    sandbox--;
+  }
   textlock--;
   current_sctx = save_sctx;
 
@@ -1743,12 +1810,11 @@ int get_lisp_indent(void)
       StrCharInfo sci = utf_ptr2StrCharInfo(line);
       amount = 0;
       while (*sci.ptr != NUL && col > 0) {
-        ClusterInfo cli = utf_ClusterInfo(sci);
-        amount += win_charsize(cstype, amount, sci.ptr, sci.chr.value, &csarg, cli.cells).width;
-        sci = cli.next;
+        amount += win_charsize(cstype, amount, sci.ptr, sci.chr.value, &csarg).width;
+        sci = utfc_next(sci);
         col--;
       }
-      const char *that = sci.ptr;
+      char *that = sci.ptr;
 
       // Some keywords require "body" indenting rules (the
       // non-standard-lisp ones are Scheme special forms):
@@ -1764,7 +1830,7 @@ int get_lisp_indent(void)
         colnr_T firsttry = amount;
 
         while (ascii_iswhite(*that)) {
-          amount += win_charsize(cstype, amount, that, (uint8_t)(*that), &csarg, 1).width;
+          amount += win_charsize(cstype, amount, that, (uint8_t)(*that), &csarg).width;
           that++;
         }
 
@@ -1793,21 +1859,21 @@ int get_lisp_indent(void)
                 parencount--;
               }
               if ((ci.value == '\\') && (*(that + 1) != NUL)) {
-                ClusterInfo cli = utf_ClusterInfo((StrCharInfo){ that, ci });
-                amount += win_charsize(cstype, amount, that, ci.value, &csarg, cli.cells).width;
-                that = cli.next.ptr;
-                ci = cli.next.chr;
+                amount += win_charsize(cstype, amount, that, ci.value, &csarg).width;
+                StrCharInfo next_sci = utfc_next((StrCharInfo){ that, ci });
+                that = next_sci.ptr;
+                ci = next_sci.chr;
               }
 
-              ClusterInfo cli = utf_ClusterInfo((StrCharInfo){ that, ci });
-              amount += win_charsize(cstype, amount, that, ci.value, &csarg, cli.cells).width;
-              that = cli.next.ptr;
-              ci = cli.next.chr;
+              amount += win_charsize(cstype, amount, that, ci.value, &csarg).width;
+              StrCharInfo next_sci = utfc_next((StrCharInfo){ that, ci });
+              that = next_sci.ptr;
+              ci = next_sci.chr;
             }
           }
 
           while (ascii_iswhite(*that)) {
-            amount += win_charsize(cstype, amount, that, (uint8_t)(*that), &csarg, 1).width;
+            amount += win_charsize(cstype, amount, that, (uint8_t)(*that), &csarg).width;
             that++;
           }
 
@@ -1825,7 +1891,7 @@ int get_lisp_indent(void)
   return amount;
 }
 
-static int lisp_match(const char *p)
+static int lisp_match(char *p)
 {
   char buf[512];
   char *word = *curbuf->b_p_lw != NUL ? curbuf->b_p_lw : p_lispwords;
@@ -1853,7 +1919,7 @@ void fixthisline(IndentGetter get_the_indent)
 
   change_indent(INDENT_SET, amount, false, true);
   if (linewhite(curwin->w_cursor.lnum)) {
-    Ins.did_ai = true;  // delete the indent if the line stays empty
+    did_ai = true;  // delete the indent if the line stays empty
   }
 }
 
@@ -1862,7 +1928,7 @@ void fixthisline(IndentGetter get_the_indent)
 bool use_indentexpr_for_lisp(void)
 {
   return curbuf->b_p_lisp
-         && curbuf->b_p_inde.type != kCallbackNone
+         && *curbuf->b_p_inde != NUL
          && strcmp(curbuf->b_p_lop, "expr:1") == 0;
 }
 

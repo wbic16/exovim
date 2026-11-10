@@ -53,19 +53,19 @@ static const char e_aptypes_is_null_nr_str[]
   = "E1507: Internal error: ap_types or ap_types[idx] is NULL: %d: %s";
 
 static const char typename_unknown[] = N_("unknown");
-static const char typename_int[] = "int";
-static const char typename_longint[] = "long int";
-static const char typename_longlongint[] = "long long int";
-static const char typename_signedsizet[] = "signed size_t";
-static const char typename_unsignedint[] = "unsigned int";
-static const char typename_unsignedlongint[] = "unsigned long int";
-static const char typename_unsignedlonglongint[] = "unsigned long long int";
-static const char typename_sizet[] = "size_t";
+static const char typename_int[] = N_("int");
+static const char typename_longint[] = N_("long int");
+static const char typename_longlongint[] = N_("long long int");
+static const char typename_signedsizet[] = N_("signed size_t");
+static const char typename_unsignedint[] = N_("unsigned int");
+static const char typename_unsignedlongint[] = N_("unsigned long int");
+static const char typename_unsignedlonglongint[] = N_("unsigned long long int");
+static const char typename_sizet[] = N_("size_t");
 static const char typename_pointer[] = N_("pointer");
 static const char typename_percent[] = N_("percent");
-static const char typename_char[] = "char";
+static const char typename_char[] = N_("char");
 static const char typename_string[] = N_("string");
-static const char typename_float[] = "float";
+static const char typename_float[] = N_("float");
 
 /// Copy up to `len` bytes of `string` into newly allocated memory and
 /// terminate with a NUL. The allocated memory always has size `len + 1`, even
@@ -356,24 +356,6 @@ void vim_memcpy_up(char *restrict dst, const char *restrict src, size_t n)
     c = (uint8_t)(*src++);
     *dst++ = (char)(uint8_t)(c < 'a' || c > 'z' ? c : c - 0x20);
   }
-}
-
-/// Multi-byte uppercase `src` into `dst`. `dst` must have room for the result.
-/// In the worst case, the uppercased form needs `strlen(src) * MB_MAXBYTES` bytes plus NUL.
-///
-/// @return number of bytes written to `dst`, not including the NUL terminator.
-size_t mb_strup_buf(const char *src, char *dst)
-  FUNC_ATTR_NONNULL_ALL
-{
-  size_t i = 0;
-  for (const char *p = src; *p != NUL;) {
-    CharInfo ci = utf_ptr2CharInfo(p);
-    int c = ci.value < 0 ? (uint8_t)(*p) : ci.value;
-    i += (size_t)utf_char2bytes(mb_toupper(c), dst + i);
-    p += ci.len;
-  }
-  dst[i] = NUL;
-  return i;
 }
 
 /// Make given string all upper-case or all lower-case
@@ -975,36 +957,36 @@ static int format_typeof(const char *type)
   return TYPE_UNKNOWN;
 }
 
-static const char *format_typename(const char *type)
+static char *format_typename(const char *type)
   FUNC_ATTR_NONNULL_ALL
 {
   switch (format_typeof(type)) {
   case TYPE_INT:
-    return typename_int;
+    return _(typename_int);
   case TYPE_LONGINT:
-    return typename_longint;
+    return _(typename_longint);
   case TYPE_LONGLONGINT:
-    return typename_longlongint;
+    return _(typename_longlongint);
   case TYPE_UNSIGNEDINT:
-    return typename_unsignedint;
+    return _(typename_unsignedint);
   case TYPE_SIGNEDSIZET:
-    return typename_signedsizet;
+    return _(typename_signedsizet);
   case TYPE_UNSIGNEDLONGINT:
-    return typename_unsignedlongint;
+    return _(typename_unsignedlongint);
   case TYPE_UNSIGNEDLONGLONGINT:
-    return typename_unsignedlonglongint;
+    return _(typename_unsignedlonglongint);
   case TYPE_SIZET:
-    return typename_sizet;
+    return _(typename_sizet);
   case TYPE_POINTER:
     return _(typename_pointer);
   case TYPE_PERCENT:
     return _(typename_percent);
   case TYPE_CHAR:
-    return typename_char;
+    return _(typename_char);
   case TYPE_STRING:
     return _(typename_string);
   case TYPE_FLOAT:
-    return typename_float;
+    return _(typename_float);
   }
 
   return _(typename_unknown);
@@ -1784,13 +1766,6 @@ int vim_vsnprintf_typval(char *str, size_t str_m, const char *fmt, va_list ap_st
                         va_arg(ap, const char *)));
 
           if (!str_arg) {
-#ifdef ENABLE_ASAN_UBSAN
-            // this is only for vsnprintf() emulation, v:_null_string handled in tv_str()
-            if (!tvs) {
-              __sanitizer_print_stack_trace();
-              __sanitizer_report_error_summary("SUMMARY: NULL argument passed to %s");
-            }
-#endif
             str_arg = "[NULL]";
             str_arg_l = 6;
           } else if (!precision_specified) {

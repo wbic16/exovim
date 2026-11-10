@@ -80,13 +80,8 @@ int wstream_write(Stream *stream, WBuffer *buffer)
     uv_fs_t req;
 
     // Synchronous write
-
-#ifdef __EMSCRIPTEN__
-    // Pass -1 so the write uses the current file position.
-    err = uv_fs_write(stream->uv.idle.loop, &req, stream->fd, &uvbuf, 1, -1, NULL);
-#else
     err = uv_fs_write(stream->uv.idle.loop, &req, stream->fd, &uvbuf, 1, stream->fpos, NULL);
-#endif
+
     uv_fs_req_cleanup(&req);
 
     wstream_release_wbuffer(buffer);

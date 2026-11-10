@@ -34,7 +34,7 @@ int getviscol(void)
 {
   colnr_T x;
 
-  getvvcol(curwin, &curwin->w_cursor, &x, NULL, NULL, 0);
+  getvvcol(curwin, &curwin->w_cursor, &x, NULL, NULL);
   return (int)x;
 }
 
@@ -47,7 +47,7 @@ int getviscol2(colnr_T col, colnr_T coladd)
   pos.lnum = curwin->w_cursor.lnum;
   pos.col = col;
   pos.coladd = coladd;
-  getvvcol(curwin, &pos, &x, NULL, NULL, 0);
+  getvvcol(curwin, &pos, &x, NULL, NULL);
   return (int)x;
 }
 
@@ -101,14 +101,17 @@ static int coladvance2(win_T *wp, pos_T *pos, bool addspaces, bool finetune, col
   int one_more = (State & MODE_INSERT)
                  || (State & MODE_TERMINAL)
                  || restart_edit != NUL
-                 || (Visual.active && *p_sel != 'o')
+                 || (VIsual_active && *p_sel != 'o')
                  || ((get_ve_flags(wp) & kOptVeFlagOnemore) && wcol < MAXCOL);
 
+  char *line = ml_get_buf(wp->w_buffer, pos->lnum);
+  int linelen = ml_get_buf_len(wp->w_buffer, pos->lnum);
+
   if (wcol >= MAXCOL) {
-    idx = ml_get_buf_len(wp->w_buffer, pos->lnum) - 1 + one_more;
+    idx = linelen - 1 + one_more;
     col = wcol;
 
-    if ((addspaces || finetune) && !Visual.active) {
+    if ((addspaces || finetune) && !VIsual_active) {
       wp->w_curswant = linetabsize(wp, pos->lnum) + one_more;
       if (wp->w_curswant > 0) {
         wp->w_curswant--;
@@ -123,36 +126,31 @@ static int coladvance2(win_T *wp, pos_T *pos, bool addspaces, bool finetune, col
         && wp->w_view_width != 0
         && wcol >= (colnr_T)width
         && width > 0) {
-      csize = linetabsize_disp_eol(wp, pos->lnum);
+      csize = linetabsize_eol(wp, pos->lnum);
       if (csize > 0) {
         csize--;
       }
 
-      colnr_T const disp_wcol = vcol2disp_vcol(wp, pos->lnum, wcol);
-      if (disp_wcol / width > (colnr_T)csize / width
-          && ((State & MODE_INSERT) == 0 || (int)disp_wcol > csize + 1)) {
+      if (wcol / width > (colnr_T)csize / width
+          && ((State & MODE_INSERT) == 0 || (int)wcol > csize + 1)) {
         // In case of line wrapping don't move the cursor beyond the
         // right screen edge.  In Insert mode allow going just beyond
         // the last character (like what happens when typing and
         // reaching the right window edge).
-        wcol = disp_vcol2vcol(wp, pos->lnum, (csize / width + 1) * width - 1);
+        wcol = (csize / width + 1) * width - 1;
       }
     }
 
-    // Read after the clamp, which may free the line (see init_charsize_arg_extconceal()).
-    char *line = ml_get_buf(wp->w_buffer, pos->lnum);
-    int linelen = ml_get_buf_len(wp->w_buffer, pos->lnum);
     CharsizeArg csarg;
     CSType cstype = init_charsize_arg(&csarg, wp, pos->lnum, line);
     StrCharInfo ci = utf_ptr2StrCharInfo(line);
     col = 0;
     while (col <= wcol && *ci.ptr != NUL) {
-      ClusterInfo cli = utf_ClusterInfo(ci);
-      CharSize cs = win_charsize(cstype, col, ci.ptr, ci.chr.value, &csarg, cli.cells);
+      CharSize cs = win_charsize(cstype, col, ci.ptr, ci.chr.value, &csarg);
       csize = cs.width;
       head = cs.head;
       col += cs.width;
-      ci = cli.next;
+      ci = utfc_next(ci);
     }
     idx = (int)(ci.ptr - line);
 
@@ -224,7 +222,7 @@ static int coladvance2(win_T *wp, pos_T *pos, bool addspaces, bool finetune, col
       if (!one_more) {
         colnr_T scol, ecol;
 
-        getvcol(wp, pos, &scol, NULL, &ecol, 0);
+        getvcol(wp, pos, &scol, NULL, &ecol);
         pos->coladd = ecol - scol;
       }
     } else {
@@ -262,7 +260,9 @@ int inc_cursor(void)
   return inc(&curwin->w_cursor);
 }
 
-/// Decrement the cursor position.  See dec() for return values.
+/// Decrement the line pointer 'p' crossing line boundaries as necessary.
+///
+/// @return  1 when crossing a line, -1 when at start of file, 0 otherwise.
 int dec_cursor(void)
 {
   return dec(&curwin->w_cursor);
@@ -343,7 +343,7 @@ void check_cursor_col(win_T *win)
     // - 'virtualedit' is set
     if ((State & MODE_INSERT) || restart_edit
         || (State & MODE_TERMINAL)
-        || (Visual.active && *p_sel != 'o')
+        || (VIsual_active && *p_sel != 'o')
         || (cur_ve_flags & kOptVeFlagOnemore)
         || virtual_active(win)) {
       win->w_cursor.col = len;
@@ -372,7 +372,7 @@ void check_cursor_col(win_T *win)
         assert(win->w_cursor.coladd > 0);
         int cs, ce;
 
-        getvcol(win, &win->w_cursor, &cs, NULL, &ce, 0);
+        getvcol(win, &win->w_cursor, &cs, NULL, &ce);
         win->w_cursor.coladd = MIN(win->w_cursor.coladd, ce - cs);
       }
     } else {
@@ -389,20 +389,20 @@ void check_cursor(win_T *wp)
   check_cursor_col(wp);
 }
 
-/// Check if Visual.start position is valid, correct it if not.
+/// Check if VIsual position is valid, correct it if not.
 /// Can be called when in Visual mode and a change has been made.
 void check_visual_pos(void)
 {
-  if (Visual.start.lnum > curbuf->b_ml.ml_line_count) {
-    Visual.start.lnum = curbuf->b_ml.ml_line_count;
-    Visual.start.col = 0;
-    Visual.start.coladd = 0;
+  if (VIsual.lnum > curbuf->b_ml.ml_line_count) {
+    VIsual.lnum = curbuf->b_ml.ml_line_count;
+    VIsual.col = 0;
+    VIsual.coladd = 0;
   } else {
-    int len = ml_get_len(Visual.start.lnum);
+    int len = ml_get_len(VIsual.lnum);
 
-    if (Visual.start.col > len) {
-      Visual.start.col = len;
-      Visual.start.coladd = 0;
+    if (VIsual.col > len) {
+      VIsual.col = len;
+      VIsual.coladd = 0;
     }
   }
 }
@@ -412,7 +412,7 @@ void check_visual_pos(void)
 void adjust_cursor_col(void)
 {
   if (curwin->w_cursor.col > 0
-      && (!Visual.active || *p_sel == 'o')
+      && (!VIsual_active || *p_sel == 'o')
       && gchar_cursor() == NUL) {
     curwin->w_cursor.col--;
   }
@@ -452,7 +452,7 @@ bool set_leftcol(colnr_T leftcol)
   // advance the cursor one more char.  If this fails (last char of the
   // line) adjust the scrolling.
   colnr_T s, e;
-  getvvcol(curwin, &curwin->w_cursor, &s, NULL, &e, 0);
+  getvvcol(curwin, &curwin->w_cursor, &s, NULL, &e);
   if (e > (colnr_T)lastcol) {
     retval = true;
     coladvance(curwin, s - 1);

@@ -4,7 +4,6 @@ local Screen = require('test.functional.ui.screen')
 
 local t_lsp = require('test.functional.plugin.lsp.testutil')
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local feed = n.feed
 local eq = t.eq
 local exec_lua = n.exec_lua
@@ -266,7 +265,7 @@ describe('vim.lsp.util', function()
       }
       for _, params in ipairs(test_params) do
         local actual = exec_lua(function(params0)
-          local bufnr = vim.uri.to_buf('file:///fake/uri')
+          local bufnr = vim.uri_to_bufnr('file:///fake/uri')
           local lines = { 'testing', '123' }
           vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, lines)
           return vim.lsp.util.locations_to_items(params0, 'utf-16')
@@ -300,12 +299,12 @@ describe('vim.lsp.util', function()
         },
       }
       local actual = exec_lua(function()
-        local bufnr = vim.uri.to_buf('file:///fake/uri')
+        local bufnr = vim.uri_to_bufnr('file:///fake/uri')
         local lines = { 'testing', '123' }
         vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, lines)
         local locations = {
           {
-            targetUri = vim.uri.from_buf(bufnr),
+            targetUri = vim.uri_from_bufnr(bufnr),
             targetRange = {
               start = { line = 0, character = 2 },
               ['end'] = { line = 0, character = 3 },
@@ -682,20 +681,93 @@ describe('vim.lsp.util', function()
     end)
   end)
 
+  describe('lsp.util.jump_to_location', function()
+    local target_bufnr --- @type integer
+
+    before_each(function()
+      target_bufnr = exec_lua(function()
+        local bufnr = vim.uri_to_bufnr('file:///fake/uri')
+        local lines = { '1st line of text', 'å å ɧ 汉语 ↥ 🤦 🦄' }
+        vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, lines)
+        return bufnr
+      end)
+    end)
+
+    local location = function(start_line, start_char, end_line, end_char)
+      return {
+        uri = 'file:///fake/uri',
+        range = {
+          start = { line = start_line, character = start_char },
+          ['end'] = { line = end_line, character = end_char },
+        },
+      }
+    end
+
+    local jump = function(msg)
+      eq(true, exec_lua('return vim.lsp.util.jump_to_location(...)', msg, 'utf-16'))
+      eq(target_bufnr, fn.bufnr('%'))
+      return {
+        line = fn.line('.'),
+        col = fn.col('.'),
+      }
+    end
+
+    it('jumps to a Location', function()
+      local pos = jump(location(0, 9, 0, 9))
+      eq(1, pos.line)
+      eq(10, pos.col)
+    end)
+
+    it('jumps to a LocationLink', function()
+      local pos = jump({
+        targetUri = 'file:///fake/uri',
+        targetSelectionRange = {
+          start = { line = 0, character = 4 },
+          ['end'] = { line = 0, character = 4 },
+        },
+        targetRange = {
+          start = { line = 1, character = 5 },
+          ['end'] = { line = 1, character = 5 },
+        },
+      })
+      eq(1, pos.line)
+      eq(5, pos.col)
+    end)
+
+    it('jumps to the correct multibyte column', function()
+      local pos = jump(location(1, 2, 1, 2))
+      eq(2, pos.line)
+      eq(4, pos.col)
+      eq('å', fn.expand('<cword>'))
+    end)
+
+    it('adds current position to jumplist before jumping', function()
+      api.nvim_win_set_buf(0, target_bufnr)
+      local mark = api.nvim_buf_get_mark(target_bufnr, "'")
+      eq({ 1, 0 }, mark)
+
+      api.nvim_win_set_cursor(0, { 2, 3 })
+      jump(location(0, 9, 0, 9))
+
+      mark = api.nvim_buf_get_mark(target_bufnr, "'")
+      eq({ 2, 3 }, mark)
+    end)
+  end)
+
   describe('lsp.util.show_document', function()
     local target_bufnr --- @type integer
     local target_bufnr2 --- @type integer
 
     before_each(function()
       target_bufnr = exec_lua(function()
-        local bufnr = vim.uri.to_buf('file:///fake/uri')
+        local bufnr = vim.uri_to_bufnr('file:///fake/uri')
         local lines = { '1st line of text', 'å å ɧ 汉语 ↥ 🤦 🦄' }
         vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, lines)
         return bufnr
       end)
 
       target_bufnr2 = exec_lua(function()
-        local bufnr = vim.uri.to_buf('file:///fake/uri2')
+        local bufnr = vim.uri_to_bufnr('file:///fake/uri2')
         local lines = { '1st line of text', 'å å ɧ 汉语 ↥ 🤦 🦄' }
         vim.api.nvim_buf_set_lines(bufnr, 0, 1, false, lines)
         return bufnr
@@ -744,29 +816,6 @@ describe('vim.lsp.util', function()
       eq('i', api.nvim_get_mode().mode)
     end)
 
-    it('jumps to a LocationLink', function()
-      local pos = show_document({
-        targetUri = 'file:///fake/uri',
-        targetSelectionRange = {
-          start = { line = 0, character = 4 },
-          ['end'] = { line = 0, character = 4 },
-        },
-        targetRange = {
-          start = { line = 1, character = 5 },
-          ['end'] = { line = 1, character = 5 },
-        },
-      }, true, true)
-      eq(1, pos.line)
-      eq(5, pos.col)
-    end)
-
-    it('jumps to the correct multibyte column', function()
-      local pos = show_document(location(1, 2, 1, 2), true, true)
-      eq(2, pos.line)
-      eq(4, pos.col)
-      eq('å', fn.expand('<cword>'))
-    end)
-
     it('jumps to a Location if focus is true via handler', function()
       exec_lua(create_server_definition)
       local result = exec_lua(function()
@@ -798,18 +847,6 @@ describe('vim.lsp.util', function()
       local pos = show_document(location(0, 9, 0, 9), nil, true)
       eq(1, pos.line)
       eq(10, pos.col)
-    end)
-
-    it('adds current position to jumplist before jumping', function()
-      api.nvim_win_set_buf(0, target_bufnr)
-      local mark = api.nvim_buf_get_mark(target_bufnr, "'")
-      eq({ 1, 0 }, mark)
-
-      api.nvim_win_set_cursor(0, { 2, 3 })
-      show_document(location(0, 9, 0, 9), true, true)
-
-      mark = api.nvim_buf_get_mark(target_bufnr, "'")
-      eq({ 2, 3 }, mark)
     end)
 
     it('does not add current position to jumplist if not focus', function()
@@ -872,8 +909,7 @@ describe('vim.lsp.util', function()
       eq({ 1, 9 }, api.nvim_win_get_cursor(wins[2]))
     end)
 
-    it('preserves cursor positions when the handler omits selection', function()
-      exec_lua(create_server_definition)
+    it('does not change cursor of the split if not range and not focus', function()
       api.nvim_win_set_buf(0, target_bufnr)
       api.nvim_win_set_cursor(0, { 2, 3 })
 
@@ -883,20 +919,7 @@ describe('vim.lsp.util', function()
       api.nvim_win_set_buf(0, target_bufnr2)
       api.nvim_win_set_cursor(0, { 2, 3 })
 
-      local result = exec_lua(function()
-        local server = _G._create_server()
-        local client_id = assert(vim.lsp.start({ name = 'dummy', cmd = server.cmd }))
-        local result = vim.lsp.handlers['window/showDocument'](nil, {
-          uri = 'file:///fake/uri2',
-          takeFocus = false,
-        }, {
-          client_id = client_id,
-          method = 'window/showDocument',
-        })
-        vim.lsp.get_client_by_id(client_id):stop()
-        return result
-      end)
-      eq({ success = true }, result)
+      show_document({ uri = 'file:///fake/uri2' }, false, true)
 
       local wins = api.nvim_list_wins()
       eq(2, #wins)
@@ -1022,6 +1045,18 @@ describe('vim.lsp.util', function()
     end)
   end)
 
+  describe('lsp.util.trim.trim_empty_lines', function()
+    it('properly trims empty lines', function()
+      eq(
+        { { 'foo', 'bar' } },
+        exec_lua(function()
+          --- @diagnostic disable-next-line:deprecated
+          return vim.lsp.util.trim_empty_lines({ { 'foo', 'bar' }, nil })
+        end)
+      )
+    end)
+  end)
+
   describe('lsp.util.convert_signature_help_to_markdown_lines', function()
     it('can handle negative activeSignature', function()
       local result = exec_lua(function()
@@ -1099,7 +1134,7 @@ describe('vim.lsp.util', function()
     describe('stylize_markdown', function()
       local stylize_markdown = function(content, opts)
         return exec_lua(function()
-          local bufnr = vim.uri.to_buf('file:///fake/uri')
+          local bufnr = vim.uri_to_bufnr('file:///fake/uri')
           vim.fn.bufload(bufnr)
           return vim.lsp.util.stylize_markdown(bufnr, content, opts)
         end)
@@ -1364,76 +1399,37 @@ describe('vim.lsp.util', function()
           eq('Title', opts.title)
         end)
       end)
-
-      it('anchor is NW for relative = "editor" regardless of cursor #39306', function()
-        feed('G') -- without the fix, cursor on the last line picks an 'S*' anchor
-        local opts = exec_lua(function()
-          return vim.lsp.util.make_floating_popup_options(30, 10, { relative = 'editor' })
-        end)
-        eq('NW', opts.anchor)
-      end)
     end)
 
     describe('open_floating_preview', function()
+      local curbuf
+
       before_each(function()
         Screen.new(10, 10)
         feed('9i<CR><Esc>G4k')
+        curbuf = api.nvim_get_current_buf()
       end)
       local var_name = 'lsp_floating_preview'
 
-      it('after fclose', function()
+      it('clean bufvar after fclose', function()
         exec_lua(function()
           vim.lsp.util.open_floating_preview({ 'test' }, '', { height = 5, width = 2 })
         end)
         eq(true, api.nvim_win_is_valid(api.nvim_buf_get_var(0, var_name)))
         command('fclose')
-        -- b:lsp_floating_preview should be cleared.
         eq('Key not found: lsp_floating_preview', pcall_err(api.nvim_buf_get_var, 0, var_name))
       end)
 
-      it('after CursorMoved', function()
-        local result, winfixbuf = exec_lua(function()
+      it('clean bufvar after CursorMoved', function()
+        local result = exec_lua(function()
           vim.lsp.util.open_floating_preview({ 'test' }, '', { height = 5, width = 2 })
           local winnr = vim.b[vim.api.nvim_get_current_buf()].lsp_floating_preview
           local result = vim.api.nvim_win_is_valid(winnr)
-          local winfixbuf = vim.wo[winnr].winfixbuf
           vim.api.nvim_feedkeys(vim.keycode('G'), 'txn', false)
-          return result, winfixbuf
+          return result
         end)
         eq(true, result)
-        -- 'winfixbuf' should be set. #39058
-        eq(true, winfixbuf)
-        -- b:lsp_floating_preview should be cleared.
         eq('Key not found: lsp_floating_preview', pcall_err(api.nvim_buf_get_var, 0, var_name))
-      end)
-
-      it('converted to a normal window is unmanaged, not closed #36659', function()
-        local converted = exec_lua(function()
-          local opts = { focus_id = 'focus_test' }
-          local cur_winnr = vim.api.nvim_get_current_win()
-          vim.lsp.util.open_floating_preview({ 'test' }, '', opts)
-          local converted = vim.b.lsp_floating_preview
-          vim.api.nvim_win_set_config(converted, { win = cur_winnr, split = 'right' })
-          -- close events unmanage the converted window instead of closing it
-          vim.api.nvim_exec_autocmds('CursorMoved', { buffer = 0 })
-          assert(
-            vim.wait(1000, function()
-              return vim.b.lsp_floating_preview == nil
-            end),
-            'preview should be untracked after close event'
-          )
-          -- reusing the focus_id opens a new float instead of refocusing the converted window
-          local _, new_win = vim.lsp.util.open_floating_preview({ 'test' }, '', opts)
-          assert(new_win ~= converted, 'expected a new float')
-          -- also when triggered from inside the converted window
-          vim.api.nvim_set_current_win(converted)
-          local _, newer_win = vim.lsp.util.open_floating_preview({ 'test' }, '', opts)
-          assert(newer_win ~= converted, 'expected a new float')
-          assert(vim.api.nvim_get_current_win() == converted, 'focus changed')
-          return converted
-        end)
-        eq(true, api.nvim_win_is_valid(converted))
-        eq('', api.nvim_win_get_config(converted).relative)
       end)
     end)
 
@@ -1454,13 +1450,13 @@ describe('vim.lsp.util', function()
       end)
       feed('K')
       screen:expect([[
-        {4:┌───────────────────────────────────────────────────┐}|
-        {4:│^                                                   │}|
-        {4:│┌───┐}{11:                                              }{4:│}|
-        {4:││foo│}{11:                                              }{4:│}|
-        {4:│└───┘}{11:                                              }{4:│}|
-        {4:│}{11:~                                                  }{4:│}|*7
-        {4:└───────────────────────────────────────────────────┘}|
+        ┌───────────────────────────────────────────────────┐|
+        │{4:^                                                   }│|
+        │┌───┐{11:                                              }│|
+        ││{4:foo}│{11:                                              }│|
+        │└───┘{11:                                              }│|
+        │{11:~                                                  }│|*7
+        └───────────────────────────────────────────────────┘|
                                                              |
       ]])
     end)
@@ -1485,9 +1481,9 @@ describe('vim.lsp.util', function()
     ]])
       screen:expect([[
       ^                                                     |
-      {4:┌─────────┐}{1:                                          }|
-      {4:│}{100:local}{101: }{102:foo}{4:│}{1:                                          }|
-      {4:└─────────┘}{1:                                          }|
+      ┌─────────┐{1:                                          }|
+      │{100:local}{101: }{102:foo}│{1:                                          }|
+      └─────────┘{1:                                          }|
       {1:~                                                    }|*9
                                                            |
     ]])
@@ -1495,9 +1491,9 @@ describe('vim.lsp.util', function()
       feed('<C-w>wG')
       screen:expect([[
                                                            |
-      {4:┌─────────┐}{1:                                          }|
-      {4:│}{101:^```}{4:      │}{1:                                          }|
-      {4:└─────────┘}{1:                                          }|
+      ┌─────────┐{1:                                          }|
+      │{101:^```}{4:      }│{1:                                          }|
+      └─────────┘{1:                                          }|
       {1:~                                                    }|*9
                                                            |
     ]])
@@ -1512,9 +1508,9 @@ describe('vim.lsp.util', function()
     ]])
       screen:expect([[
       ^                                                     |
-      {4:┌─────────┐}{1:                                          }|
-      {4:│}{100:local}{101: }{102:foo}{4:│}{1:                                          }|
-      {4:└─────────┘}{1:                                          }|
+      ┌─────────┐{1:                                          }|
+      │{100:local}{101: }{102:foo}│{1:                                          }|
+      └─────────┘{1:                                          }|
       {1:~                                                    }|*9
                                                            |
     ]])
@@ -1529,28 +1525,13 @@ describe('vim.lsp.util', function()
       feed('<C-W>wG')
       screen:expect([[
                                                            |
-      {4:┌─────────┐}{1:                                          }|
-      {4:│}{100:local}{101: }{102:bar}{4:│}{1:                                          }|
-      {4:│}{101:^```}{4:      │}{1:                                          }|
-      {4:└─────────┘}{1:                                          }|
+      ┌─────────┐{1:                                          }|
+      │{100:local}{101: }{102:bar}│{1:                                          }|
+      │{101:^```}{4:      }│{1:                                          }|
+      └─────────┘{1:                                          }|
       {1:~                                                    }|*8
                                                            |
     ]])
-
-      -- A link counts its concealed width, not its raw width.
-      command('close')
-      feed('<Ignore>')
-      eq(
-        1,
-        exec_lua(function()
-          local _, win = vim.lsp.util.open_floating_preview(
-            { ('[x](https://example.com/%s) tail'):format(('a'):rep(50)) },
-            'markdown',
-            { width = 10, focus = false }
-          )
-          return vim.api.nvim_win_get_height(win)
-        end)
-      )
     end)
 
     it('open_floating_preview height does not exceed max_height', function()
@@ -1565,13 +1546,13 @@ describe('vim.lsp.util', function()
       ]])
       screen:expect([[
         ^                                                     |
-        {4:┌─────┐}{1:                                              }|
-        {4:│1    │}{1:                                              }|
-        {4:│2    │}{1:                                              }|
-        {4:│3    │}{1:                                              }|
-        {4:│4    │}{1:                                              }|
-        {4:│5    │}{1:                                              }|
-        {4:└─────┘}{1:                                              }|
+        ┌─────┐{1:                                              }|
+        │{4:1    }│{1:                                              }|
+        │{4:2    }│{1:                                              }|
+        │{4:3    }│{1:                                              }|
+        │{4:4    }│{1:                                              }|
+        │{4:5    }│{1:                                              }|
+        └─────┘{1:                                              }|
         {1:~                                                    }|*5
                                                              |
       ]])

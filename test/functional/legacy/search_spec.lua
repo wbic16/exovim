@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local eq = t.eq
@@ -916,7 +915,7 @@ describe('Search highlight', function()
     screen:expect([[
       xxx {101:y}{100:yy}{17: zzz}                             |
       {17:xxx }{100:yyy}{17: zzz}                             |
-      {17:xxx }{100:y^y}{101:y} zzz                             |
+      {17:xxx }{100:y}{101:^yy} zzz                             |
       {1:~                                       }|*2
       {5:-- VISUAL --}                            |
     ]])

@@ -390,7 +390,7 @@ static void next_search_hl(win_T *win, match_T *search_hl, match_T *shl, linenr_
   const int called_emsg_before = called_emsg;
 
   // for :{range}s/pat only highlight inside the range
-  if ((lnum < Search.first_line || lnum > Search.last_line) && cur == NULL) {
+  if ((lnum < search_first_line || lnum > search_last_line) && cur == NULL) {
     shl->lnum = 0;
     return;
   }
@@ -423,7 +423,7 @@ static void next_search_hl(win_T *win, match_T *search_hl, match_T *shl, linenr_
     // 3. Vi compatible searching: continue at end of previous match.
     if (shl->lnum == 0) {
       matchcol = 0;
-    } else if (vim_strchr(p_cpo, kCpoSearch) == NULL
+    } else if (vim_strchr(p_cpo, CPO_SEARCH) == NULL
                || (shl->rm.endpos[0].lnum == 0
                    && shl->rm.endpos[0].col <= shl->rm.startpos[0].col)) {
       matchcol = shl->rm.startpos[0].col;
@@ -907,9 +907,9 @@ void f_getmatches(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 
     if (cur->mit_conceal_char) {
       char buf[MB_MAXCHAR + 1];
-      int buflen = utf_char2bytes(cur->mit_conceal_char, buf);
-      buf[buflen] = NUL;
-      tv_dict_add_str_len(dict, S_LEN("conceal"), buf, buflen);
+
+      buf[utf_char2bytes(cur->mit_conceal_char, buf)] = NUL;
+      tv_dict_add_str(dict, S_LEN("conceal"), buf);
     }
 
     tv_list_append_dict(rettv->vval.v_list, dict);
@@ -966,7 +966,6 @@ void f_setmatches(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
     if (di == NULL) {
       if (s == NULL) {
         s = tv_list_alloc(9);
-        tv_list_ref(s);
       }
 
       // match from matchaddpos()
@@ -976,11 +975,11 @@ void f_setmatches(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
         dictitem_T *const pos_di = tv_dict_find(d, buf, -1);
         if (pos_di != NULL) {
           if (pos_di->di_tv.v_type != VAR_LIST) {
-            tv_list_unref(s);
             return;
           }
 
           tv_list_append_tv(s, &pos_di->di_tv);
+          tv_list_ref(s);
         } else {
           break;
         }

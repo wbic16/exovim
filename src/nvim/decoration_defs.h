@@ -29,16 +29,11 @@ typedef enum {
 /// Flags for virtual lines
 enum {
   kVLLeftcol = 1,  ///< Start at left window edge, ignoring number column, etc.
+  kVLScroll = 2,   ///< Can scroll horizontally with 'nowrap'
+  // kVLWrap = 4,
 };
 
-typedef enum {
-  kVLOverflowTrunc,    ///< Truncate with 'nowrap'
-  kVLOverflowScroll,   ///< Scroll horizontally with 'nowrap'
-  kVLOverflowWrap,     ///< Wrap onto extra rows
-  kVLOverflowAuto,     ///< Scroll with 'nowrap'; wrap with 'wrap'
-} VirtLineOverflow;
-
-typedef kvec_t(struct virt_line { VirtText line; int flags; VirtLineOverflow overflow; }) VirtLines;
+typedef kvec_t(struct virt_line { VirtText line; int flags; }) VirtLines;
 
 typedef uint16_t DecorPriority;
 typedef uint32_t DecorPriorityInternal;
@@ -61,8 +56,6 @@ enum {
   kSHSpellOff = 32,
   kSHConceal = 64,
   kSHConcealLines = 128,
-  kSHConcealOff = 256,
-  kSHConcealCont = 512,  ///< Continuation of a conceal range: no replacement at its start.
 };
 
 typedef struct {
@@ -165,17 +158,13 @@ typedef struct {
   LuaRef hl_def;
   LuaRef spell_nav;
   LuaRef conceal_line;
-  LuaRef conceal;
   int hl_valid;
   bool hl_cached;
 
   uint8_t error_count;
 } DecorProvider;
 
-#define DECORATION_PROVIDER_INIT(ns) (DecorProvider) \
-  { .ns_id = (ns), .state = kDecorProviderDisabled, \
-    .redraw_start = LUA_NOREF, .redraw_buf = LUA_NOREF, \
-    .redraw_win = LUA_NOREF, .redraw_line = LUA_NOREF, \
-    .redraw_range = LUA_NOREF, .redraw_end = LUA_NOREF, \
-    .hl_def = LUA_NOREF, .spell_nav = LUA_NOREF, .conceal_line = LUA_NOREF, \
-    .conceal = LUA_NOREF, .hl_valid = -1 }
+#define DECORATION_PROVIDER_INIT(ns_id) (DecorProvider) \
+  { ns_id, kDecorProviderDisabled, 0, 0, LUA_NOREF, LUA_NOREF, \
+    LUA_NOREF, LUA_NOREF, LUA_NOREF, LUA_NOREF, \
+    LUA_NOREF, LUA_NOREF, -1, false, false, 0 }

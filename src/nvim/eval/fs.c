@@ -11,7 +11,6 @@
 #include <sys/stat.h>
 
 #include "auto/config.h"
-#include "nvim/api/private/helpers.h"
 #include "nvim/ascii_defs.h"
 #include "nvim/buffer_defs.h"
 #include "nvim/cmdexpand.h"
@@ -65,16 +64,14 @@ static const char e_error_while_writing_str[] = N_("E80: Error while writing: %s
 /// @param fnamep  file name so far
 /// @param bufp  buffer for allocated file name or NULL
 /// @param fnamelen  length of fnamep
-/// @param use_shellslash adjust separators in `*fnamep` according to 'shellslash'
 int modify_fname(char *src, bool tilde_file, size_t *usedlen, char **fnamep, char **bufp,
-                 size_t *fnamelen, bool use_shellslash)
+                 size_t *fnamelen)
 {
   int valid = 0;
   char *s, *p, *pbuf;
   char dirname[MAXPATHL];
   bool has_fullname = false;
   bool has_homerelative = false;
-  bool didit = false;
 
 repeat:
   // ":p" - full path/file_name
@@ -86,7 +83,7 @@ repeat:
 
     // Expand "~/path" for all systems and "~user/path" for Unix
     if ((*fnamep)[0] == '~'
-#ifndef UNIX
+#if !defined(UNIX)
         && ((*fnamep)[1] == '/'
 # ifdef BACKSLASH_IN_FILENAME
             || (*fnamep)[1] == '\\'
@@ -164,24 +161,19 @@ repeat:
     has_fullname = false;
 
     if (p != NULL) {
-      size_t dirnamelen = 0;
-
       if (c == '.') {
         os_dirname(dirname, MAXPATHL);
         if (has_homerelative) {
           s = xstrdup(dirname);
-          dirnamelen = home_replace(NULL, s, dirname, MAXPATHL, true);
+          home_replace(NULL, s, dirname, MAXPATHL, true);
           xfree(s);
         }
-
-        if (dirnamelen == 0) {
-          dirnamelen = strlen(dirname);
-        }
+        size_t namelen = strlen(dirname);
 
         // Do not call shorten_fname() here since it removes the prefix
         // even though the path does not have a prefix.
-        if (path_cmp(p_fic, p, dirname, dirnamelen) == 0) {
-          p += dirnamelen;
+        if (path_fnamencmp(p, dirname, namelen) == 0) {
+          p += namelen;
           if (vim_ispathsep(*p)) {
             while (*p && vim_ispathsep(*p)) {
               p++;
@@ -196,10 +188,10 @@ repeat:
           }
         }
       } else {
-        dirnamelen = home_replace(NULL, p, dirname, MAXPATHL, true);
+        home_replace(NULL, p, dirname, MAXPATHL, true);
         // Only replace it when it starts with '~'
         if (*dirname == '~') {
-          s = xmemdupz(dirname, dirnamelen);
+          s = xstrdup(dirname);
           assert(s != NULL);  // suppress clang "Argument with 'nonnull' attribute passed null"
           *fnamep = s;
           xfree(*bufp);
@@ -211,30 +203,23 @@ repeat:
     }
   }
 
-  FileInfo file_info;
-  os_fileinfo2(*fnamep, &file_info);
-  if (src[*usedlen] == ':' && src[*usedlen + 1] == 'h') {
-    s = *fnamep + file_info.rest_off;
-    *fnamep = *fnamep + file_info.prefix_off;
-  }
-
   char *tail = path_tail(*fnamep);
   *fnamelen = strlen(*fnamep);
 
   // ":h" - head, remove "/file_name", can be repeated
-  // Don't remove the logical root, see `FileInfo`.
+  // Don't remove the first "/" or "c:\"
   while (src[*usedlen] == ':' && src[*usedlen + 1] == 'h') {
     valid |= VALID_HEAD;
     *usedlen += 2;
+    s = get_past_head(*fnamep);
     while (tail > s && after_pathsep(s, tail)) {
       MB_PTR_BACK(*fnamep, tail);
     }
-    *fnamelen = tail <= s ? (size_t)(s - *fnamep) : (size_t)(tail - *fnamep);
+    *fnamelen = (size_t)(tail - *fnamep);
     if (*fnamelen == 0) {
       // Result is empty.  Turn it into "." to make ":cd %:h" work.
       xfree(*bufp);
       *bufp = *fnamep = tail = xstrdup(".");
-      s = *fnamep;  // s pointed into the freed buffer.
       *fnamelen = 1;
     } else {
       while (tail > s && !after_pathsep(s, tail)) {
@@ -307,20 +292,13 @@ repeat:
     *usedlen += 2;
   }
 
-#ifdef BACKSLASH_IN_FILENAME
-  if (!didit && use_shellslash && *fnamep != NULL) {
-    *fnamep = xstrdup(*fnamep);
-    slash_adjust(*fnamep);
-    xfree(*bufp);
-    *bufp = *fnamep;
-  }
-#endif
-
   // ":s?pat?foo?" - substitute
   // ":gs?pat?foo?" - global substitute
   if (src[*usedlen] == ':'
       && (src[*usedlen + 1] == 's'
           || (src[*usedlen + 1] == 'g' && src[*usedlen + 2] == 's'))) {
+    bool didit = false;
+
     char *flags = "";
     s = src + *usedlen + 2;
     if (src[*usedlen + 1] == 'g') {
@@ -385,10 +363,6 @@ void f_chdir(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   rettv->v_type = VAR_STRING;
   rettv->vval.v_string = NULL;
 
-  if (check_secure()) {
-    return;
-  }
-
   if (argvars[0].v_type != VAR_STRING) {
     // Returning an empty string means it failed.
     // No error message, for historic reasons.
@@ -414,21 +388,17 @@ void f_chdir(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
       scope = kCdScopeTabpage;
     } else if (strcmp(s, "window") == 0) {
       scope = kCdScopeWindow;
-    } else if (strcmp(s, "buffer") == 0) {
-      scope = kCdScopeBuffer;
     } else {
       semsg(_(e_invargNval), "scope", s);
       return;
     }
-  } else if (curbuf->b_localdir != NULL) {
-    scope = kCdScopeBuffer;
   } else if (curwin->w_localdir != NULL) {
     scope = kCdScopeWindow;
   } else if (curtab->tp_localdir != NULL) {
     scope = kCdScopeTabpage;
   }
 
-  if (!do_chdir(argvars[0].vval.v_string, scope)) {
+  if (!changedir_func(argvars[0].vval.v_string, scope)) {
     // Directory change failed
     XFREE_CLEAR(rettv->vval.v_string);
   }
@@ -627,13 +597,11 @@ void f_fnamemodify(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   if (mods == NULL || fname == NULL) {
     fname = NULL;
   } else {
-    fbuf = TO_SLASH_SAVE(fname);
-    fname = fbuf;
     len = strlen(fname);
     if (*mods != NUL) {
       size_t usedlen = 0;
       modify_fname((char *)mods, false, &usedlen,
-                   (char **)&fname, &fbuf, &len, false);
+                   (char **)&fname, &fbuf, &len);
     }
   }
 
@@ -646,163 +614,99 @@ void f_fnamemodify(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   xfree(fbuf);
 }
 
-/// Resolves the `[{winnr}[, {tabnr}[, {bufnr}]]]` arguments of `getcwd()`/`haslocaldir()` to the
-/// requested scope and the scope objects to inspect. In an argument, `0` means the current object
-/// and `-1` skips the scope (requesting the next broader one). Note that the argument order
-/// differs from the `CdScope` order.
-///
-/// @param default_scope  Scope when no arguments were given.
-///
-/// @return  false if an error message was emitted.
-static bool getcwd_scope_args(typval_T *argvars, CdScope default_scope, CdScope *scope, win_T **win,
-                              tabpage_T **tp, buf_T **buf)
-{
-  enum { kWinArg, kTabArg, kBufArg, };
-  int argv[] = { 0, 0, 0 };
-  int argc = 0;
-
-  *scope = default_scope;
-  *win = curwin;
-  *tp = curtab;
-  *buf = curbuf;
-
-  for (; argc < 3; argc++) {
-    // If there is no argument there are no more scopes after it, break out.
-    if (argvars[argc].v_type == VAR_UNKNOWN) {
-      break;
-    }
-    if (argvars[argc].v_type != VAR_NUMBER) {
-      emsg(_(e_invarg));
-      return false;
-    }
-    argv[argc] = (int)argvars[argc].vval.v_number;
-    // It is an error for the scope number to be less than `-1`.
-    if (argv[argc] < -1) {
-      emsg(_(e_invarg));
-      return false;
-    }
-  }
-
-  // An argument may only be -1 if all preceding arguments are -1: `(2, 3, -1)` is an error.
-  bool explicit_scope = false;
-  for (int i = 0; i < argc; i++) {
-    explicit_scope = explicit_scope || argv[i] >= 0;
-    if (explicit_scope && argv[i] < 0) {
-      emsg(_("E5001: Argument cannot be -1 if preceding argument is >= 0."));
-      return false;
-    }
-  }
-
-  // Narrowest requested scope. Imagine X >= 0:
-  switch (argc) {
-  case 0:
-    break;
-  case 1:
-    if (argv[kWinArg] >= 0) {
-      *scope = kCdScopeWindow;  // (X)
-    } else {
-      *scope = kCdScopeTabpage;  // (-1)
-    }
-    break;
-  case 2:
-    if (argv[kWinArg] >= 0) {
-      *scope = kCdScopeWindow;  // (X, ...)
-    } else if (argv[kTabArg] >= 0) {
-      *scope = kCdScopeTabpage;  // (-1, X)
-    } else {
-      *scope = kCdScopeGlobal;  // (-1, -1)
-    }
-    break;
-  case 3:
-    if (argv[kBufArg] >= 0) {
-      *scope = kCdScopeBuffer;  // (-1, -1, X)
-    } else {
-      *scope = kCdScopeGlobal;  // (-1, -1, -1)
-    }
-    break;
-  }
-
-  if (*scope == kCdScopeBuffer) {
-    if (argv[kWinArg] >= 0 || argv[kTabArg] >= 0) {
-      emsg(_("E5006: Window and tab scope must be -1 when using buffer scope"));
-      return false;
-    }
-    if (argv[kBufArg] > 0) {
-      Error err = ERROR_INIT;
-      *buf = find_buffer_by_handle(argv[kBufArg], &err);
-      if (ERROR_SET(&err)) {
-        emsg(_("E5007: Cannot find buffer number."));
-        xfree(err.msg);
-        return false;
-      }
-    }
-  }
-
-  // Find the tabpage by number.
-  if (argv[kTabArg] > 0) {
-    *tp = find_tabpage(argv[kTabArg]);
-    if (*tp == NULL) {
-      emsg(_("E5000: Cannot find tab number."));
-      return false;
-    }
-  }
-
-  // Find the window in `tp` by number.
-  if (argv[kWinArg] > 0) {
-    *win = find_win_by_nr(&argvars[0], *tp);
-    if (*win == NULL) {
-      emsg(_("E5002: Cannot find window number."));
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/// `getcwd([{win}[, {tab}[, {buf}]]])` function
+/// `getcwd([{win}[, {tab}]])` function
 ///
 /// Every scope not specified implies the currently selected scope object.
 ///
 /// @pre  The arguments must be of type number.
-/// @pre  There may not be more than three arguments.
+/// @pre  There may not be more than two arguments.
 /// @pre  An argument may not be -1 if preceding arguments are not all -1.
 ///
 /// @post  The return value will be a string.
 void f_getcwd(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
-  CdScope scope;
-  win_T *win;
-  tabpage_T *tp;
-  buf_T *buf;
+  // Possible scope of working directory to return.
+  CdScope scope = kCdScopeInvalid;
+
+  // Numbers of the scope objects (window, tab) we want the working directory
+  // of. A `-1` means to skip this scope, a `0` means the current object.
+  int scope_number[] = {
+    [kCdScopeWindow] = 0,   // Number of window to look at.
+    [kCdScopeTabpage] = 0,  // Number of tab to look at.
+  };
+
+  char *cwd = NULL;    // Current working directory to print
+  char *from = NULL;    // The original string to copy
+
+  tabpage_T *tp = curtab;  // The tabpage to look at.
+  win_T *win = curwin;     // The window to look at.
 
   rettv->v_type = VAR_STRING;
   rettv->vval.v_string = NULL;
 
-  // Without arguments (kCdScopeInvalid), the effective working directory is returned.
-  if (!getcwd_scope_args(argvars, kCdScopeInvalid, &scope, &win, &tp, &buf)) {
-    return;
+  // Pre-conditions and scope extraction together
+  for (int i = MIN_CD_SCOPE; i < MAX_CD_SCOPE; i++) {
+    // If there is no argument there are no more scopes after it, break out.
+    if (argvars[i].v_type == VAR_UNKNOWN) {
+      break;
+    }
+    if (argvars[i].v_type != VAR_NUMBER) {
+      emsg(_(e_invarg));
+      return;
+    }
+    scope_number[i] = (int)argvars[i].vval.v_number;
+    // It is an error for the scope number to be less than `-1`.
+    if (scope_number[i] < -1) {
+      emsg(_(e_invarg));
+      return;
+    }
+    // Use the narrowest scope the user requested
+    if (scope_number[i] >= 0 && scope == kCdScopeInvalid) {
+      // The scope is the current iteration step.
+      scope = i;
+    } else if (scope_number[i] < 0) {
+      scope = i + 1;
+    }
   }
 
-  char *from = NULL;  // The local directory to copy.
-  char *cwd = xmalloc(MAXPATHL);
+  // Find the tabpage by number
+  if (scope_number[kCdScopeTabpage] > 0) {
+    tp = find_tabpage(scope_number[kCdScopeTabpage]);
+    if (!tp) {
+      emsg(_("E5000: Cannot find tab number."));
+      return;
+    }
+  }
+
+  // Find the window in `tp` by number, `NULL` if none.
+  if (scope_number[kCdScopeWindow] >= 0) {
+    if (scope_number[kCdScopeTabpage] < 0) {
+      emsg(_("E5001: Higher scope cannot be -1 if lower scope is >= 0."));
+      return;
+    }
+
+    if (scope_number[kCdScopeWindow] > 0) {
+      win = find_win_by_nr(&argvars[0], tp);
+      if (!win) {
+        emsg(_("E5002: Cannot find window number."));
+        return;
+      }
+    }
+  }
+
+  cwd = xmalloc(MAXPATHL);
 
   switch (scope) {
   case kCdScopeWindow:
+    assert(win);
     from = win->w_localdir;
     if (from) {
       break;
     }
     FALLTHROUGH;
   case kCdScopeTabpage:
+    assert(tp);
     from = tp->tp_localdir;
-    if (from) {
-      break;
-    }
-    FALLTHROUGH;
-  case kCdScopeBuffer:
-    // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no particular
-    // window or tabpage, so it skips those and falls back to global dir.
-    from = scope == kCdScopeBuffer ? buf->b_localdir : NULL;
     if (from) {
       break;
     }
@@ -856,10 +760,12 @@ void f_getfsize(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
   const char *fname = tv_get_string(&argvars[0]);
 
+  rettv->v_type = VAR_NUMBER;
+
   FileInfo file_info;
   if (os_fileinfo(fname, &file_info)) {
     uint64_t filesize = os_fileinfo_size(&file_info);
-    if (S_ISDIR(file_info.stat.st_mode)) {
+    if (os_isdir(fname)) {
       rettv->vval.v_number = 0;
     } else {
       rettv->vval.v_number = (varnumber_T)filesize;
@@ -932,15 +838,15 @@ void f_glob(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   // for 'wildignore' and don't put matches for 'suffixes' at the end.
   rettv->v_type = VAR_STRING;
   if (argvars[1].v_type != VAR_UNKNOWN) {
-    if (tv_get_bool_chk(&argvars[1], &error)) {
+    if (tv_get_number_chk(&argvars[1], &error)) {
       options |= WILD_KEEP_ALL;
     }
     if (argvars[2].v_type != VAR_UNKNOWN) {
-      if (tv_get_bool_chk(&argvars[2], &error)) {
+      if (tv_get_number_chk(&argvars[2], &error)) {
         tv_list_set_ret(rettv, NULL);
       }
       if (argvars[3].v_type != VAR_UNKNOWN
-          && tv_get_bool_chk(&argvars[3], &error)) {
+          && tv_get_number_chk(&argvars[3], &error)) {
         options |= WILD_ALLLINKS;
       }
     }
@@ -972,7 +878,7 @@ void f_glob(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 /// "globpath()" function
 void f_globpath(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
-  int flags = 0;  // Flags for globpath.
+  int flags = WILD_IGNORE_COMPLETESLASH;  // Flags for globpath.
   bool error = false;
 
   // Return a string, or a list if the optional third argument is non-zero.
@@ -981,16 +887,16 @@ void f_globpath(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   if (argvars[2].v_type != VAR_UNKNOWN) {
     // When the optional second argument is non-zero, don't remove matches
     // for 'wildignore' and don't put matches for 'suffixes' at the end.
-    if (tv_get_bool_chk(&argvars[2], &error)) {
+    if (tv_get_number_chk(&argvars[2], &error)) {
       flags |= WILD_KEEP_ALL;
     }
 
     if (argvars[3].v_type != VAR_UNKNOWN) {
-      if (tv_get_bool_chk(&argvars[3], &error)) {
+      if (tv_get_number_chk(&argvars[3], &error)) {
         tv_list_set_ret(rettv, NULL);
       }
       if (argvars[4].v_type != VAR_UNKNOWN
-          && tv_get_bool_chk(&argvars[4], &error)) {
+          && tv_get_number_chk(&argvars[4], &error)) {
         flags |= WILD_ALLLINKS;
       }
     }
@@ -1028,40 +934,96 @@ void f_glob2regpat(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   rettv->vval.v_string = pat == NULL ? NULL : file_pat_to_reg_pat(pat, NULL, NULL, false);
 }
 
-/// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
+/// `haslocaldir([{win}[, {tab}]])` function
 ///
 /// Returns `1` if the scope object has a local directory, `0` otherwise. If a
-/// scope object is not specified the current one is implied.
+/// scope object is not specified the current one is implied. This function
+/// share a lot of code with `f_getcwd`.
 ///
 /// @pre  The arguments must be of type number.
-/// @pre  There may not be more than three arguments.
+/// @pre  There may not be more than two arguments.
 /// @pre  An argument may not be -1 if preceding arguments are not all -1.
 ///
 /// @post  The return value will be either the number `1` or `0`.
 void f_haslocaldir(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
-  CdScope scope;
-  win_T *win;
-  tabpage_T *tp;
-  buf_T *buf;
+  // Possible scope of working directory to return.
+  CdScope scope = kCdScopeInvalid;
+
+  // Numbers of the scope objects (window, tab) we want the working directory
+  // of. A `-1` means to skip this scope, a `0` means the current object.
+  int scope_number[] = {
+    [kCdScopeWindow] = 0,  // Number of window to look at.
+    [kCdScopeTabpage] = 0,  // Number of tab to look at.
+  };
+
+  tabpage_T *tp = curtab;  // The tabpage to look at.
+  win_T *win = curwin;  // The window to look at.
 
   rettv->v_type = VAR_NUMBER;
   rettv->vval.v_number = 0;
 
-  // Without arguments, default to window scope.
-  if (!getcwd_scope_args(argvars, kCdScopeWindow, &scope, &win, &tp, &buf)) {
-    return;
+  // Pre-conditions and scope extraction together
+  for (int i = MIN_CD_SCOPE; i < MAX_CD_SCOPE; i++) {
+    if (argvars[i].v_type == VAR_UNKNOWN) {
+      break;
+    }
+    if (argvars[i].v_type != VAR_NUMBER) {
+      emsg(_(e_invarg));
+      return;
+    }
+    scope_number[i] = (int)argvars[i].vval.v_number;
+    if (scope_number[i] < -1) {
+      emsg(_(e_invarg));
+      return;
+    }
+    // Use the narrowest scope the user requested
+    if (scope_number[i] >= 0 && scope == kCdScopeInvalid) {
+      // The scope is the current iteration step.
+      scope = i;
+    } else if (scope_number[i] < 0) {
+      scope = i + 1;
+    }
+  }
+
+  // If the user didn't specify anything, default to window scope
+  if (scope == kCdScopeInvalid) {
+    scope = MIN_CD_SCOPE;
+  }
+
+  // Find the tabpage by number
+  if (scope_number[kCdScopeTabpage] > 0) {
+    tp = find_tabpage(scope_number[kCdScopeTabpage]);
+    if (!tp) {
+      emsg(_("E5000: Cannot find tab number."));
+      return;
+    }
+  }
+
+  // Find the window in `tp` by number, `NULL` if none.
+  if (scope_number[kCdScopeWindow] >= 0) {
+    if (scope_number[kCdScopeTabpage] < 0) {
+      emsg(_("E5001: Higher scope cannot be -1 if lower scope is >= 0."));
+      return;
+    }
+
+    if (scope_number[kCdScopeWindow] > 0) {
+      win = find_win_by_nr(&argvars[0], tp);
+      if (!win) {
+        emsg(_("E5002: Cannot find window number."));
+        return;
+      }
+    }
   }
 
   switch (scope) {
   case kCdScopeWindow:
-    rettv->vval.v_number = win->w_localdir != NULL;
-    break;
-  case kCdScopeBuffer:
-    rettv->vval.v_number = buf->b_localdir != NULL;
+    assert(win);
+    rettv->vval.v_number = win->w_localdir ? 1 : 0;
     break;
   case kCdScopeTabpage:
-    rettv->vval.v_number = tp->tp_localdir != NULL;
+    assert(tp);
+    rettv->vval.v_number = tp->tp_localdir ? 1 : 0;
     break;
   case kCdScopeGlobal:
     // The global scope never has a local directory
@@ -1219,9 +1181,6 @@ theend:
 void f_readdir(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
   tv_list_alloc_ret(rettv, kListLenUnknown);
-  if (check_secure()) {
-    return;
-  }
 
   const char *path = tv_get_string(&argvars[0]);
   typval_T *expr = &argvars[1];
@@ -1492,20 +1451,12 @@ static void read_file_or_blob(typval_T *argvars, typval_T *rettv, bool always_bl
 /// "readblob()" function
 void f_readblob(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
-  if (check_secure()) {
-    return;
-  }
-
   read_file_or_blob(argvars, rettv, true);
 }
 
 /// "readfile()" function
 void f_readfile(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
-  if (check_secure()) {
-    return;
-  }
-
   read_file_or_blob(argvars, rettv, false);
 }
 
@@ -1819,10 +1770,8 @@ void f_writefile(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
       }
     });
   } else if (argvars[0].v_type != VAR_BLOB
-             // Always treat Lua/RPC strings as "blob" data.
-             && !(argvars[0].v_type == VAR_STRING
-                  && (script_is_lua(current_sctx.sc_sid)
-                      || current_sctx.sc_sid == SID_API_CLIENT))) {
+             // Always treat Lua strings as "blob" data.
+             && !(argvars[0].v_type == VAR_STRING && script_is_lua(current_sctx.sc_sid))) {
     semsg(_(e_invarg2), _("writefile() first argument must be a List or a Blob"));
     return;
   }

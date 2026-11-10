@@ -1,4 +1,4 @@
-name: "label-issue"
+name: "labeler: issue"
 on:
   issues:
     types: [opened]
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: check issue title
-        uses: actions/github-script@v9
+        uses: actions/github-script@v8
         with:
           script: |
             const title = context.payload.issue.title;
@@ -21,7 +21,6 @@ jobs:
               'api',
               'image',
               'lsp',
-              'multicursor',
               'treesitter',
               'ui',
               'ui2'
@@ -37,9 +36,6 @@ jobs:
             // Special cases.
             if (titleSplit.includes('vim.pack')) {
               labels.add('packages')
-            }
-            if (titleSplit.includes('cmdatom')) {
-              labels.add('multicursor')
             }
 
             if (labels.size !== 0) {

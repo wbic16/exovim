@@ -186,55 +186,6 @@ func Test_strwidth()
   set ambiwidth&
 endfunc
 
-func Test_strtrans()
-  " The default of 'isprint' is platform-dependent: 0x7f and 0x9f are
-  " printable on Win32 and VMS.  Set it so the expectations below hold
-  " everywhere.
-  let save_isprint = &isprint
-  set isprint=@,161-255
-
-  " printable ASCII is unchanged
-  call assert_equal('', strtrans(''))
-  call assert_equal('abc', strtrans('abc'))
-
-  " control characters are displayed as ^X
-  call assert_equal('^I', strtrans("\t"))
-  call assert_equal('a^Mb^[c', strtrans("a\rb\ec"))
-  call assert_equal('^A^_^?', strtrans("\x01\x1f\x7f"))
-
-  " printable multibyte characters are unchanged, including composing
-  " characters and characters above 0xffff
-  call assert_equal('héllo 你好', strtrans('héllo 你好'))
-  let s = 'e' .. nr2char(0x301) .. 'x'
-  call assert_equal(s, strtrans(s))
-  call assert_equal(nr2char(0x1d11e), strtrans(nr2char(0x1d11e)))
-
-  " unprintable multibyte characters are displayed in <xx> hex form
-  call assert_equal('<9f>', strtrans(nr2char(0x9f)))
-  call assert_equal('<200b>', strtrans(nr2char(0x200b)))
-  call assert_equal('<feff>', strtrans(nr2char(0xfeff)))
-
-  " illegal bytes are displayed in <xx> hex form
-  call assert_equal('A<ff>B', strtrans("A\xffB"))
-
-  " a long string mixing all kinds of characters
-  call assert_equal(repeat('a^Bé<9f>', 100),
-        \ strtrans(repeat("a\x02é" .. nr2char(0x9f), 100)))
-
-  " the non-multi-byte code path
-  "set encoding=latin1
-  set isprint=@,161-255
-  call assert_equal('a^Mb^[c', strtrans("a\rb\ec"))
-  call assert_equal('^A^_^?', strtrans("\x01\x1f\x7f"))
-  " an unprintable byte above 0x7f uses the meta notation
-  "call assert_equal('| ', strtrans("\xa0"))
-  "call assert_equal("\xe9", strtrans("\xe9"))
-  "call assert_equal("x^B\xe9| y", strtrans("x\x02\xe9\xa0y"))
-  set encoding=utf-8
-
-  let &isprint = save_isprint
-endfunc
-
 func Test_str2nr()
   call assert_equal(0, str2nr(''))
   call assert_equal(1, str2nr('1'))
@@ -375,14 +326,10 @@ func Test_strptime()
   endif
 endfunc
 
-func Test_repeat_overflow()
-  call assert_fails("call repeat('abcdef', 715827883)", 'E1510:')
-  call assert_fails("call repeat('ab', 4294967297)", 'E1510:')
-  call assert_fails('call repeat([1, 2, 3, 4, 5, 6], 715827883)', 'E1510:')
-endfunc
-
 func Test_resolve_unix()
-  CheckUnix
+  if !has('unix')
+    return
+  endif
 
   " Xlink1 -> Xlink2
   " Xlink2 -> Xlink3
@@ -867,12 +814,10 @@ func Test_mode()
   call assert_equal('c-c', g:current_modes)
   call feedkeys(":\<Insert>\<F2>\<CR>", 'xt')
   call assert_equal("c-cr", g:current_modes)
-  " Nvim: interactive Ex mode is a cmdwin wrapper: mode()=n/i ("cv" means
-  " -es); cannot run inside :normal/feedkeys('x').
-  "call feedkeys("gQ\<F2>vi\<CR>", 'xt')
-  "call assert_equal('c-cv', g:current_modes)
-  "call feedkeys("gQ\<Insert>\<F2>vi\<CR>", 'xt')
-  "call assert_equal("c-cvr", g:current_modes)
+  call feedkeys("gQ\<F2>vi\<CR>", 'xt')
+  call assert_equal('c-cv', g:current_modes)
+  call feedkeys("gQ\<Insert>\<F2>vi\<CR>", 'xt')
+  call assert_equal("c-cvr", g:current_modes)
 
   " Commandline mode in Visual mode should return "c-c", never "v-v".
   call feedkeys("v\<Cmd>call input('')\<CR>\<F2>\<CR>\<Esc>", 'xt')
@@ -880,10 +825,10 @@ func Test_mode()
 
   " Executing commands in Vim Ex mode should return "cv", never "cvr",
   " as Cmdline editing has already ended.
-  "call feedkeys("gQcall Save_mode()\<CR>vi\<CR>", 'xt')
-  "call assert_equal('c-cv', g:current_modes)
-  "call feedkeys("gQ\<Insert>call Save_mode()\<CR>vi\<CR>", 'xt')
-  "call assert_equal('c-cv', g:current_modes)
+  call feedkeys("gQcall Save_mode()\<CR>vi\<CR>", 'xt')
+  call assert_equal('c-cv', g:current_modes)
+  call feedkeys("gQ\<Insert>call Save_mode()\<CR>vi\<CR>", 'xt')
+  call assert_equal('c-cv', g:current_modes)
 
   " call feedkeys("Qcall Save_mode()\<CR>vi\<CR>", 'xt')
   " call assert_equal('c-ce', g:current_modes)
@@ -1996,56 +1941,14 @@ func Test_Executable()
 endfunc
 
 func Test_executable_longname()
-  CheckMSWindows
-
-  " Create a temporary .bat file with 205 characters in the name.
-  " Maximum length of a filename (including the path) on MS-Windows is 259
-  " characters.
-  " See https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
-  let len = 259 - getcwd()->len() - 6
-  if len > 200
-    let len = 200
+  if !has('win32')
+    return
   endif
 
-  let fname = 'X' . repeat('あ', len) . '.bat'
+  let fname = 'X' . repeat('あ', 200) . '.bat'
   call writefile([], fname)
   call assert_equal(1, executable(fname))
   call delete(fname)
-endfunc
-
-func Test_executable_single_character_dir()
-  call mkdir('Xpath', 'R')
-  call mkdir('Xpath/a')
-  call mkdir('Xpath/b')
-  call mkdir('Xpath/c')
-  if has('win32')
-    call writefile([], 'Xpath/a/Xcmd1.bat')
-    call writefile([], 'Xpath/b/Xcmd2.bat')
-    call writefile([], 'Xpath/c/Xcmd3.bat')
-    let sep = ';'
-  else
-    call writefile([], 'Xpath/a/Xcmd1')
-    call writefile([], 'Xpath/b/Xcmd2')
-    call writefile([], 'Xpath/c/Xcmd3')
-    call setfperm('Xpath/a/Xcmd1', 'rwxr-xr-x')
-    call setfperm('Xpath/b/Xcmd2', 'rwxr-xr-x')
-    call setfperm('Xpath/c/Xcmd3', 'rwxr-xr-x')
-    let sep = ':'
-  endif
-
-  let save_path = $PATH
-  " a: single character name without path seperator
-  " b: single character name with path seperator
-  " c: single character name without path seperator at last of PATH
-  let $PATH = [
-        \ fnamemodify('./Xpath/a', ':p:h'),
-        \ fnamemodify('./Xpath/b', ':p'),
-        \ fnamemodify('./Xpath/c', ':p:h')
-        \ ]->join(sep)
-  call assert_true(executable('Xcmd1'))
-  call assert_true(executable('Xcmd2'))
-  call assert_true(executable('Xcmd3'))
-  let $PATH = save_path
 endfunc
 
 func Test_hostname()
@@ -2275,7 +2178,7 @@ func Test_balloon_show()
 endfunc
 
 func Test_setbufvar_options()
-  " This tests that ctx_switch() and ctx_restore() properly restore the
+  " This tests that aucmd_prepbuf() and aucmd_restbuf() properly restore the
   " window layout and cursor position.
   call assert_equal(1, winnr('$'))
   split dummy_preview
@@ -3200,9 +3103,6 @@ func Test_range()
   " get()
   call assert_equal(4, get(range(1, 10), 3))
   call assert_equal(-1, get(range(1, 10), 42, -1))
-  call assert_equal(0, get(range(1, 0, 2), 0))
-  call assert_equal(0, get(range(0, -1, 2), 0))
-  call assert_equal(0, get(range(-2, -1, -2), 0))
 
   " index()
   call assert_equal(1, index(range(1, 5), 2))
@@ -3370,26 +3270,6 @@ func Test_range()
   call assert_fails('let x=range([])', 'E745:')
   call assert_fails('let x=range(1, [])', 'E745:')
   call assert_fails('let x=range(1, 4, [])', 'E745:')
-
-  " the number of items must fit in an int
-  "call assert_equal(2147483647, len(range(2147483647)))
-  call assert_fails('let x=range(2147483648)',
-        \ 'E1510: Value too large: 2147483648')
-  call assert_fails('let x=range(0, 2147483647)',
-        \ 'E1510: Value too large: 2147483648')
-  call assert_fails('let x=range(0, 4294967294, 2)',
-        \ 'E1510: Value too large: 2147483648')
-  call assert_fails('let x=range(0, 9223372036854775807)',
-        \ 'E1510: Value too large: 9223372036854775808')
-
-  " the stride must fit in an int
-  call assert_fails('let x=range(0, 100, 3000000000)',
-        \ 'E1510: Value too large: 3000000000')
-  call assert_fails('let x=range(0, 100, -3000000000)',
-        \ 'E1510: Value too large: -3000000000')
-
-  " slicing a range list with an overflowing length crashed
-  call assert_fails('let x=range(2147483648)[: 4]', 'E1510:')
 endfunc
 
 func Test_garbagecollect_now_fails()
@@ -3429,10 +3309,6 @@ func Test_keytrans()
   call assert_equal('<M-x>', "\<*M-x>"->keytrans())
   call assert_equal('<C-I>', "\<*C-I>"->keytrans())
   call assert_equal('<S-3>', "\<*S-3>"->keytrans())
-  call assert_equal('<Bar>', '|'->keytrans())
-  call assert_equal('<M-Bar>', "\<*M-|>"->keytrans())
-  call assert_equal('<Bslash>', '\'->keytrans())
-  call assert_equal('<M-Bslash>', "\<*M-\>"->keytrans())
   call assert_equal('π', 'π'->keytrans())
   call assert_equal('<M-π>', "\<M-π>"->keytrans())
   call assert_equal('ě', 'ě'->keytrans())
@@ -3753,25 +3629,14 @@ func Test_glob2()
     call assert_equal([], (glob('abc[glob]def\*', 0, 1)))
     call assert_equal([], (glob('\[XglobDir]\*', 0, 1)))
     call assert_equal([], (glob('abc\[glob]def\*', 0, 1)))
-    " Test that changing 'shellslash' doesn't affect the result of glob()
     set noshellslash
-    call assert_equal(['[XglobDir]/Xglob'], (glob('[[]XglobDir]/*', 0, 1)))
-    call assert_equal(['abc[glob]def/Xglob'], (glob('abc[[]glob]def/*', 0, 1)))
+    call assert_equal(['[XglobDir]\Xglob'], (glob('[[]XglobDir]/*', 0, 1)))
+    call assert_equal(['abc[glob]def\Xglob'], (glob('abc[[]glob]def/*', 0, 1)))
     set shellslash
     call assert_equal(['[XglobDir]/Xglob'], (glob('[[]XglobDir]/*', 0, 1)))
     call assert_equal(['abc[glob]def/Xglob'], (glob('abc[[]glob]def/*', 0, 1)))
     let &shellslash=_sl
   endif
-endfunc
-
-" shell is not used to expand a single quote
-func Test_glob3()
-  CheckUnix
-  let shell = &shell
-  set shell=DOESNOTEXIST
-  call writefile([], "Xit's_a_file", 'D')
-  call assert_equal(["Xit's_a_file"], glob("Xit's*", 0, 1))
-  let &shell = shell
 endfunc
 
 func Test_glob_symlinks()
@@ -4021,25 +3886,6 @@ func Test_glob_extended_mswin()
   let expected = ['Xtestglob/foo/bar/src/foo.cpp', 'Xtestglob/foo/bar/src/foo.h', 'Xtestglob/foo/bar/src/foo.sh']
   call assert_equal(expected, sort(glob('Xtestglob/**/foo.*', 0, 1)))
   call delete('Xtestglob', 'rf')
-endfunc
-
-" Test for glob() with filenames starting with a -
-func Test_glob_shell_expansion_minus()
-  CheckUnix
-  CheckExecutable bash
-
-  let shell = &shell
-  set shell=bash
-  call mkdir('Xvimglob', 'R')
-  call writefile([], 'Xvimglob/-n')
-  let cwd = getcwd()
-  call chdir('Xvimglob')
-  try
-    call assert_equal(['-n'], glob("{-n,E}", 0, 1))
-  finally
-    let &shell = shell
-    call chdir(cwd)
-  endtry
 endfunc
 
 " Tests for the slice() function.

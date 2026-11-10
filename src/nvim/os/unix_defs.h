@@ -9,7 +9,7 @@
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#ifdef HAVE_TERMIOS_H
+#if defined(HAVE_TERMIOS_H)
 # include <termios.h>
 #endif
 // IWYU pragma: end_exports

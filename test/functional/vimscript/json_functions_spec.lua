@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, setup = t.describe, t.it, t.setup
 local clear = n.clear
 local fn = n.fn
 local api = n.api
@@ -972,6 +971,12 @@ describe('json_encode() function', function()
     )
   end)
 
+  it('ignores improper values in &isprint', function()
+    api.nvim_set_option_value('isprint', '1', {})
+    eq(1, eval('"\1" =~# "\\\\p"'))
+    eq('"\\u0001"', fn.json_encode('\1'))
+  end)
+
   it('fails when using surrogate character in a UTF-8 string', function()
     eq(
       'Vim(call):E474: UTF-8 string contains code point which belongs to a surrogate pair: \237\160\128',
@@ -980,21 +985,6 @@ describe('json_encode() function', function()
     eq(
       'Vim(call):E474: UTF-8 string contains code point which belongs to a surrogate pair: \237\175\191',
       pcall_err(command, 'call json_encode("\237\175\191")')
-    )
-    -- Also in a special string, or a key deeper than the 8 levels the conversion stack holds inline.
-    eq(
-      'Vim(call):E474: UTF-8 string contains code point which belongs to a surrogate pair: \237\160\128',
-      pcall_err(
-        command,
-        'call json_encode({"_TYPE": v:msgpack_types.string, "_VAL": ["\237\160\128"]})'
-      )
-    )
-    eq(
-      'Vim(call):E474: UTF-8 string contains code point which belongs to a surrogate pair: \237\160\128',
-      pcall_err(
-        command,
-        ('call json_encode(%s{"\237\160\128": 1}%s)'):format(('{"a": '):rep(8), ('}'):rep(8))
-      )
     )
   end)
 

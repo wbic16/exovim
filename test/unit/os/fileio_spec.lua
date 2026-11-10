@@ -1,8 +1,7 @@
 local uv = vim.uv
 
 local t = require('test.unit.testutil')
-local describe, before_each, after_each = t.describe, t.before_each, t.after_each
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local eq = t.eq
 local ffi = t.ffi

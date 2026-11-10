@@ -1,5 +1,4 @@
 local t = require('test.testutil')
-local describe, it, before_each, finally = t.describe, t.it, t.before_each, t.finally
 local pcall_err = t.pcall_err
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
@@ -65,16 +64,10 @@ describe('completion', function()
     it('returns expected dict in normal completion', function()
       feed('ifoo<ESC>o<C-x><C-n>')
       eq('foo', eval('getline(2)'))
-      eq({
-        word = 'foo',
-        abbr = '',
-        menu = '',
-        info = '',
-        kind = '',
-        user_data = '',
-        abbr_hlgroup = '',
-        kind_hlgroup = '',
-      }, eval('v:completed_item'))
+      eq(
+        { word = 'foo', abbr = '', menu = '', info = '', kind = '', user_data = '' },
+        eval('v:completed_item')
+      )
     end)
     it('is readonly', function()
       screen:try_resize(80, 8)
@@ -111,8 +104,6 @@ describe('completion', function()
         menu = 'baz',
         info = 'foobar',
         kind = 'foobaz',
-        abbr_hlgroup = '',
-        kind_hlgroup = '',
         user_data = '',
       }, eval('v:completed_item'))
     end)
@@ -275,97 +266,6 @@ describe('completion', function()
       command('setlocal nomodified')
       feed('i<C-r>=TestComplete()<CR><ESC>')
       eq(0, eval('&l:modified'))
-    end)
-
-    describe('"preselect"', function()
-      it('respects "preselect" of complete items', function()
-        source([[
-          function! TestComplete() abort
-            call complete(1, g:comp_items)
-            return ''
-          endfunction
-        ]])
-        local function complete(items)
-          api.nvim_set_var('comp_items', items)
-          feed('<Esc>S<C-r>=TestComplete()<CR>')
-        end
-        local items = {
-          { word = 'aaa' },
-          { word = 'bbb' },
-          { word = 'ccc', preselect = true },
-          { word = 'ddd' },
-        }
-        command('set completeopt=menuone,preselect')
-        complete(items)
-        screen:expect([[
-          ccc^                                                         |
-          {4:aaa            }{1:                                             }|
-          {4:bbb            }{1:                                             }|
-          {12:ccc            }{1:                                             }|
-          {4:ddd            }{1:                                             }|
-          {1:~                                                           }|*2
-          {5:-- INSERT --}                                                |
-        ]])
-
-        -- scrolls pum when preselected item is far down
-        command('set pumheight=5')
-        local many = {} ---@type table[]
-        for i = 0, 19 do
-          many[i + 1] = { word = 'item' .. i }
-        end
-        many[16].preselect = true ---@type boolean
-        complete(many)
-        screen:expect([[
-          item15^                                                      |
-          {4:item13         }{12: }{1:                                            }|
-          {4:item14         }{12: }{1:                                            }|
-          {12:item15          }{1:                                            }|
-          {4:item16         }{101: }{1:                                            }|
-          {4:item17         }{12: }{1:                                            }|
-          {1:~                                                           }|
-          {5:-- INSERT --}                                                |
-        ]])
-
-        -- preselected item is selected but not inserted with "noselect"
-        command('set completeopt=menuone,noselect,preselect pumheight=0')
-        complete(items)
-        screen:expect([[
-          ^                                                            |
-          {4:aaa            }{1:                                             }|
-          {4:bbb            }{1:                                             }|
-          {12:ccc            }{1:                                             }|
-          {4:ddd            }{1:                                             }|
-          {1:~                                                           }|*2
-          {5:-- INSERT --}                                                |
-        ]])
-
-        -- selects the first preselected item that still matches
-        complete({
-          { word = 'aaa', preselect = true },
-          { word = 'abb' },
-          { word = 'abc', preselect = true },
-        })
-        feed('ab<C-Y>')
-        eq('abc', api.nvim_get_current_line())
-
-        -- without "preselect" in 'completeopt' the attribute is ignored
-        command('set completeopt-=preselect')
-        complete(items)
-        feed('<C-N><C-Y>')
-        eq('aaa', api.nvim_get_current_line())
-      end)
-
-      it('does not insert text if noinsert', function()
-        source([[
-          function! TestComplete() abort
-            call complete(1, [{'word': 'aaa', 'preselect': v:true}, {'word': 'bbb'}])
-            return ''
-          endfunction
-        ]])
-        command('set completeopt=menuone,noinsert,preselect')
-        feed('i<C-r>=TestComplete()<CR>')
-        eq('', api.nvim_get_current_line())
-      end)
     end)
   end)
 
@@ -1068,21 +968,6 @@ describe('completion', function()
     eq('edit', fn.getcompletion('restart ed', 'cmdline')[1])
   end)
 
-  it('cmdline completion for :*cd family shows dirs only', function()
-    local dir = 'Xtest-cd-compl/'
-    local subdir1 = dir .. 'subdir1/'
-    local subdir2 = dir .. 'subdir2/'
-    finally(function()
-      n.rmdir(dir)
-    end)
-    fn.mkdir(subdir1, 'p')
-    fn.mkdir(subdir2, 'p')
-    fn.writefile({ '' }, dir .. 'file')
-    for _, cmd in ipairs({ 'cd', 'lcd', 'tcd', 'bcd' }) do
-      eq({ subdir1, subdir2 }, fn.getcompletion(cmd .. ' ' .. dir, 'cmdline'))
-    end
-  end)
-
   describe('from the commandline window', function()
     it('is cleared after CTRL-C', function()
       feed('q:')
@@ -1107,11 +992,12 @@ describe('completion', function()
         {5:-- Keyword Local completion (^N^P) }{6:match 1 of 3}             |
       ]])
       feed('<c-c>')
-      -- Non-blocking cmdwin (#40312): <C-C> closes the cmdwin and drops back
-      -- into ":" cmdline mode pre-filled with the line under the cursor.
       screen:expect([[
                                                                     |
-        {1:~                                                           }|*6
+        {2:[No Name]                                                   }|
+        {1::}foo faa fee foo                                            |
+        {1:~                                                           }|*3
+        {3:[Command Line]                                              }|
         :foo faa fee foo^                                            |
       ]])
     end)
@@ -1319,31 +1205,6 @@ describe('completion', function()
       {1:~                               }|*9
                                       |
     ]])
-  end)
-
-  -- oldtest: Test_complete_included_file_name()
-  it('shows included files by relative path', function()
-    t.mkdir('Xincl')
-    finally(function()
-      n.rmdir('Xincl')
-    end)
-    t.mkdir('Xincl/sub')
-    t.write_file('Xincl/sub/inc.vim', 'let included_word = 1\n')
-    t.write_file('Xincl/main.vim', 'source ./sub/inc.vim\n\n')
-    n.exec([[
-      edit Xincl/main.vim
-      setlocal include=^\\s*source\\s\\+ complete=i completeopt=menuone,noselect
-    ]])
-    feed('Goincluded_<C-N>')
-    screen:expect([[
-      source ./sub/inc.vim                                        |
-                                                                  |
-      included_^                                                   |
-      {4:included_word Xincl/sub/inc.vim }{1:                            }|
-      {1:~                                                           }|*3
-      {5:-- Keyword completion (^N^P) }{19:Back at original}               |
-    ]])
-    feed('<Esc>')
   end)
 
   -- oldtest: Test_complete_changed_complete_info()
@@ -1555,7 +1416,7 @@ describe('completion', function()
       {12:hello          }{1:                                             }|
       {4:hullo          }{1:                                             }|
       {4:heee           }{1:                                             }|
-      {5:-- INSERT --}                              4,6            All|
+      {5:-- INSERT --}                              4,6           All |
     ]])
   end)
 
@@ -1626,14 +1487,21 @@ describe('completion', function()
       foobar                                                      |
       foobarbaz                                                   |
       f^                                                           |
+      {1:~                                                           }|*5
+      {5:-- INSERT --}                                                |
+    ]])
+    vim.uv.sleep(500)
+    screen:expect([[
+      foo                                                         |
+      foobar                                                      |
+      foobarbaz                                                   |
+      f^                                                           |
       {4:foobarbaz      }{1:                                             }|
       {4:foobar         }{1:                                             }|
       {4:foo            }{1:                                             }|
       {1:~                                                           }|*2
       {5:-- INSERT --}                                                |
     ]])
-    vim.uv.sleep(500)
-    screen:expect_unchanged()
 
     -- During delay wait, user can open menu using CTRL_N completion
     feed('<Esc>')
@@ -1651,9 +1519,7 @@ describe('completion', function()
       {5:-- Keyword completion (^N^P) }{6:match 1 of 3}                   |
     ]])
 
-    -- After the menu is open, ^N/^P and Up/Down should not delay.
-    -- Wait a bit longer than 'autocompletedelay' so the popup is surely shown
-    -- before sending CTRL-N, otherwise the keys race with the deferred popup.
+    -- After the menu is open, ^N/^P and Up/Down should not delay
     feed('<Esc>')
     command('set completeopt=menu')
     feed('Sf')
@@ -1665,7 +1531,7 @@ describe('completion', function()
       {1:~                                                           }|*5
       {5:-- INSERT --}                                                |
     ]])
-    vim.uv.sleep(600)
+    vim.uv.sleep(500)
     screen:expect([[
       foo                                                         |
       foobar                                                      |
@@ -1734,35 +1600,6 @@ describe('completion', function()
     feed('<esc>')
   end)
 
-  local function run_test_autocompletedelay_ctrl_k(delay1, delay2)
-    source([[
-      new
-      call setline(1, 'foo bar baz')
-      set autocomplete autocompletedelay=200
-    ]])
-
-    feed('ob')
-    vim.uv.sleep(delay1)
-    feed('<C-K>')
-    vim.uv.sleep(delay2)
-    feed('.,<Esc>')
-    poke_eventloop()
-    expect('foo bar baz\nb…')
-
-    source([[
-      set autocomplete& autocompletedelay&
-      bwipe!
-    ]])
-  end
-
-  -- oldtest: Test_autocompletedelay_ctrl_k()
-  it("'autocompletedelay' doesn't interfere with i_CTRL-K", function()
-    -- Ctrl-K typed after 'autocompletedelay' expires
-    run_test_autocompletedelay_ctrl_k(250, 500)
-    -- Ctrl-K typed before 'autocompletedelay' expires
-    run_test_autocompletedelay_ctrl_k(150, 500)
-  end)
-
   -- oldtest: Test_fuzzy_select_item_when_acl()
   it([[first item isn't selected with "fuzzy" and 'acl']], function()
     screen:try_resize(60, 10)
@@ -1827,7 +1664,7 @@ describe('completion', function()
     screen:expect([[
       autocomplete                                                |
       autocomxxx                                                  |
-      au^                                                          |
+      au{102:^tocom}                                                     |
       {1:~                                                           }|*4
       {5:-- INSERT --}                                                |
     ]])
@@ -1835,7 +1672,7 @@ describe('completion', function()
     screen:expect([[
       autocomplete                                                |
       autocomxxx                                                  |
-      autoc^                                                       |
+      autoc{102:^om}                                                     |
       {1:~                                                           }|*4
       {5:-- INSERT --}                                                |
     ]])
@@ -1855,7 +1692,7 @@ describe('completion', function()
     screen:expect([[
       autocomplete                                                |
       autocomxxx                                                  |
-      aut^                                                         |
+      aut{102:^ocom}                                                     |
       {1:~                                                           }|*4
       {5:-- INSERT --}                                                |
     ]])
@@ -1863,7 +1700,7 @@ describe('completion', function()
     screen:expect([[
       autocomplete                                                |
       autocomxxx                                                  |
-      au^                                                          |
+      au{102:^tocom}                                                     |
       {1:~                                                           }|*4
       {5:-- INSERT --}                                                |
     ]])
@@ -1880,11 +1717,13 @@ describe('completion', function()
 
     -- Preinsert
     command('set completeopt& completeopt+=preinsert')
+
+    -- Show preinserted text right away but display popup later
     feed('<Esc>Sau')
     screen:expect([[
       autocomplete                                                |
       autocomxxx                                                  |
-      au^                                                          |
+      au{102:^tocomplete}                                                |
       {1:~                                                           }|*4
       {5:-- INSERT --}                                                |
     ]])
@@ -1919,63 +1758,5 @@ describe('completion', function()
       {1:~                                                           }|*5
       {5:-- File name completion (^F^N^P) }{9:Pattern not found}          |
     ]])
-  end)
-
-  it('returns all entries in the directory #25791', function()
-    n.mkdir_p('Xtest/sub1')
-    n.mkdir_p('Xtest/sub2')
-    t.write_file('Xtest/A', '')
-    t.write_file('Xtest/sub1/B', '')
-    t.write_file('Xtest/sub2/C', '')
-    finally(function()
-      n.rmdir('Xtest')
-    end)
-    local path = ('%s/Xtest/**'):format(vim.fs.normalize(vim.uv.cwd()))
-    command(('set path=%s'):format(path))
-    eq({ 'A', 'B', 'C', 'sub1/', 'sub2/' }, fn.getcompletion('find ', 'cmdline'))
-  end)
-
-  it('complete-items commit_chars', function()
-    exec_lua(function()
-      _G.Omnifunc = function(findstart, _)
-        return findstart == 1 and 0 or { { word = 'foobar', commit_chars = '(' } }
-      end
-      vim.bo.omnifunc = 'v:lua.Omnifunc'
-    end)
-    n.command('set completeopt=menuone,noinsert')
-    feed('i<C-x><C-o>')
-    poke_eventloop()
-    feed('(')
-    eq('foobar(', n.api.nvim_get_current_line())
-  end)
-
-  it('complete_info() reports completion item fields', function()
-    command('set hidden complete=FTestComplete,b completeopt=menuone,noinsert')
-    command('file Xcompletion-source')
-    api.nvim_buf_set_lines(0, 0, -1, false, { 'foobar' })
-    command('enew')
-    source([[
-      function! TestComplete(findstart, base) abort
-        if a:findstart
-          return 0
-        endif
-        return [
-              \ {'word': 'foo', 'equal': 1},
-              \ {'word': 'bar', 'preselect': v:true},
-              \ {'word': 'baz', 'commit_chars': '('},
-              \ {'word': 'qux'},
-              \ ]
-      endfunction
-    ]])
-    feed('i<C-n>')
-    poke_eventloop()
-
-    local items = fn.complete_info({ 'items' }).items
-    eq(5, #items)
-    eq({ 1, nil }, { items[1].equal, items[1].preselect })
-    eq(1, items[2].preselect)
-    eq('(', items[3].commit_chars)
-    eq({ nil, nil, nil }, { items[4].equal, items[4].preselect, items[4].commit_chars })
-    eq('Xcompletion-source', items[5].menu)
   end)
 end)

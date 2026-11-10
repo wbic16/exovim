@@ -8,4 +8,4 @@ if exists('b:did_ftplugin')
 endif
 
 " Behaves mostly just like cfg
-runtime! ftplugin/cfg[.]{vim,lua}
+runtime! ftplugin/cfg.vim

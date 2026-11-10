@@ -4,7 +4,6 @@
                             NVIM REFERENCE MANUAL
 
 
-==============================================================================
 Notable changes since Nvim 0.10                                 *news-0.11*
 
 For changes in the previous release, see |news-0.10|.

@@ -20,9 +20,7 @@
 #include "nvim/grid.h"
 #include "nvim/highlight.h"
 #include "nvim/highlight_group.h"
-#include "nvim/indent.h"
 #include "nvim/marktree.h"
-#include "nvim/mbyte.h"
 #include "nvim/memory.h"
 #include "nvim/memory_defs.h"
 #include "nvim/move.h"
@@ -32,13 +30,13 @@
 
 #include "decoration.c.generated.h"
 
-static uint32_t decor_freelist = UINT32_MAX;
+uint32_t decor_freelist = UINT32_MAX;
 
 // Decorations might be requested to be deleted in a callback in the middle of redrawing.
 // In this case, there might still be live references to the memory allocated for the decoration.
 // Keep a "to free" list which can be safely processed when redrawing is done.
-static DecorVirtText *to_free_virt = NULL;
-static uint32_t to_free_sh = UINT32_MAX;
+DecorVirtText *to_free_virt = NULL;
+uint32_t to_free_sh = UINT32_MAX;
 
 /// Add highlighting to a buffer, bounded by two cursor positions,
 /// with an offset.
@@ -121,13 +119,9 @@ void decor_redraw(buf_T *buf, int row1, int row2, int col1, DecorInline decor)
 void decor_redraw_sh(buf_T *buf, int row1, int row2, DecorSignHighlight sh)
 {
   if (sh.hl_id || (sh.url != NULL)
-      || (sh.flags & (kSHIsSign | kSHSpellOn | kSHSpellOff | kSHConceal | kSHConcealOff))) {
+      || (sh.flags & (kSHIsSign | kSHSpellOn | kSHSpellOff | kSHConceal))) {
     if (row2 >= row1) {
       redraw_buf_range_later(buf, row1 + 1, row2 + 1);
-      if (sh.flags & (kSHConceal | kSHConcealOff)) {
-        // Extmark-conceal may change the height of the lines.
-        changed_lines_invalidate_buf(buf, row1 + 1, 0, row2 + 2, 0);
-      }
     }
   }
   if (sh.flags & kSHConcealLines) {
@@ -331,47 +325,6 @@ void decor_state_invalidate(buf_T *buf)
   }
 }
 
-/// Character shown for concealed text: `cchar`, else 'listchars' "conceal" or a space with
-/// 'conceallevel' 1, or NUL when hidden. Only the start of a concealed region shows one.
-schar_T conceal_replacement(win_T *wp, bool is_start, schar_T cchar)
-{
-  if (!is_start || wp->w_p_cole == 3 || (cchar == NUL && wp->w_p_cole != 1)) {
-    return NUL;
-  }
-  if (cchar != NUL) {
-    return cchar;
-  }
-  return wp->w_p_lcs_chars.conceal != NUL ? wp->w_p_lcs_chars.conceal : schar_from_ascii(' ');
-}
-
-/// Replacement at the start of a concealed region, or NUL when fully hidden.
-schar_T decor_conceal_char(win_T *wp, const DecorState *state)
-{
-  return conceal_replacement(wp, state->conceal > 1, state->conceal_char);
-}
-
-/// Extmark-conceal replacement at buffer column `col` (see CharsizeArg.extconceal_off).
-/// Call after decor_redraw_col().
-///
-/// @param[out] attr  Replacement highlight, or zero for the default; may be NULL.
-schar_T decor_extconceal_char(win_T *wp, const DecorState *state, int col, int *attr)
-{
-  if (attr != NULL) {
-    *attr = 0;
-  }
-  if (state->conceal_slot_i < 0) {
-    return NUL;
-  }
-  const DecorRange *r = &kv_A(state->slots, state->conceal_slot_i).range;
-  bool is_start = r->start_row == state->row && r->start_col == col
-                  && !(r->data.sh.flags & kSHConcealCont);
-  schar_T replacement = conceal_replacement(wp, is_start, r->data.sh.text[0]);
-  if (attr != NULL && replacement != NUL && r->data.sh.text[0] != NUL) {
-    *attr = r->attr_id;
-  }
-  return replacement;
-}
-
 void decor_check_to_be_deleted(void)
 {
   assert(!decor_state.running_decor_provider);
@@ -526,7 +479,7 @@ bool decor_redraw_start(win_T *wp, int top_row, DecorState *state)
 
   while (marktree_itr_step_overlap(buf->b_marktree, state->itr, &pair)) {
     MTKey m = pair.start;
-    if (mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp)) {
+    if (mt_invalid(m) || !mt_decor_any(m)) {
       continue;
     }
 
@@ -574,11 +527,6 @@ void decor_redraw_line(win_T *wp, int row, DecorState *state)
   state->row = row;
   state->col_last = -1;
   state->eol_col = -1;
-  // Conceal is set per column by decor_redraw_col(), and is absent on a line it is not called for.
-  state->conceal = 0;
-  state->conceal_slot_i = -1;
-  state->conceal_char = 0;
-  state->conceal_attr = 0;
 }
 
 // Checks if there are (likely) more decorations on the current line.
@@ -597,7 +545,7 @@ static void decor_range_add_from_inline(DecorState *state, int start_row, int st
                                         uint32_t ns, uint32_t mark_id)
 {
   if (decor.ext) {
-    DecorVirtText *vt = state->conceal_only ? NULL : decor.data.ext.vt;
+    DecorVirtText *vt = decor.data.ext.vt;
     while (vt) {
       decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
       vt = vt->next;
@@ -681,8 +629,7 @@ void decor_range_add_sh(DecorState *state, int start_row, int start_col, int end
                         DecorSignHighlight *sh, bool owned, uint32_t ns, uint32_t mark_id,
                         DecorPriority subpriority)
 {
-  if ((sh->flags & kSHIsSign)
-      || (state->conceal_only && !(sh->flags & (kSHConceal | kSHConcealOff)))) {
+  if (sh->flags & kSHIsSign) {
     return;
   }
 
@@ -697,14 +644,14 @@ void decor_range_add_sh(DecorState *state, int start_row, int start_col, int end
   };
 
   if (sh->hl_id || (sh->url != NULL)
-      || (sh->flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff))) {
+      || (sh->flags & (kSHConceal | kSHSpellOn | kSHSpellOff))) {
     if (sh->hl_id) {
       range.attr_id = syn_id2attr(sh->hl_id);
     }
     decor_range_insert(state, &range);
   }
 
-  if ((sh->flags & kSHUIWatched) && !state->conceal_only) {
+  if (sh->flags & (kSHUIWatched)) {
     range.kind = kDecorKindUIWatched;
     range.data.ui.ns_id = ns;
     range.data.ui.mark_id = mark_id;
@@ -747,12 +694,6 @@ int decor_redraw_col_impl(win_T *wp, int col, int win_col, bool hidden, DecorSta
   buf_T *const buf = wp->w_buffer;
   int const row = state->row;
   int col_last = max_col_last;
-
-  if (!state->itr_valid) {
-    // A callback changed the marktree: resume after the marks already read (see col_last).
-    marktree_itr_get(buf->b_marktree, row, state->col_last + 1, state->itr);
-    state->itr_valid = true;
-  }
 
   while (true) {
     // TODO(bfredl): check duplicate entry in "intersection"
@@ -824,9 +765,7 @@ next_mark:
   int new_cur_end = 0;
 
   int attr = 0;
-  int hl_eol_attr = 0;
   int conceal = 0;
-  int conceal_slot_i = -1;
   schar_T conceal_char = 0;
   int conceal_attr = 0;
   TriState spell = kNone;
@@ -848,30 +787,16 @@ next_mark:
 
       if (r->attr_id > 0) {
         attr = hl_combine_attr(attr, r->attr_id);
-        if (r->kind == kDecorKindHighlight && (r->data.sh.flags & kSHHlEol)) {
-          hl_eol_attr = hl_combine_attr(hl_eol_attr, r->attr_id);
-        }
       }
 
       if (r->kind == kDecorKindHighlight && (r->data.sh.flags & kSHConceal)) {
         conceal = 1;
-        if (!r->owned) {
-          conceal_slot_i = index;
-        }
-        if (r->start_row == row && r->start_col == col
-            && !(r->data.sh.flags & kSHConcealCont)) {
+        if (r->start_row == row && r->start_col == col) {
           DecorSignHighlight *sh = &r->data.sh;
           conceal = 2;
           conceal_char = sh->text[0];
           col_last = MIN(col_last, r->start_col);
           conceal_attr = r->attr_id;
-        }
-      }
-
-      if (r->kind == kDecorKindHighlight && (r->data.sh.flags & kSHConcealOff)) {
-        conceal = 0;
-        if (!r->owned) {
-          conceal_slot_i = -1;
         }
       }
 
@@ -921,59 +846,18 @@ next_mark:
   state->col_last = col_last;
 
   state->current = attr;
-  state->current_hl_eol = hl_eol_attr;
   state->conceal = conceal;
-  state->conceal_slot_i = conceal_slot_i;
   state->conceal_char = conceal_char;
   state->conceal_attr = conceal_attr;
   state->spell = spell;
   return attr;
 }
 
-/// @return Whether a mark with `flag` (counted in `meta`) of a namespace in `wp` overlaps `row`.
-static bool decor_row_has_mark(win_T *wp, int row, MetaIndex meta, uint32_t flag)
-{
-  if (!buf_meta_total(wp->w_buffer, meta)) {
-    return false;
-  }
-  uint32_t filter[kMTMetaCount] = { 0 };
-  filter[meta] = kMTFilterSelect;
-
-  MarkTree *const tree = wp->w_buffer->b_marktree;
-  MTPair pair;
-  MarkTreeIter itr[1];
-  marktree_itr_get_overlap(tree, row, 0, itr);
-  while (marktree_itr_step_overlap(tree, itr, &pair)) {
-    if (!mt_invalid(pair.start) && (pair.start.flags & flag) && ns_in_win(pair.start.ns, wp)) {
-      return true;
-    }
-  }
-
-  marktree_itr_step_out_filter(tree, itr, filter);
-
-  while (itr->x) {
-    MTKey mark = marktree_itr_current(itr);
-    if (mark.pos.row > row) {
-      break;
-    }
-    if (!mt_invalid(mark) && (mark.flags & flag) && ns_in_win(mark.ns, wp)) {
-      return true;
-    }
-    marktree_itr_next_filter(tree, itr, row + 1, 0, filter);
-  }
-
-  return false;
-}
-
-/// @return Whether a conceal mark of `wp` overlaps `row`. Does not invoke `_on_conceal`.
-bool decor_row_has_conceal(win_T *wp, int row)
-{
-  return decor_row_has_mark(wp, row, kMTMetaConceal, MT_FLAG_DECOR_CONCEAL);
-}
+static const uint32_t conceal_filter[kMTMetaCount] = {[kMTMetaConcealLines] = kMTFilterSelect };
 
 /// Called by draw, move and plines code to determine whether a line is concealed.
-/// Invokes any `_on_conceal_line` decoration provider callbacks, then scans the marktree for
-/// `conceal_lines` marks on `row`.
+/// Scans the marktree for conceal_line marks on "row" and invokes any
+/// _on_conceal_line decoration provider callbacks, if necessary.
 ///
 /// @param check_cursor If true, avoid an early return for an unconcealed cursorline.
 ///                     Depending on the callsite, we still want to know whether the
@@ -982,14 +866,41 @@ bool decor_row_has_conceal(win_T *wp, int row)
 /// @return whether "row" is concealed
 bool decor_conceal_line(win_T *wp, int row, bool check_cursor)
 {
-  if (row < 0 || row >= wp->w_buffer->b_ml.ml_line_count || wp->w_p_cole < 2
+  if (row < 0 || wp->w_p_cole < 2
       || (!check_cursor && wp == curwin && row + 1 == wp->w_cursor.lnum
           && !conceal_cursor_line(wp))) {
     return false;
   }
 
-  decor_providers_invoke_conceal(wp, row, true);
-  return decor_row_has_mark(wp, row, kMTMetaConcealLines, MT_FLAG_DECOR_CONCEAL_LINES);
+  // No need to scan the marktree if there are no conceal_line marks.
+  if (!buf_meta_total(wp->w_buffer, kMTMetaConcealLines)) {
+    return decor_providers_invoke_conceal_line(wp, row);
+  }
+
+  // Scan the marktree for any conceal_line marks on this row.
+  MTPair pair;
+  MarkTreeIter itr[1];
+  marktree_itr_get_overlap(wp->w_buffer->b_marktree, row, 0, itr);
+  while (marktree_itr_step_overlap(wp->w_buffer->b_marktree, itr, &pair)) {
+    if (mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns, wp)) {
+      return true;
+    }
+  }
+
+  marktree_itr_step_out_filter(wp->w_buffer->b_marktree, itr, conceal_filter);
+
+  while (itr->x) {
+    MTKey mark = marktree_itr_current(itr);
+    if (mark.pos.row > row) {
+      break;
+    }
+    if (mt_conceal_lines(mark) && ns_in_win(mark.ns, wp)) {
+      return true;
+    }
+    marktree_itr_next_filter(wp->w_buffer->b_marktree, itr, row + 1, 0, conceal_filter);
+  }
+
+  return decor_providers_invoke_conceal_line(wp, row);
 }
 
 /// @return whether a window may have folded or concealed lines
@@ -1207,66 +1118,7 @@ bool decor_redraw_eol(win_T *wp, DecorState *state, int *eol_attr, int eol_col)
 
 static const uint32_t lines_filter[kMTMetaCount] = {[kMTMetaLines] = kMTFilterSelect };
 
-static inline bool decor_virt_line_wrap(win_T *wp, VirtLineOverflow overflow)
-{
-  return overflow == kVLOverflowWrap || (overflow == kVLOverflowAuto && wp->w_p_wrap);
-}
-
-/// Counts the number of rows occupied by a virtual line. When skip_cells is non-NULL, sets it to
-/// the cell offset where target_row begins.
-///
-/// @param target_row Row relative to the virtual line that skip_cells is computed for.
-/// @param skip_cells Cell offset for the target_row. Pass NULL when only the row count is needed.
-///
-/// @return Number of rows occupied by the virtual line.
-int decor_virt_line_rows(win_T *wp, const struct virt_line *vl, int target_row, int *skip_cells)
-{
-  if (skip_cells != NULL) {
-    *skip_cells = 0;
-  }
-  if (!decor_virt_line_wrap(wp, vl->overflow)) {
-    return 1;
-  }
-  int row_width = wp->w_view_width - ((vl->flags & kVLLeftcol) ? 0 : win_col_off(wp));
-  if (row_width <= 0) {
-    return 1;
-  }
-  VirtText vt = vl->line;
-  buf_T *buf = wp->w_buffer;
-  int vcol = 0;
-  int row_cells = 0;
-  int row = 0;
-  for (int i = 0; i < (int)kv_size(vt); i++) {
-    const char *virt_str = kv_A(vt, i).text;
-    if (virt_str == NULL) {
-      continue;
-    }
-    while (*virt_str != NUL) {
-      int bytes_to_next_char = utfc_ptr2len(virt_str);
-      // Need to compute cell width due to TAB & double width cell chars
-      int cells = (*virt_str == TAB)
-                  ? tabstop_padding(vcol, buf->b_p_ts, buf->b_p_vts_array)
-                  : utf_ptr2cells(virt_str);
-      virt_str += bytes_to_next_char;
-      // Wrap before total row cell length would exceed the window size
-      // to protect against double width cell chars being split at the boundary
-      if (row_cells + cells > row_width) {
-        row++;
-        if (skip_cells != NULL && row == target_row) {
-          *skip_cells = vcol;
-        }
-        row_cells = 0;
-      }
-      row_cells += cells;
-      vcol += cells;
-    }
-  }
-
-  return row + 1;
-}
-
 /// @param apply_folds Only count virtual lines that are not in folds.
-/// @return Number of rows occupied by the virtual lines.
 int decor_virt_lines(win_T *wp, int start_row, int end_row, int *num_below, VirtLines *lines,
                      bool apply_folds)
 {
@@ -1285,40 +1137,25 @@ int decor_virt_lines(win_T *wp, int start_row, int end_row, int *num_below, Virt
 
   assert(start_row >= 0);
 
-  int n_virt_lines = 0;
+  int virt_lines = 0;
   while (true) {
     MTKey mark = marktree_itr_current(itr);
     DecorVirtText *vt = mt_decor_virt(mark);
     if (!mt_invalid(mark) && ns_in_win(mark.ns, wp)) {
       while (vt) {
-        VirtLines virt_lines = vt->data.virt_lines;
-        if ((vt->flags & kVTIsLines) && kv_size(virt_lines) > 0) {
+        if (vt->flags & kVTIsLines) {
           bool above = vt->flags & kVTLinesAbove;
           int mrow = mark.pos.row;
           int draw_row = mrow + (above ? 0 : 1);
           if (draw_row >= start_row && draw_row < end_row
               && (!apply_folds || !(hasFolding(wp, mrow + 1, NULL, NULL)
                                     || decor_conceal_line(wp, mrow, false)))) {
-            // All virtual lines from the same extmark have the same overflow flag.
-            if (decor_virt_line_wrap(wp, kv_A(virt_lines, 0).overflow)) {
-              // Iterates over each virtual line summing number of rows.
-              // Rows belonging to previous line are accumulated in num_below.
-              for (int i = 0; i < (int)kv_size(virt_lines); i++) {
-                int rows = decor_virt_line_rows(wp, &kv_A(virt_lines, i), 0, NULL);
-                n_virt_lines += rows;
-                if (num_below && !above) {
-                  (*num_below) += rows;
-                }
-              }
-            } else {
-              // If virtual lines don't wrap there is no need to iterate over them.
-              n_virt_lines += (int)kv_size(virt_lines);
-              if (num_below && !above) {
-                (*num_below) += (int)kv_size(virt_lines);
-              }
-            }
+            virt_lines += (int)kv_size(vt->data.virt_lines);
             if (lines) {
-              kv_splice(*lines, virt_lines);
+              kv_splice(*lines, vt->data.virt_lines);
+            }
+            if (num_below && !above) {
+              (*num_below) += (int)kv_size(vt->data.virt_lines);
             }
           }
         }
@@ -1331,7 +1168,7 @@ int decor_virt_lines(win_T *wp, int start_row, int end_row, int *num_below, Virt
     }
   }
 
-  return n_virt_lines;
+  return virt_lines;
 }
 
 /// This assumes maximum one entry of each kind, which will not always be the case.
@@ -1359,7 +1196,7 @@ void decor_to_dict_legacy(Dict *dict, DecorInline decor, bool hl_name, Arena *ar
     uint32_t idx = decor.data.ext.sh_idx;
     while (idx != DECOR_ID_INVALID) {
       DecorSignHighlight *sh = &kv_A(decor_items, idx);
-      if (sh->flags & kSHIsSign) {
+      if (sh->flags & (kSHIsSign)) {
         sh_sign = *sh;
       } else {
         sh_hl = *sh;
@@ -1376,9 +1213,7 @@ void decor_to_dict_legacy(Dict *dict, DecorInline decor, bool hl_name, Arena *ar
     priority = sh_hl.priority;
   }
 
-  if (sh_hl.flags & kSHConcealOff) {
-    PUT_C(*dict, "conceal", BOOLEAN_OBJ(false));
-  } else if (sh_hl.flags & kSHConceal) {
+  if (sh_hl.flags & kSHConceal) {
     char buf[MAX_SCHAR_SIZE];
     schar_get(buf, sh_hl.text[0]);
     PUT_C(*dict, "conceal", CSTR_TO_ARENA_OBJ(arena, buf));
@@ -1421,27 +1256,16 @@ void decor_to_dict_legacy(Dict *dict, DecorInline decor, bool hl_name, Arena *ar
   if (virt_lines) {
     Array all_chunks = arena_array(arena, kv_size(virt_lines->data.virt_lines));
     int virt_lines_flags = 0;
-    VirtLineOverflow virt_lines_overflow = kVLOverflowTrunc;
     for (size_t i = 0; i < kv_size(virt_lines->data.virt_lines); i++) {
       virt_lines_flags = kv_A(virt_lines->data.virt_lines, i).flags;
-      virt_lines_overflow = kv_A(virt_lines->data.virt_lines, i).overflow;
       Array chunks = virt_text_to_array(kv_A(virt_lines->data.virt_lines, i).line, hl_name, arena);
       ADD(all_chunks, ARRAY_OBJ(chunks));
     }
     PUT_C(*dict, "virt_lines", ARRAY_OBJ(all_chunks));
     PUT_C(*dict, "virt_lines_above", BOOLEAN_OBJ(virt_lines->flags & kVTLinesAbove));
     PUT_C(*dict, "virt_lines_leftcol", BOOLEAN_OBJ(virt_lines_flags & kVLLeftcol));
-
-    char *overflow = "trunc";
-    if (virt_lines_overflow == kVLOverflowScroll) {
-      overflow = "scroll";
-    } else if (virt_lines_overflow == kVLOverflowWrap) {
-      overflow = "wrap";
-    } else if (virt_lines_overflow == kVLOverflowAuto) {
-      overflow = "auto";
-    }
-
-    PUT_C(*dict, "virt_lines_overflow", CSTR_AS_OBJ(overflow));
+    PUT_C(*dict, "virt_lines_overflow",
+          CSTR_AS_OBJ(virt_lines_flags & kVLScroll ? "scroll" : "trunc"));
     priority = virt_lines->priority;
   }
 

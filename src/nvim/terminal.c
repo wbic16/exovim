@@ -51,7 +51,6 @@
 #include "nvim/change.h"
 #include "nvim/channel.h"
 #include "nvim/channel_defs.h"
-#include "nvim/context.h"
 #include "nvim/cursor.h"
 #include "nvim/cursor_shape.h"
 #include "nvim/drawline.h"
@@ -65,13 +64,12 @@
 #include "nvim/event/multiqueue.h"
 #include "nvim/event/time.h"
 #include "nvim/ex_docmd.h"
+#include "nvim/getchar.h"
 #include "nvim/globals.h"
 #include "nvim/grid.h"
 #include "nvim/highlight.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/highlight_group.h"
-#include "nvim/input.h"
-#include "nvim/input_cmdatom.h"
 #include "nvim/keycodes.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
@@ -280,8 +278,8 @@ static void emit_termrequest(void **argv)
         VTERM_TERMINATOR_BEL ? STATIC_CSTR_AS_OBJ("\x07") : STATIC_CSTR_AS_OBJ("\x1b\\"));
 
   term->refcount++;
-  apply_autocmds_group(EVENT_TERMREQUEST, NULL, NULL, true, AUGROUP_ALL, buf, curwin, NULL,
-                       &DICT_OBJ(data), false);
+  apply_autocmds_group(EVENT_TERMREQUEST, NULL, NULL, true, AUGROUP_ALL, buf, NULL,
+                       &DICT_OBJ(data));
   term->refcount--;
   xfree(sequence);
 
@@ -506,10 +504,6 @@ static bool term_may_alloc_scrollback(Terminal *term, buf_T *buf)
 Terminal *terminal_alloc(buf_T *buf, TerminalOptions opts)
   FUNC_ATTR_NONNULL_ALL
 {
-  // If win has zero size (hidden float, 'cmdheight'), use the pty_proc_init() default.
-  opts.width = opts.width ? opts.width : 80;
-  opts.height = opts.height ? opts.height : 24;
-
   // Create a new terminal instance and configure it
   Terminal *term = xcalloc(1, sizeof(Terminal));
   term->opts = opts;
@@ -593,8 +587,8 @@ void terminal_open(Terminal **termpp, buf_T *buf)
   Terminal *term = *termpp;
   assert(term != NULL);
 
-  CtxSwitch aco = { 0 };
-  ctx_switch(&aco, NULL, NULL, buf, 0);
+  aco_save_T aco;
+  aucmd_prepbuf(&aco, buf);
 
   if (term->sb_buffer != NULL) {
     // If scrollback has been allocated by autocommands between terminal_alloc()
@@ -605,7 +599,7 @@ void terminal_open(Terminal **termpp, buf_T *buf)
   }
   refresh_screen(term, buf);
   buf->b_locked++;
-  set_option_value(kOptBuftype, STATIC_CSTR_AS_OBJ("terminal"), OPT_LOCAL, true, NULL);
+  set_option_value(kOptBuftype, STATIC_CSTR_AS_OPTVAL("terminal"), OPT_LOCAL);
   buf->b_locked--;
 
   if (buf->b_ffname != NULL) {
@@ -621,7 +615,7 @@ void terminal_open(Terminal **termpp, buf_T *buf)
   // allocated anyway if needed.
   apply_autocmds(EVENT_TERMOPEN, NULL, NULL, false, buf);
 
-  ctx_restore(&aco);
+  aucmd_restbuf(&aco);
 
   if (*termpp == NULL || term->buf_handle == 0) {
     return;  // Terminal has already been destroyed.
@@ -691,15 +685,6 @@ void terminal_close(Terminal **termpp, int status)
   } else {
     // flush any pending changes to the buffer
     if (!exiting) {
-      int height, width;
-      vterm_get_size(term->vt, &height, &width);
-      if (status != -1 && term->cursor.row == height - 1) {
-        fetch_row(term, term->cursor.row, width);
-        if (term->textbuf[0] != NUL) {
-          // Start a new line, else "[Process exited]" (line after cursor) hides the last line.
-          terminal_receive(term, "\r\n", 2);
-        }
-      }
       block_autocmds();
       refresh_terminal(term);
       unblock_autocmds();
@@ -742,11 +727,6 @@ void terminal_close(Terminal **termpp, int status)
     return;
   }
 
-  if (status >= 0) {  // The job may have changed files on disk, like `do_shell` (":!cmd").
-    did_check_timestamps = false;
-    need_check_timestamps = true;
-  }
-
   if (buf && !is_autocmd_blocked()) {
     save_v_event_T save_v_event;
     dict_T *dict = get_v_event(&save_v_event);
@@ -757,7 +737,7 @@ void terminal_close(Terminal **termpp, int status)
     PUT_C(data, "pos", INTEGER_OBJ(pos));
 
     apply_autocmds_group(EVENT_TERMCLOSE, NULL, NULL, status >= 0, AUGROUP_ALL,
-                         buf, curwin, NULL, &DICT_OBJ(data), false);
+                         buf, NULL, &DICT_OBJ(data));
 
     restore_v_event(dict, &save_v_event);
   }
@@ -803,7 +783,7 @@ void terminal_check_size(Terminal *term)
   // Check if there is a window that displays the terminal and find the maximum width and height.
   // Skip the autocommand window which isn't actually displayed.
   FOR_ALL_TAB_WINDOWS(tp, wp) {
-    if (is_ctx_win(wp)) {
+    if (is_aucmd_win(wp)) {
       continue;
     }
     if (wp->w_buffer && wp->w_buffer->terminal == term) {
@@ -924,14 +904,13 @@ bool terminal_enter(void)
   TerminalState s[1] = { 0 };
   s->term = buf->terminal;
   s->cursor_visible = true;  // Assume visible; may change via refresh_cursor later.
-  Ins.stop_insert_mode = false;
+  stop_insert_mode = false;
 
   // Ensure the terminal is properly sized. Ideally window size management
   // code should always have resized the terminal already, but check here to
   // be sure.
   terminal_check_size(s->term);
 
-  atom_term_enter();
   int save_state = State;
   s->save_rd = RedrawingDisabled;
   State = MODE_TERMINAL;
@@ -1073,7 +1052,7 @@ static int terminal_check(VimState *state)
   // Shouldn't reach here when pressing a key to close the terminal buffer.
   assert(!s->close || (s->term->buf_handle == 0 && s->term != curbuf->terminal));
 
-  if (Ins.stop_insert_mode || !terminal_check_focus(s)) {
+  if (stop_insert_mode || !terminal_check_focus(s)) {
     return 0;
   }
 
@@ -1556,7 +1535,7 @@ void terminal_notify_theme(Terminal *term, bool dark)
   }
 
   char buf[10];
-  ssize_t ret = snprintf(buf, sizeof(buf), "\x1b[?997;%cn", dark ? '1' : '2');
+  ssize_t ret = snprintf(buf, sizeof(buf), "\x1b[997;%cn", dark ? '1' : '2');
   assert(ret > 0);
   assert((size_t)ret <= sizeof(buf));
   terminal_send(term, buf, (size_t)ret);
@@ -2250,7 +2229,10 @@ end:
     return false;
   }
 
-  requeue_key(vgetc_char, vgetc_mod_mask, 0, true);
+  int len = ins_char_typebuf(vgetc_char, vgetc_mod_mask, true);
+  if (KeyTyped) {
+    ungetchars(len);
+  }
   return true;
 }
 

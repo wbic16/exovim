@@ -1,7 +1,6 @@
 -- Test suite for vim.range
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
-local describe, it, before_each = t.describe, t.it, t.before_each
 local eq = t.eq
 
 local clear = n.clear
@@ -53,7 +52,7 @@ describe('vim.range', function()
         return vim.range(vim.pos(buf1, 3, 5), vim.pos(buf2, 4, 6))
       end)
     end)
-    eq(false, success)
+    eq(success, false)
   end)
 
   it('is modifiable', function()
@@ -92,71 +91,6 @@ describe('vim.range', function()
       36,
       buf,
     }, range)
-  end)
-
-  it('converts between inclusive mark ranges ending on multibyte characters', function()
-    insert('🙂')
-
-    local range, mark_range = exec_lua(function()
-      vim.o.selection = 'inclusive'
-      local range = vim.range.mark(0, 1, 0, 1, 0)
-      return { range[1], range[2], range[3], range[4] }, { range:to_mark() }
-    end)
-    eq({ 0, 0, 0, 4 }, range)
-    eq({ 1, 0, 1, 0 }, mark_range)
-  end)
-
-  it('uses the preceding line for inclusive marks ending at column zero', function()
-    insert('abcdef\nx')
-    eq(
-      { 1, 0, 1, 5 },
-      exec_lua(function()
-        vim.o.selection = 'inclusive'
-        return { vim.range(0, 0, 0, 1, 0):to_mark() }
-      end)
-    )
-  end)
-
-  it("converts between vim.Range and extmark on buffer's last line", function()
-    local buf = exec_lua(function()
-      return vim.api.nvim_get_current_buf()
-    end)
-    insert('Some text')
-    local extmark_range = {
-      exec_lua(function()
-        local range = vim.range(buf, 0, 0, 1, 0)
-        return range:to_extmark()
-      end),
-    }
-    eq({ 0, 0, 0, 9 }, extmark_range)
-    local range = exec_lua(function()
-      return vim.range.extmark(
-        buf,
-        extmark_range[1],
-        extmark_range[2],
-        extmark_range[3],
-        extmark_range[4]
-      )
-    end)
-    eq({ 0, 0, 0, 9, buf }, range)
-
-    local extmark_range2 = {
-      exec_lua(function()
-        local range2 = vim.range(buf, 0, 0, 0, 9)
-        return range2:to_extmark()
-      end),
-    }
-    eq({ 0, 0, 0, 9 }, extmark_range2)
-    local range2 = exec_lua(function()
-      return vim.range.extmark(
-        buf,
-        extmark_range2[1],
-        extmark_range2[2],
-        extmark_range2[3],
-        extmark_range2[4]
-      )
-    end)
-    eq({ 0, 0, 0, 9, buf }, range2)
   end)
 
   it('checks whether a range contains a position', function()
@@ -202,17 +136,6 @@ describe('vim.range', function()
       false,
       exec_lua(function()
         return vim.range(0, 1, 0, 1, 0):has(vim.range(0, 0, 0, 1, 0))
-      end)
-    )
-  end)
-
-  it('preserves single-character intersections', function()
-    insert('abc')
-    eq(
-      { 0, 1, 0, 2 },
-      exec_lua(function()
-        local overlap = vim.range(0, 0, 0, 0, 2):intersect(vim.range(0, 0, 1, 0, 3))
-        return overlap and { overlap:to_extmark() } or nil
       end)
     )
   end)

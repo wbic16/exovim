@@ -55,17 +55,16 @@
 #include "nvim/buffer_defs.h"
 #include "nvim/change.h"
 #include "nvim/cursor.h"
-#include "nvim/dialog.h"
 #include "nvim/drawscreen.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/vars.h"
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/fileio.h"
+#include "nvim/getchar.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/input.h"
-#include "nvim/lua/executor.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
 #include "nvim/map_defs.h"
@@ -420,11 +419,6 @@ void ml_setname(buf_T *buf)
       break;
     }
     char *fname = findswapname(buf, &dirp, mfp->mf_fname, &found_existing_dir);
-    // autocmd may have freed mfp if findswapname creates different swapfile name
-    if (buf->b_ml.ml_mfp != mfp) {
-      xfree(fname);
-      return;
-    }
     // alloc's fname
     if (dirp == NULL) {             // out of memory
       break;
@@ -434,7 +428,7 @@ void ml_setname(buf_T *buf)
     }
 
     // if the file name is the same we don't have to do anything
-    if (path_equal(fname, mfp->mf_fname, kPathCmpLiteral)) {
+    if (path_fnamecmp(fname, mfp->mf_fname) == 0) {
       xfree(fname);
       success = true;
       break;
@@ -515,11 +509,6 @@ void ml_open_file(buf_T *buf)
     // and creating it, another Vim creates the file.  In that case the
     // creation will fail and we will use another directory.
     char *fname = findswapname(buf, &dirp, NULL, &found_existing_dir);
-    // autocmd may have freed mfp, grr!
-    if (buf->b_ml.ml_mfp != mfp) {
-      xfree(fname);
-      return;
-    }
     if (dirp == NULL) {
       break;        // out of memory
     }
@@ -679,12 +668,13 @@ static void set_b0_fname(ZeroBlock *b0p, buf_T *buf)
     // editing the same file on different machines over a network.
     // First replace home dir path with "~/" with home_replace().
     // Then insert the user name to get "~user/".
-    size_t flen = home_replace(NULL, buf->b_ffname, b0p->b0_fname,
-                               B0_FNAME_SIZE_CRYPT, true);
+    home_replace(NULL, buf->b_ffname, b0p->b0_fname,
+                 B0_FNAME_SIZE_CRYPT, true);
     if (b0p->b0_fname[0] == '~') {
       // If there is no user name or it is too long, don't use "~/"
       int retval = os_get_username(uname, B0_UNAME_SIZE);
       size_t ulen = strlen(uname);
+      size_t flen = strlen(b0p->b0_fname);
       if (retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1) {
         xstrlcpy(b0p->b0_fname, buf->b_ffname, B0_FNAME_SIZE_CRYPT);
       } else {
@@ -799,27 +789,28 @@ void ml_recover(bool checkext)
   } else {
     directly = false;
 
-    // Enumerate matching swapfiles into items_tv.
-    typval_T items_tv;
-    tv_list_alloc_ret(&items_tv, 0);
-    recover_names(fname, true, items_tv.vval.v_list);
-    int n_swaps = tv_list_len(items_tv.vval.v_list);
-
-    if (n_swaps == 0) {
-      tv_clear(&items_tv);
+    // count the number of matching swapfiles
+    len = recover_names(fname, false, NULL, 0, NULL);
+    if (len == 0) {                 // no swapfiles found
       semsg(_("E305: No swap file found for %s"), fname);
       goto theend;
     }
-    if (n_swaps > 1) {
-      // Several swapfiles found: prompt (async) via vim.ui.select().
-      typval_T lua_args[] = { items_tv, { .v_type = VAR_UNKNOWN } };
-      nlua_call_typval("vim._core.swapfile", "select_swap", lua_args, NULL);
-      tv_clear(&items_tv);
-      goto theend;
+    int i;
+    if (len == 1) {  // one swapfile found, use it
+      i = 1;
+    } else {  // several swapfiles found, choose
+      // list the names of the swapfiles
+      recover_names(fname, true, NULL, 0, NULL);
+      if (!ui_has(kUIMessages)) {
+        msg_putchar('\n');
+      }
+      i = prompt_for_input(_("Enter number of swap file to use (0 to quit): "), 0, false, NULL);
+      if (i < 1 || i > len) {
+        goto theend;
+      }
     }
-    // One swapfile: use it directly.
-    fname_used = xstrdup(tv_list_first(items_tv.vval.v_list)->li_tv.vval.v_string);
-    tv_clear(&items_tv);
+    // get the swapfile name that will be used
+    recover_names(fname, false, NULL, i, &fname_used);
   }
   if (fname_used == NULL) {
     goto theend;  // user chose invalid number.
@@ -925,7 +916,6 @@ void ml_recover(bool checkext)
 
   // If .swp file name given directly, use name from swapfile for buffer.
   if (directly) {
-    TO_SLASH(b0p->b0_fname);
     expand_env(b0p->b0_fname, NameBuff, MAXPATHL);
     if (setfname(curbuf, NameBuff, NULL, true) == FAIL) {
       goto theend;
@@ -991,7 +981,7 @@ void ml_recover(bool checkext)
     set_fileformat(b0_ff - 1, OPT_LOCAL);
   }
   if (b0_fenc != NULL) {
-    set_option_value_give_err(kOptFileencoding, CSTR_AS_OBJ(b0_fenc), OPT_LOCAL);
+    set_option_value_give_err(kOptFileencoding, CSTR_AS_OPTVAL(b0_fenc), OPT_LOCAL);
     xfree(b0_fenc);
   }
   unchanged(curbuf, true, true);
@@ -1121,18 +1111,6 @@ void ml_recover(bool checkext)
           // Append all the lines in this block.
           bool has_error = false;
 
-          // Verify the cached block's actual size matches the
-          // pointer entry's pe_page_count.  mf_get() cache hits
-          // return the original block without resizing, so a
-          // crafted swap file referencing the same block twice
-          // with different pe_page_count values would cause an
-          // OOB write below.
-          if (hp->bh_page_count != page_count) {
-            error++;
-            ml_append(lnum++, _("??? BLOCK PAGE COUNT MISMATCH"), 0, true);
-            page_count = hp->bh_page_count;
-          }
-
           // Check the length of the block.
           // If wrong, use the length given in the pointer block.
           if (page_count * mfp->mf_page_size != dp->db_txt_end) {
@@ -1144,12 +1122,6 @@ void ml_recover(bool checkext)
             dp->db_txt_end = page_count * mfp->mf_page_size;
           }
 
-          if (dp->db_txt_start < HEADER_SIZE || dp->db_txt_start > dp->db_txt_end) {
-            ml_append(lnum++, _("??? block header corrupted"), 0, true);
-            error++;
-            has_error = true;
-            dp->db_txt_start = dp->db_txt_end;
-          }
           // Make sure there is a NUL at the end of the block so we
           // don't go over the end when copying text.
           *((char *)dp + dp->db_txt_end - 1) = NUL;
@@ -1301,22 +1273,28 @@ theend:
   }
 }
 
-/// Enumerate swapfiles for `fname` (or for the global swap dir if `fname` is NULL),
-/// appending each found path to `ret_list`.
+/// Find the names of swapfiles in current directory and the directory given
+/// with the 'directory' option.
 ///
-/// Used by `:recover` (`ml_recover()`), `nvim -r`, and `swapfilelist()`.
+/// Used to:
+/// - list the swapfiles for "nvim -r"
+/// - count the number of swapfiles when recovering
+/// - list the swapfiles when recovering
+/// - list the swapfiles for swapfilelist()
+/// - find the name of the n'th swapfile when recovering
 ///
-/// @param fname  base for swapfile name, or NULL to list every swapfile in 'directory'.
-/// @param skip_curbuf  exclude the current buffer's own active swapfile (used by `:recover`,
-///                     not by `swapfilelist()`).
-/// @param ret_list  receives the paths.
-void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
-  FUNC_ATTR_NONNULL_ARG(3)
+/// @param fname  base for swapfile name
+/// @param do_list  when true, list the swapfile names
+/// @param ret_list  when not NULL add file names to it
+/// @param nr  when non-zero, return nr'th swapfile name
+/// @param fname_out  result when "nr" > 0
+int recover_names(char *fname, bool do_list, list_T *ret_list, int nr, char **fname_out)
 {
   int num_names;
   char *(names[6]);
   char *tail;
   char *p;
+  int file_count = 0;
   char **files;
   char *fname_res = NULL;
 #ifdef HAVE_READLINK
@@ -1331,6 +1309,14 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
 #else
     fname_res = fname;
 #endif
+  }
+
+  msg_ext_skip_flush = true;
+  if (do_list) {
+    // use msg() to start the scrolling properly
+    msg_ext_set_kind("list_cmd");
+    msg(_("Swap files found:"), 0);
+    msg_putchar('\n');
   }
 
   // Do the loop for every directory in 'directory'.
@@ -1357,11 +1343,11 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
       }
     } else {                      // check directory dir_name
       if (fname == NULL) {
-        names[0] = concat_fnames(dir_name, STATIC_CSTR_AS_STRING("*.sw?"), true).data;
+        names[0] = concat_fnames(dir_name.data, "*.sw?", true);
         // For Unix names starting with a dot are special.  MS-Windows
         // supports this too, on some file systems.
-        names[1] = concat_fnames(dir_name, STATIC_CSTR_AS_STRING(".*.sw?"), true).data;
-        names[2] = concat_fnames(dir_name, STATIC_CSTR_AS_STRING(".sw?"), true).data;
+        names[1] = concat_fnames(dir_name.data, ".*.sw?", true);
+        names[2] = concat_fnames(dir_name.data, ".sw?", true);
         num_names = 3;
       } else {
         p = dir_name.data + dir_name.size;
@@ -1370,7 +1356,7 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
           tail = make_percent_swname(dir_name.data, p, fname_res);
         } else {
           tail = path_tail(fname_res);
-          tail = concat_fnames(dir_name, cstr_as_string(tail), true).data;
+          tail = concat_fnames(dir_name.data, tail, true);
         }
         num_names = recov_file_names(names, tail, false);
         xfree(tail);
@@ -1388,7 +1374,7 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
     // When no swapfile found, wildcard expansion might have failed (e.g.
     // not able to execute the shell).
     // Try finding a swapfile by simply adding ".swp" to the file name.
-    if (*dirp == NUL && tv_list_len(ret_list) + num_files == 0 && fname != NULL) {
+    if (*dirp == NUL && file_count + num_files == 0 && fname != NULL) {
       char *swapname = modname(fname_res, ".swp", true);
       if (swapname != NULL) {
         if (os_path_exists(swapname)) {
@@ -1402,13 +1388,14 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
     }
 
     // Remove swapfile name of the current buffer, it must be ignored.
-    if (skip_curbuf
-        && curbuf->b_ml.ml_mfp != NULL
-        && (p = curbuf->b_ml.ml_mfp->mf_fname) != NULL) {
+    // But keep it for swapfilelist().
+    if (curbuf->b_ml.ml_mfp != NULL
+        && (p = curbuf->b_ml.ml_mfp->mf_fname) != NULL
+        && ret_list == NULL) {
       for (int i = 0; i < num_files; i++) {
         // Do not expand wildcards, on Windows would try to expand
         // "%tmp%" in "%tmp%file"
-        if (path_equal(p, files[i], kPathCmpFull)) {
+        if (path_full_compare(p, files[i], true, false) & kEqualFiles) {
           // Remove the name from files[i].  Move further entries
           // down.  When the array becomes empty free it here, since
           // FreeWild() won't be called below.
@@ -1423,9 +1410,50 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
         }
       }
     }
-    for (int i = 0; i < num_files; i++) {
-      // `files[i]` is already a full path (from `expand_wildcards`).
-      tv_list_append_allocated_string(ret_list, xstrdup(files[i]));
+    if (nr > 0) {
+      file_count += num_files;
+      if (nr <= file_count) {
+        *fname_out = xstrdup(files[nr - 1 + num_files - file_count]);
+        dirp = "";                        // stop searching
+      }
+    } else if (do_list) {
+      if (dir_name.data[0] == '.' && dir_name.data[1] == NUL) {
+        if (fname == NULL) {
+          msg_puts(_("   In current directory:\n"));
+        } else {
+          msg_puts(_("   Using specified name:\n"));
+        }
+      } else {
+        msg_puts(_("   In directory "));
+        msg_home_replace(dir_name.data);
+        msg_puts(":\n");
+      }
+
+      if (num_files) {
+        for (int i = 0; i < num_files; i++) {
+          // print the swapfile name
+          msg_outnum(++file_count);
+          msg_puts(".    ");
+          msg_puts(path_tail(files[i]));
+          msg_putchar('\n');
+          StringBuilder msg = KV_INITIAL_VALUE;
+          kv_resize(msg, IOSIZE);
+          swapfile_info(files[i], &msg);
+          bool need_clear = false;
+          msg_multiline(cbuf_as_string(msg.items, msg.size), 0, false, false, &need_clear);
+          kv_destroy(msg);
+        }
+      } else {
+        msg_puts(_("      -- none --\n"));
+      }
+      ui_flush();
+    } else if (ret_list != NULL) {
+      for (int i = 0; i < num_files; i++) {
+        char *name = concat_fnames(dir_name.data, files[i], true);
+        tv_list_append_allocated_string(ret_list, name);
+      }
+    } else {
+      file_count += num_files;
     }
 
     for (int i = 0; i < num_names; i++) {
@@ -1435,7 +1463,9 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
       FreeWild(num_files, files);
     }
   }
+  msg_ext_skip_flush = false;
   xfree(dir_name.data);
+  return file_count;
 }
 
 /// Append the full path to name with path separators made into percent
@@ -1446,38 +1476,24 @@ void recover_names(char *fname, bool skip_curbuf, list_T *ret_list)
 char *make_percent_swname(char *dir, char *dir_end, const char *name)
   FUNC_ATTR_NONNULL_ARG(1, 2)
 {
-  String fixed_fname;
-  char *fname = fix_fname(name != NULL ? name : "");
-  if (fname == NULL) {
+  char *d = NULL;
+  char *f = fix_fname(name != NULL ? name : "");
+  if (f == NULL) {
     return NULL;
   }
 
-  FileInfo file_info;
-  if (!os_fileinfo2(fname, &file_info)) {
-    xfree(fname);
-    return NULL;
-  }
-  fixed_fname.data = fname + file_info.root_off;
-  if (file_info.type == kPathDeviceUNC) {
-    assert(file_info.root_off >= 2);
-    fixed_fname.data -= 2;
-    fixed_fname.data[0] = '/';  // Fixup //?/UNC/server/ path: "C/server/..." -> "//server/..."
-  }
-  char *p;
-  for (p = fixed_fname.data; *p != NUL; MB_PTR_ADV(p)) {
-    if (vim_ispathsep(*p)) {
-      *p = '%';
+  char *s = xstrdup(f);
+  for (d = s; *d != NUL; MB_PTR_ADV(d)) {
+    if (vim_ispathsep(*d)) {
+      *d = '%';
     }
   }
-  fixed_fname.size = (size_t)(p - fixed_fname.data);
 
-  // remove one trailing slash
-  p = &dir_end[-1];
-  *p = NUL;
-  String d = concat_fnames(cbuf_as_string(dir, (size_t)(p - dir)), fixed_fname, true);
-  xfree(fname);
-
-  return d.data;
+  dir_end[-1] = NUL;  // remove one trailing slash
+  d = concat_fnames(dir, s, true);
+  xfree(s);
+  xfree(f);
+  return d;
 }
 
 // PID of swapfile owner, or zero if not running.
@@ -1494,9 +1510,9 @@ void swapfile_dict(const char *fname, dict_T *d)
   if ((fd = os_open(fname, O_RDONLY, 0)) >= 0) {
     if (read_eintr(fd, &b0, sizeof(b0)) == sizeof(b0)) {
       if (ml_check_b0_id(&b0) == FAIL) {
-        tv_dict_add_str_len(d, S_LEN("error"), S_LEN("Not a swap file"));
+        tv_dict_add_str(d, S_LEN("error"), "Not a swap file");
       } else if (b0_magic_wrong(&b0)) {
-        tv_dict_add_str_len(d, S_LEN("error"), S_LEN("Magic number mismatch"));
+        tv_dict_add_str(d, S_LEN("error"), "Magic number mismatch");
       } else {
         // We have swap information.
         tv_dict_add_str_len(d, S_LEN("version"), b0.b0_version, 10);
@@ -1513,11 +1529,11 @@ void swapfile_dict(const char *fname, dict_T *d)
         tv_dict_add_nr(d, S_LEN("inode"), char_to_long(b0.b0_ino));
       }
     } else {
-      tv_dict_add_str_len(d, S_LEN("error"), S_LEN("Cannot read file"));
+      tv_dict_add_str(d, S_LEN("error"), "Cannot read file");
     }
     close(fd);
   } else {
-    tv_dict_add_str_len(d, S_LEN("error"), S_LEN("Cannot open file"));
+    tv_dict_add_str(d, S_LEN("error"), "Cannot open file");
   }
 }
 
@@ -1685,8 +1701,7 @@ static int recov_file_names(char **names, char *path, bool prepend_dot)
   }
 
   // Form the normal swapfile name pattern by appending ".sw?".
-  names[num_names] = concat_fnames(cstr_as_string(path),
-                                   STATIC_CSTR_AS_STRING(".sw?"), false).data;
+  names[num_names] = concat_fnames(path, ".sw?", false);
   if (num_names >= 1) {     // check if we have the same name twice
     char *p = names[num_names - 1];
     int i = (int)strlen(names[num_names - 1]) - (int)strlen(names[num_names]);
@@ -1883,27 +1898,6 @@ colnr_T ml_get_buf_len(buf_T *buf, linenr_T lnum)
 
   assert(buf->b_ml.ml_line_textlen > 0);
   return buf->b_ml.ml_line_textlen - 1;
-}
-
-/// Gets the charwise NL-joined text of range [start, end), 1-based lnum, 0-based col, end col
-/// exclusive, as an allocated String ("" if empty). Line range must be valid (start <= end); cols
-/// clamp to line-length.
-String ml_region_text(buf_T *buf, pos_T start, pos_T end)
-  FUNC_ATTR_NONNULL_ALL
-{
-  StringBuilder sb = KV_INITIAL_VALUE;
-  for (linenr_T lnum = start.lnum; lnum <= end.lnum; lnum++) {
-    char *line = ml_get_buf(buf, lnum);
-    colnr_T len = ml_get_buf_len(buf, lnum);
-    colnr_T from = lnum == start.lnum ? MIN(start.col, len) : 0;
-    colnr_T to = lnum == end.lnum ? MIN(end.col, len) : len;
-    kv_concat_len(sb, line + from, (size_t)(to - from));
-    if (lnum < end.lnum) {
-      kv_push(sb, NL);
-    }
-  }
-  kv_push(sb, NUL);
-  return cbuf_as_string(sb.items, kv_size(sb) - 1);
 }
 
 /// @return  codepoint at pos. pos must be either valid or have col set to MAXCOL!
@@ -2379,7 +2373,7 @@ static int ml_append_int(buf_T *buf, linenr_T lnum, char *line_arg, colnr_T len_
       if (total_moved) {
         memmove(&pp_new->pb_pointer[0],
                 &pp->pb_pointer[pb_idx + 1],
-                (size_t)total_moved * sizeof(PointerEntry));
+                (size_t)(total_moved) * sizeof(PointerEntry));
         pp_new->pb_count = (uint16_t)total_moved;
         pp->pb_count = (uint16_t)(pp->pb_count - (total_moved - 1));
         pp->pb_pointer[pb_idx + 1].pe_bnum = bnum_right;
@@ -3108,7 +3102,7 @@ static bhdr_T *ml_find_line(buf_T *buf, linenr_T lnum, int action)
       return hp;
     }
 
-    PointerBlock *pp = (PointerBlock *)dp;                // must be pointer block
+    PointerBlock *pp = (PointerBlock *)(dp);                // must be pointer block
     if (pp->pb_id != PTR_ID) {
       iemsg(_(e_pointer_block_id_wrong));
       goto error_block;
@@ -3230,7 +3224,7 @@ static void ml_lineadd(buf_T *buf, int count)
   }
 }
 
-#ifdef HAVE_READLINK
+#if defined(HAVE_READLINK)
 
 /// Resolve a symlink in the last component of a file name.
 /// Note that f_resolve() does it for every part of the path, we don't do that
@@ -3350,31 +3344,28 @@ char *makeswapname(char *fname, char *ffname, buf_T *buf, char *dir_name)
 /// @param dname  don't use "dirname", it is a global for Alpha
 char *get_file_in_dir(char *fname, char *dname)
 {
-  String retval;
-  String tail = cstr_as_string(path_tail(fname));
+  char *retval;
+
+  char *tail = path_tail(fname);
 
   if (dname[0] == '.' && dname[1] == NUL) {
-    retval = cbuf_to_string(fname, (size_t)(tail.data - fname) + tail.size);
-  } else {
-    size_t dname_len = strlen(dname);
-    if (dname[0] == '.' && vim_ispathsep(dname[1])) {
-      if (tail.data == fname) {  // no path before file name
-        retval = concat_fnames(cbuf_as_string(dname + 2, dname_len - 2), tail, true);
-      } else {
-        const char save_char = *tail.data;
-        *tail.data = NUL;
-        String tmp = concat_fnames(cbuf_as_string(fname, (size_t)(tail.data - fname)),
-                                   cbuf_as_string(dname + 2, dname_len - 2), true);
-        *tail.data = save_char;
-        retval = concat_fnames(tmp, tail, true);
-        xfree(tmp.data);
-      }
+    retval = xstrdup(fname);
+  } else if (dname[0] == '.' && vim_ispathsep(dname[1])) {
+    if (tail == fname) {            // no path before file name
+      retval = concat_fnames(dname + 2, tail, true);
     } else {
-      retval = concat_fnames(cbuf_as_string(dname, dname_len), tail, true);
+      char save_char = *tail;
+      *tail = NUL;
+      char *t = concat_fnames(fname, dname + 2, true);
+      *tail = save_char;
+      retval = concat_fnames(t, tail, true);
+      xfree(t);
     }
+  } else {
+    retval = concat_fnames(dname, tail, true);
   }
 
-  return retval.data;
+  return retval;
 }
 
 /// Build the ATTENTION message: info about an existing swapfile.
@@ -3510,7 +3501,7 @@ static char *findswapname(buf_T *buf, char **dirp, char *old_fname, bool *found_
     }
 
     // A file name equal to old_fname is OK to use.
-    if (old_fname != NULL && path_equal(fname, old_fname, kPathCmpLiteral)) {
+    if (old_fname != NULL && path_fnamecmp(fname, old_fname) == 0) {
       break;
     }
 
@@ -3529,14 +3520,14 @@ static char *findswapname(buf_T *buf, char **dirp, char *old_fname, bool *found_
         fd = os_open(fname, O_RDONLY, 0);
         if (fd >= 0) {
           if (read_eintr(fd, &b0, sizeof(b0)) == sizeof(b0)) {
-            TO_SLASH(b0.b0_fname);
             proc_running = swapfile_proc_running(&b0, fname);
 
             // If the swapfile has the same directory as the
             // buffer don't compare the directory names, they can
             // have a different mountpoint.
             if (b0.b0_flags & B0_SAME_DIR) {
-              if (!path_equal(path_tail(buf->b_ffname), path_tail(b0.b0_fname), kPathCmpLiteral)
+              if (path_fnamecmp(path_tail(buf->b_ffname),
+                                path_tail(b0.b0_fname)) != 0
                   || !same_directory(fname, buf->b_ffname)) {
                 // Symlinks may point to the same file even
                 // when the name differs, need to check the
@@ -3563,7 +3554,7 @@ static char *findswapname(buf_T *buf, char **dirp, char *old_fname, bool *found_
         //  - there is an old swapfile for the current file
         //  - the buffer was not recovered
         if (!differ && !(curbuf->b_flags & BF_RECOVERED)
-            && vim_strchr(p_shm, kShmAttention) == NULL) {
+            && vim_strchr(p_shm, SHM_ATTENTION) == NULL) {
           sea_choice_T choice = SEA_CHOICE_NONE;
 
           // It's safe to delete the swapfile if all these are true:
@@ -3862,6 +3853,7 @@ enum {
 static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
 {
   static buf_T *ml_upd_lastbuf = NULL;
+  static linenr_T ml_upd_lastline;
   static linenr_T ml_upd_lastcurline;
   static int ml_upd_lastcurix;
 
@@ -3878,7 +3870,6 @@ static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
     buf->b_ml.ml_usedchunks = 1;
     buf->b_ml.ml_chunksize[0].mlcs_numlines = 1;
     buf->b_ml.ml_chunksize[0].mlcs_totalsize = 1;
-    ml_upd_lastbuf = NULL;          // invalidate resume cache
   }
 
   if (updtype == ML_CHNK_UPDLINE && buf->b_ml.ml_line_count == 1) {
@@ -3886,22 +3877,25 @@ static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
     buf->b_ml.ml_usedchunks = 1;
     buf->b_ml.ml_chunksize[0].mlcs_numlines = 1;
     buf->b_ml.ml_chunksize[0].mlcs_totalsize = buf->b_ml.ml_line_textlen;
-    ml_upd_lastbuf = NULL;          // invalidate resume cache
     return;
   }
 
   // Find chunk that our line belongs to, curline will be at start of the
   // chunk.
-  // The scan resumes at the cached chunk while ml_upd_lastbuf is set: the
-  // chunks have not moved since the last call.
-  if (buf != ml_upd_lastbuf || line < curline) {
-    curline = 1;
-    curix = 0;
-  }
-  for (; curix < buf->b_ml.ml_usedchunks - 1
-       && line >= curline + buf->b_ml.ml_chunksize[curix].mlcs_numlines;
-       curix++) {
+  if (buf != ml_upd_lastbuf || line != ml_upd_lastline + 1
+      || updtype != ML_CHNK_ADDLINE) {
+    for (curline = 1, curix = 0;
+         curix < buf->b_ml.ml_usedchunks - 1
+         && line >= curline +
+         buf->b_ml.ml_chunksize[curix].mlcs_numlines;
+         curix++) {
+      curline += buf->b_ml.ml_chunksize[curix].mlcs_numlines;
+    }
+  } else if (curix < buf->b_ml.ml_usedchunks - 1
+             && line >= curline + buf->b_ml.ml_chunksize[curix].mlcs_numlines) {
+    // Adjust cached curix & curline
     curline += buf->b_ml.ml_chunksize[curix].mlcs_numlines;
+    curix++;
   }
   chunksize_T *curchnk = buf->b_ml.ml_chunksize + curix;
 
@@ -3998,13 +3992,13 @@ static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
     }
   } else if (updtype == ML_CHNK_DELLINE) {
     curchnk->mlcs_numlines--;
+    ml_upd_lastbuf = NULL;       // Force recalc of curix & curline
     if (curix < (buf->b_ml.ml_usedchunks - 1)
         && (curchnk->mlcs_numlines + curchnk[1].mlcs_numlines)
         <= MLCS_MINL) {
       curix++;
       curchnk = buf->b_ml.ml_chunksize + curix;
     } else if (curix == 0 && curchnk->mlcs_numlines <= 0) {
-      ml_upd_lastbuf = NULL;   // Force recalc of curix & curline
       buf->b_ml.ml_usedchunks--;
       memmove(buf->b_ml.ml_chunksize, buf->b_ml.ml_chunksize + 1,
               (size_t)buf->b_ml.ml_usedchunks * sizeof(chunksize_T));
@@ -4013,15 +4007,10 @@ static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
                               && (curchnk->mlcs_numlines +
                                   curchnk[-1].mlcs_numlines)
                               > MLCS_MINL)) {
-      // The chunks are left as they are, the cached position stays valid.
-      ml_upd_lastbuf = buf;
-      ml_upd_lastcurline = curline;
-      ml_upd_lastcurix = curix;
       return;
     }
 
     // Collapse chunks
-    ml_upd_lastbuf = NULL;   // Force recalc of curix & curline
     curchnk[-1].mlcs_numlines += curchnk->mlcs_numlines;
     curchnk[-1].mlcs_totalsize += curchnk->mlcs_totalsize;
     buf->b_ml.ml_usedchunks--;
@@ -4033,6 +4022,7 @@ static void ml_updatechunk(buf_T *buf, linenr_T line, int len, int updtype)
     return;
   }
   ml_upd_lastbuf = buf;
+  ml_upd_lastline = line;
   ml_upd_lastcurline = curline;
   ml_upd_lastcurix = curix;
 }
@@ -4257,12 +4247,6 @@ int incl(pos_T *lp)
   return r;
 }
 
-/// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries as
-/// necessary. Resets `lp.coladd`. Uses curbuf.
-///
-/// @return   1 when crossing to the previous line.
-///          -1 when at the start of the file.
-///           0 otherwise.
 int dec(pos_T *lp)
 {
   lp->coladd = 0;

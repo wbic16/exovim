@@ -10,16 +10,15 @@
 #include "nvim/charset.h"
 #include "nvim/cursor.h"
 #include "nvim/drawscreen.h"
+#include "nvim/edit.h"
 #include "nvim/eval.h"
-#include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/vars.h"
 #include "nvim/ex_cmds_defs.h"
+#include "nvim/getchar.h"
 #include "nvim/globals.h"
 #include "nvim/indent.h"
 #include "nvim/indent_c.h"
-#include "nvim/input.h"
-#include "nvim/insert.h"
 #include "nvim/macros_defs.h"
 #include "nvim/mark.h"
 #include "nvim/mbyte.h"
@@ -73,10 +72,10 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
   int cc;
   char save_char = NUL;
   bool haveto_redraw = false;
-  const bool fo_ins_blank = has_format_option(kFoInsBlank);
-  const bool fo_multibyte = has_format_option(kFoMbyteBreak);
-  const bool fo_rigor_tw = has_format_option(kFoRigorousTw);
-  const bool fo_white_par = has_format_option(kFoWhitePar);
+  const bool fo_ins_blank = has_format_option(FO_INS_BLANK);
+  const bool fo_multibyte = has_format_option(FO_MBYTE_BREAK);
+  const bool fo_rigor_tw = has_format_option(FO_RIGOROUS_TW);
+  const bool fo_white_par = has_format_option(FO_WHITE_PAR);
   bool first_line = true;
   colnr_T leader_len;
   bool no_leader = false;
@@ -115,7 +114,7 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
     if (no_leader) {
       do_comments = false;
     } else if (!(flags & INSCHAR_FORMAT)
-               && has_format_option(kFoWrapComs)) {
+               && has_format_option(FO_WRAP_COMS)) {
       do_comments = true;
     }
 
@@ -146,7 +145,7 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
     }
     if (!(flags & INSCHAR_FORMAT)
         && leader_len == 0
-        && !has_format_option(kFoWrap)) {
+        && !has_format_option(FO_WRAP)) {
       break;
     }
     if ((startcol = curwin->w_cursor.col) == 0) {
@@ -163,10 +162,10 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
 
     // Find position to break at.
     // Stop at first entered white when 'formatoptions' has 'v'
-    while ((!fo_ins_blank && !has_format_option(kFoInsVi))
+    while ((!fo_ins_blank && !has_format_option(FO_INS_VI))
            || (flags & INSCHAR_FORMAT)
-           || curwin->w_cursor.lnum != Ins.start.lnum
-           || curwin->w_cursor.col >= Ins.start.col) {
+           || curwin->w_cursor.lnum != Insstart.lnum
+           || curwin->w_cursor.col >= Insstart.col) {
       if (curwin->w_cursor.col == startcol && c != NUL) {
         cc = c;
       } else {
@@ -194,7 +193,7 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
 
         // Don't break after a period when 'formatoptions' has 'p' and
         // there are less than two spaces.
-        if (has_format_option(kFoPeriodAbbr) && cc == '.' && wcc < 2) {
+        if (has_format_option(FO_PERIOD_ABBR) && cc == '.' && wcc < 2) {
           continue;
         }
 
@@ -203,7 +202,7 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
           break;
         }
 
-        if (has_format_option(kFoOneLetter)) {
+        if (has_format_option(FO_ONE_LETTER)) {
           // do not break after one-letter words
           if (curwin->w_cursor.col == 0) {
             break;              // one-letter word at begin
@@ -397,7 +396,7 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
         // flag will be set and open_line() will handle it (as seen
         // above).  The code here (and in get_number_indent()) will
         // recognize comments if needed...
-        if (second_indent < 0 && has_format_option(kFoQNumber)) {
+        if (second_indent < 0 && has_format_option(FO_Q_NUMBER)) {
           second_indent = get_number_indent(curwin->w_cursor.lnum - 1);
         }
         if (second_indent >= 0) {
@@ -439,10 +438,10 @@ void internal_format(int textwidth, int second_indent, int flags, bool format_on
     haveto_redraw = true;
     set_can_cindent(true);
     // moved the cursor, don't autoindent or cindent now
-    Ins.did_ai = false;
-    Ins.did_si = false;
-    Ins.can_si = false;
-    Ins.can_si_back = false;
+    did_ai = false;
+    did_si = false;
+    can_si = false;
+    can_si_back = false;
     line_breakcheck();
   }
 
@@ -584,7 +583,7 @@ static bool paragraph_start(linenr_T lnum)
   if (*p == NUL) {
     return true;                // after empty line
   }
-  const bool do_comments = has_format_option(kFoQComs);  // format comments
+  const bool do_comments = has_format_option(FO_Q_COMS);  // format comments
   if (fmt_check_par(lnum - 1, &leader_len, &leader_flags, do_comments)) {
     return true;  // after non-paragraph line
   }
@@ -593,10 +592,10 @@ static bool paragraph_start(linenr_T lnum)
     return true;  // "lnum" is not a paragraph line
   }
 
-  if (has_format_option(kFoWhitePar) && !ends_in_white(lnum - 1)) {
+  if (has_format_option(FO_WHITE_PAR) && !ends_in_white(lnum - 1)) {
     return true;                // missing trailing space in previous line.
   }
-  if (has_format_option(kFoQNumber) && (get_number_indent(lnum) > 0)) {
+  if (has_format_option(FO_Q_NUMBER) && (get_number_indent(lnum) > 0)) {
     return true;                // numbered item starts in "lnum".
   }
   if (!same_leader(lnum - 1, leader_len, leader_flags,
@@ -616,7 +615,7 @@ static bool paragraph_start(linenr_T lnum)
 /// @param prev_line   may start in previous line
 void auto_format(bool trailblank, bool prev_line)
 {
-  if (!has_format_option(kFoAuto)) {
+  if (!has_format_option(FO_AUTO)) {
     return;
   }
 
@@ -636,7 +635,7 @@ void auto_format(bool trailblank, bool prev_line)
     dec_cursor();
     int cc = gchar_cursor();
     if (!WHITECHAR(cc) && curwin->w_cursor.col > 0
-        && has_format_option(kFoOneLetter)) {
+        && has_format_option(FO_ONE_LETTER)) {
       dec_cursor();
     }
     cc = gchar_cursor();
@@ -665,7 +664,7 @@ void auto_format(bool trailblank, bool prev_line)
 
   // With the 'c' flag in 'formatoptions' and 't' missing: only format
   // comments.
-  if (has_format_option(kFoWrapComs) && !has_format_option(kFoWrap)
+  if (has_format_option(FO_WRAP_COMS) && !has_format_option(FO_WRAP)
       && get_leader_len(old, NULL, false, true) == 0) {
     return;
   }
@@ -699,7 +698,7 @@ void auto_format(bool trailblank, bool prev_line)
   // previously wasn't, the line was broken.  Because of the rule above we
   // need to add a space when 'w' is in 'formatoptions' to keep a paragraph
   // formatted.
-  if (!wasatend && has_format_option(kFoWhitePar)) {
+  if (!wasatend && has_format_option(FO_WHITE_PAR)) {
     char *linep = get_cursor_line_ptr();
     colnr_T len = get_cursor_line_len();
     if (curwin->w_cursor.col == len) {
@@ -762,6 +761,9 @@ int comp_textwidth(bool ff)
     // The width is the window width minus 'wrapmargin' minus all the
     // things that add to the margin.
     textwidth = curwin->w_view_width - (int)curbuf->b_p_wm;
+    if (curbuf == cmdwin_buf) {
+      textwidth -= 1;
+    }
     textwidth -= win_fdccol_count(curwin);
     textwidth -= curwin->w_scwidth;
 
@@ -876,12 +878,21 @@ int fex_format(linenr_T lnum, long count, int c)
   set_vim_var_nr(VV_COUNT, (varnumber_T)count);
   set_vim_var_char(c);
 
+  // Make a copy, the option could be changed while calling it.
+  char *fex = xstrdup(curbuf->b_p_fex);
   current_sctx = curbuf->b_p_script_ctx[kBufOptFormatexpr];
 
-  // 'formatexpr' may modify the buffer, so it runs without textlock.
-  int r = eval_expr_option_number(&curbuf->b_p_fex, use_sandbox);
+  // Evaluate the function.
+  if (use_sandbox) {
+    sandbox++;
+  }
+  int r = (int)eval_to_number(fex, true);
+  if (use_sandbox) {
+    sandbox--;
+  }
 
   set_vim_var_string(VV_CHAR, NULL, -1);
+  xfree(fex);
   current_sctx = save_sctx;
 
   return r;
@@ -919,11 +930,11 @@ void format_lines(linenr_T line_count, bool avoid_fex)
   const int max_len = comp_textwidth(true) * 3;
 
   // check for 'q', '2', 'n' and 'w' in 'formatoptions'
-  const bool do_comments = has_format_option(kFoQComs);  // format comments
+  const bool do_comments = has_format_option(FO_Q_COMS);  // format comments
   int do_comments_list = 0;  // format comments with 'n' or '2'
-  const bool do_second_indent = has_format_option(kFoQSecond);
-  const bool do_number_indent = has_format_option(kFoQNumber);
-  const bool do_trail_white = has_format_option(kFoWhitePar);
+  const bool do_second_indent = has_format_option(FO_Q_SECOND);
+  const bool do_number_indent = has_format_option(FO_Q_NUMBER);
+  const bool do_trail_white = has_format_option(FO_WHITE_PAR);
 
   // Get info about the previous and current line.
   if (curwin->w_cursor.lnum > 1) {
@@ -1036,7 +1047,7 @@ void format_lines(linenr_T line_count, bool avoid_fex)
             indent = get_lisp_indent();
           } else {
             if (cindent_on()) {
-              indent = curbuf->b_p_inde.type != kCallbackNone ? get_expr_indent() : get_c_indent();
+              indent = *curbuf->b_p_inde != NUL ? get_expr_indent() : get_c_indent();
             } else {
               indent = get_indent();
             }
@@ -1093,7 +1104,7 @@ void format_lines(linenr_T line_count, bool avoid_fex)
         if (next_leader_len > 0) {
           del_bytes(next_leader_len, false, false);
           mark_col_adjust(curwin->w_cursor.lnum, 0, 0, -next_leader_len, 0);
-        } else if (second_indent > 0) {   // the "leader" for kFoQSecond
+        } else if (second_indent > 0) {   // the "leader" for FO_Q_SECOND
           int indent = (int)getwhitecols_curline();
 
           if (indent > 0) {

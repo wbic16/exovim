@@ -1,7 +1,7 @@
 " Test for the gf and gF (goto file) commands
 
 " This is a test if a URL is recognized by "gf", with the cursor before and
-" after the "://".  Nvim: ":\\" is not a URL.
+" after the "://".  Also test ":\\".
 func Test_gf_url()
   enew!
   call append(0, [
@@ -22,11 +22,10 @@ func Test_gf_url()
   set isf=@,48-57,/,.,-,_,+,,,$,~,\
   call search("^third")
   call search("name")
-  " Nvim: Backslashes "\" not supported in URLs, thus "URL:" is ignored.
-  call assert_equal("\\\\machine.name\\vimtest2c", expand("<cfile>"))
+  call assert_equal("URL:\\\\machine.name\\vimtest2c", expand("<cfile>"))
   call search("^fourth")
   call search("URL")
-  call assert_equal("URL", expand("<cfile>"))
+  call assert_equal("URL:\\\\machine.name\\tmp\\vimtest2d", expand("<cfile>"))
 
   call search("^fifth")
   call search("URL")

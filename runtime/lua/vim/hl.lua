@@ -8,7 +8,7 @@ local M = {}
 --- - `semantic_tokens`: `125`, used for LSP semantic token highlighting
 --- - `diagnostics`: `150`, used for code analysis such as diagnostics
 --- - `user`: `200`, used for user-triggered highlights such as LSP document
----   symbols or `hl_op` autocommands
+---   symbols or `on_yank` autocommands
 M.priorities = {
   syntax = 50,
   treesitter = 100,
@@ -40,8 +40,7 @@ M.priorities = {
 ---
 ---@param buf integer Buffer number to apply highlighting to
 ---@param ns integer Namespace to add highlight to
----@param hlgroup integer|integer[]|string|string[] Highlight group used for the text range.
---- See the `hl_group` option in |nvim_buf_set_extmark()|.
+---@param higroup string Highlight group to use for highlighting
 ---@param start [integer,integer]|string Start of region as a (line, column) tuple or string accepted by |getpos()|
 ---@param finish [integer,integer]|string End of region as a (line, column) tuple or string accepted by |getpos()|
 ---@param opts? vim.hl.range.Opts
@@ -49,7 +48,7 @@ M.priorities = {
 --- highlight has left
 --- @return fun()? range_clear A function which allows clearing the highlight manually.
 --- nil is returned if timeout is not specified
-function M.range(buf, ns, hlgroup, start, finish, opts)
+function M.range(buf, ns, higroup, start, finish, opts)
   -- Resolve buf=0 so the deferred `range_hl_clear` works correctly even after buffer-switch.
   buf = vim._resolve_bufnr(buf)
   opts = opts or {}
@@ -60,29 +59,20 @@ function M.range(buf, ns, hlgroup, start, finish, opts)
 
   local v_maxcol = vim.v.maxcol
 
-  local pos1 --- @type [integer, integer, integer, integer]
-  if type(start) == 'string' then
-    pos1 = vim.fn.getpos(start)
-  else
-    pos1 = {
+  local pos1 = type(start) == 'string' and vim.fn.getpos(start)
+    or {
       buf,
       start[1] + 1,
       start[2] ~= -1 and start[2] ~= v_maxcol and start[2] + 1 or v_maxcol,
       0,
     }
-  end
-
-  local pos2 ---@type [integer, integer, integer, integer]
-  if type(finish) == 'string' then
-    pos2 = vim.fn.getpos(finish)
-  else
-    pos2 = {
+  local pos2 = type(finish) == 'string' and vim.fn.getpos(finish)
+    or {
       buf,
       finish[1] + 1,
-      finish[2] ~= -1 and finish[2] ~= v_maxcol and finish[2] + 1 or v_maxcol,
+      finish[2] ~= -1 and start[2] ~= v_maxcol and finish[2] + 1 or v_maxcol,
       0,
     }
-  end
 
   local buf_line_count = api.nvim_buf_line_count(buf)
   pos1[2] = math.min(pos1[2], buf_line_count)
@@ -103,15 +93,15 @@ function M.range(buf, ns, hlgroup, start, finish, opts)
     end
   end)
 
-  -- For non-blockwise selection, use a single extmark and only compute its bounds.
-  local bounds = regtype == 'v' or regtype == 'V'
   local region = vim.fn.getregionpos(pos1, pos2, {
     type = regtype,
     exclusive = not inclusive,
     eol = true,
-    bounds = bounds,
   })
-  if bounds then
+  -- For non-blockwise selection, use a single extmark.
+  if regtype == 'v' or regtype == 'V' then
+    --- @type [ [integer, integer, integer, integer], [integer, integer, integer, integer]][]
+    region = { { assert(region[1])[1], assert(region[#region])[2] } }
     local region1 = assert(region[1])
     if
       regtype == 'V'
@@ -132,7 +122,7 @@ function M.range(buf, ns, hlgroup, start, finish, opts)
     table.insert(
       extmarks,
       api.nvim_buf_set_extmark(buf, ns, start_row, start_col, {
-        hl_group = hlgroup,
+        hl_group = higroup,
         end_row = end_row,
         end_col = end_col,
         priority = priority,
@@ -156,32 +146,26 @@ function M.range(buf, ns, hlgroup, start, finish, opts)
   end
 end
 
----@class (private) vim.hl.OnEventState
----@field timer? uv.uv_timer_t Timer to clear the highlight.
----@field clear? fun() Function to clear the highlight immediately.
+local yank_timer --- @type uv.uv_timer_t?
+local yank_hl_clear --- @type fun()?
+local yank_ns = api.nvim_create_namespace('nvim.hlyank')
 
---- @type { [string]: vim.hl.OnEventState }
-local hl_op_state = {}
-
-local events_ns = api.nvim_create_namespace('nvim.hl.events')
-
---- Highlights the affected text region during a |TextYankPost| or |TextPutPost| event.
+--- Highlight the yanked text during a |TextYankPost| event.
 ---
---- Add this to your `init.vim`:
+--- Add the following to your `init.vim`:
 ---
 --- ```vim
---- autocmd TextYankPost * silent! lua vim.hl.hl_op {higroup='Visual', timeout=300}
---- autocmd TextPutPost  * silent! lua vim.hl.hl_op {higroup='Visual', timeout=300}
+--- autocmd TextYankPost * silent! lua vim.hl.on_yank {higroup='Visual', timeout=300}
 --- ```
 ---
 --- @param opts table|nil Optional parameters
----              - event     (default: vim.v.event) Event structure.
----              - higroup   (default: "IncSearch") Highlight group for the text region.
----              - on_macro  (default: false) Highlight during |macro| execution.
----              - on_visual (default: true) Highlight during |Visual| mode.
----              - priority  (default: |vim.hl.priorities|`.user`) Integer priority.
----              - timeout   (default: 150) Time in ms before highlight is cleared.
-function M.hl_op(opts)
+---              - event     event structure (default vim.v.event)
+---              - higroup   highlight group for yanked region (default "IncSearch")
+---              - on_macro  highlight when executing macro (default false)
+---              - on_visual highlight when yanking visual selection (default true)
+---              - priority  integer priority (default |vim.hl.priorities|`.user`)
+---              - timeout   time in ms before highlight is cleared (default 150)
+function M.on_yank(opts)
   vim.validate('opts', opts, 'table', true)
   opts = opts or {}
   local event = opts.event or vim.v.event
@@ -190,49 +174,32 @@ function M.hl_op(opts)
 
   if not on_macro and vim.fn.reg_executing() ~= '' then
     return
-  elseif
-    event.regtype == ''
-    or (event.operator ~= 'y' and event.operator ~= 'p' and event.operator ~= 'P')
-  then
+  end
+  if event.operator ~= 'y' or event.regtype == '' then
     return
-  elseif not on_visual and event.visual then
+  end
+  if not on_visual and event.visual then
     return
   end
 
-  local state_key = event.operator == 'y' and 'yank' or 'put'
-  local hlgroup = opts.higroup or 'IncSearch'
+  local higroup = opts.higroup or 'IncSearch'
 
   local bufnr = api.nvim_get_current_buf()
   local winid = api.nvim_get_current_win()
 
-  local state = hl_op_state[state_key]
-  -- Multicursor cascade: accumulate per-cursor, don't cancel the previous event's highlight.
-  local cascading = vim.v.cascading
-  if state ~= nil and state.timer and not state.timer:is_closing() and not cascading then
-    state.timer:close()
-    assert(state.clear)
-    state.clear()
+  if yank_timer and not yank_timer:is_closing() then
+    yank_timer:close()
+    assert(yank_hl_clear)
+    yank_hl_clear()
   end
 
-  api.nvim__ns_set(events_ns, { wins = { winid } })
-  local timer, clear = M.range(bufnr, events_ns, hlgroup, "'[", "']", {
+  api.nvim__ns_set(yank_ns, { wins = { winid } })
+  yank_timer, yank_hl_clear = M.range(bufnr, yank_ns, higroup, "'[", "']", {
     regtype = event.regtype,
     inclusive = true,
     priority = opts.priority or M.priorities.user,
     timeout = opts.timeout or 150,
   })
-
-  hl_op_state[state_key] = {
-    timer = timer,
-    clear = clear,
-  }
-end
-
---- @deprecated Use |vim.hl.hl_op()| instead.
---- @param opts? table
-function M.on_yank(opts)
-  vim.deprecate('vim.hl.on_yank', 'vim.hl.hl_op', '0.14')
-  return M.hl_op(opts)
 end
 
 return M

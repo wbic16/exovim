@@ -12,7 +12,7 @@ local shada_get_strings = vim.fn['shada#get_strings']
 local shada_get_binstrings = vim.fn['shada#get_binstrings']
 
 ---Ensures that pattern and augroup are set correctly.
----@param event vim.api.keyset.events|vim.api.keyset.events[]
+---@param event string|string[]
 ---@param opts vim.api.keyset.create_autocmd
 ---@param fn fun(args: vim.api.keyset.create_autocmd.callback_args): boolean?
 local function def_autocmd(event, opts, fn)
@@ -54,12 +54,7 @@ def_autocmd('BufWriteCmd', {}, function(ev)
   local buflines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   local ret = vim.fn.writefile(shada_get_binstrings(buflines), ev.file, 'b')
   if ret == 0 then
-    -- To check that we are not saving into a different file, we must compare ev.match (always an
-    -- absolute path), and not ev.file (can be relative), against nvim_buf_get_name() (always
-    -- returns an absolute path).
-    if ev.match == vim.api.nvim_buf_get_name(ev.buf) or vim.o.cpoptions:find('%+') then
-      vim.bo[ev.buf].modified = false
-    end
+    vim.bo[ev.buf].modified = false
   end
 end)
 
@@ -69,7 +64,7 @@ def_autocmd({ 'FileWriteCmd', 'FileAppendCmd' }, {}, function(ev)
       vim.fn.getline(
         math.min(vim.fn.line("'["), vim.fn.line("']")),
         math.max(vim.fn.line("'["), vim.fn.line("']"))
-      ) --[=[@as string[] ]=]
+      ) --[=[@as string[]]=]
     ),
     ev.file,
     ev.event == 'FileAppendCmd' and 'ab' or 'b'

@@ -4,7 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
 Differences between Vim and Vi				*vi-differences*
 
                                       Type |gO| to see the table of contents.
@@ -200,14 +199,13 @@ Command-line editing and history.			|cmdline-editing|
 Command-line completion.				|cmdline-completion|
 	While entering a command-line (on the bottom line of the screen)
 	<Tab> can be typed to complete
-
-	what		example ~
-	command		:e<Tab>
-	tag		:ta scr<Tab>
-	option		:set sc<Tab>
-	option value	:set hf=<Tab>
-	file name	:e ve<Tab>
-	etc.		 
+	   what		example		~
+	- command	:e<Tab>
+	- tag		:ta scr<Tab>
+	- option	:set sc<Tab>
+	- option value  :set hf=<Tab>
+	- file name	:e ve<Tab>
+	- etc.
 
 	If there are multiple matches, CTRL-N (next) and CTRL-P (previous)
 	will walk through the matches.  <Tab> works like CTRL-N, but wraps
@@ -260,7 +258,7 @@ Extended search patterns.				|pattern|
 	"x\{2,4}" matches "x" 2 to 4 times.
 	"\s" matches a white space character.
 
-Directory, remote and archive browsing.			|dir|
+Directory, remote and archive browsing.			|netrw|
 	Vim can browse the file system.  Simply edit a directory.  Move around
 	in the list with the usual commands and press <Enter> to go to the
 	directory or file under the cursor.

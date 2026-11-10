@@ -4,7 +4,6 @@
                             NVIM REFERENCE MANUAL
 
 
-==============================================================================
 Nvim style guide                                        *dev-style*
 
 Style guidelines for developers working on Nvim's source code.

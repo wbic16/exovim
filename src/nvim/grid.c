@@ -171,14 +171,6 @@ size_t schar_get_adv(char **buf_out, schar_T sc)
   return len;
 }
 
-/// @return Screen cells of `sc`.
-int schar_cells(schar_T sc)
-{
-  char buf[MAX_SCHAR_SIZE];
-  schar_get(buf, sc);
-  return utf_ptr2cells(buf);
-}
-
 size_t schar_len(schar_T sc)
 {
   if (schar_high(sc)) {
@@ -188,6 +180,24 @@ size_t schar_len(schar_T sc)
   } else {
     return strnlen((char *)&sc, 4);
   }
+}
+
+int schar_cells(schar_T sc)
+{
+  // hot path
+#ifdef ORDER_BIG_ENDIAN
+  if (!(sc & 0x80FFFFFF)) {
+    return 1;
+  }
+#else
+  if (sc < 0x80) {
+    return 1;
+  }
+#endif
+
+  char sc_buf[MAX_SCHAR_SIZE];
+  schar_get(sc_buf, sc);
+  return utf_ptr2cells(sc_buf);
 }
 
 /// gets first raw UTF-8 byte of an schar
@@ -428,24 +438,32 @@ void grid_line_put_schar(int col, schar_T schar, int attr)
 /// @return number of grid cells used
 int grid_line_puts(int col, const char *text, int textlen, int attr)
 {
+  const char *ptr = text;
+  int len = textlen;
+
   assert(grid_line_grid);
-  int len = textlen >= 0 ? textlen : INT_MAX;
 
   int start_col = col;
 
   const int max_col = grid_line_maxcol;
-  StrCharInfo ci = utf_ptr2StrCharInfo_len(text, len);
-  while (col < max_col && len > 0 && *ci.ptr != NUL) {
-    ClusterInfo cli = utf_ClusterInfo_len(ci, &len);
+  while (col < max_col && (len < 0 || (int)(ptr - text) < len) && *ptr != NUL) {
     // check if this is the first byte of a multibyte
-    schar_T schar;
-    int mbyte_cells = cli.cells;
-    if (mbyte_cells > 2 || ci.chr.value < 0x20) {
-      // caller should have translated invalid bytes but barg out safely
+    int mbyte_blen;
+    if (len >= 0) {
+      int maxlen = (int)((text + len) - ptr);
+      mbyte_blen = utfc_ptr2len_len(ptr, maxlen);
+      if (mbyte_blen > maxlen) {
+        mbyte_blen = 1;
+      }
+    } else {
+      mbyte_blen = utfc_ptr2len(ptr);
+    }
+    int firstc;
+    schar_T schar = utfc_ptrlen2schar(ptr, mbyte_blen, &firstc);
+    int mbyte_cells = utf_ptr2cells_len(ptr, mbyte_blen);
+    if (mbyte_cells > 2 || schar == 0) {
       mbyte_cells = 1;
       schar = schar_from_char(0xFFFD);
-    } else {
-      schar = schar_from_cluster(ci, cli);
     }
 
     if (col + mbyte_cells > max_col) {
@@ -457,7 +475,7 @@ int grid_line_puts(int col, const char *text, int textlen, int attr)
 
     // When at the start of the text and overwriting the right half of a
     // two-cell character in the same grid, truncate that into a '>'.
-    if (ci.ptr == text && col > grid_line_first && col < grid_line_last
+    if (ptr == text && col > grid_line_first && col < grid_line_last
         && linebuf_char[col] == 0) {
       linebuf_char[col - 1] = schar_from_ascii('>');
     }
@@ -472,7 +490,7 @@ int grid_line_puts(int col, const char *text, int textlen, int attr)
     }
 
     col += mbyte_cells;
-    ci = cli.next;
+    ptr += mbyte_blen;
   }
 
   if (col > start_col) {
@@ -626,6 +644,7 @@ static int grid_char_needs_redraw(ScreenGrid *grid, int col, size_t off_to, int 
                || linebuf_attr[col] != grid->attrs[off_to]
                || (cols > 1 && linebuf_char[col + 1] == 0
                    && linebuf_char[col + 1] != grid->chars[off_to + 1]))
+              || exmode_active  // TODO(bfredl): what in the actual fuck
               || rdb_flags & kOptRdbFlagNodelta));
 }
 
@@ -932,7 +951,8 @@ void win_grid_alloc(win_T *wp)
   if (want_allocation && (!has_allocation
                           || grid_allocated->rows != total_rows
                           || grid_allocated->cols != total_cols)) {
-    grid_alloc(grid_allocated, total_rows, total_cols, wp->w_grid_alloc.valid, false);
+    grid_alloc(grid_allocated, total_rows, total_cols,
+               wp->w_grid_alloc.valid, false);
     grid_allocated->valid = true;
     if (wp->w_floating && wp->w_config.border) {
       wp->w_redr_border = true;
@@ -1066,14 +1086,11 @@ void grid_del_lines(ScreenGrid *grid, int row, int line_count, int end, int col,
 
 /// @param overflow Number of cells to skip.
 static void grid_draw_bordertext(VirtText vt, int col, int winbl, const int *hl_attr,
-                                 int win_hl_attr_normal, BorderTextType bt, int overflow)
+                                 BorderTextType bt, int overflow)
 {
   int default_attr = hl_attr[bt == kBorderTextTitle ? HLF_BTITLE : HLF_BFOOTER];
-  default_attr = hl_apply_winblend(winbl, default_attr);
-  default_attr = hl_combine_attr(win_hl_attr_normal, default_attr);
-
   if (overflow > 0) {
-    grid_line_puts(1, "<", -1, default_attr);
+    grid_line_puts(1, "<", -1,  hl_apply_winblend(winbl, default_attr));
     col += 1;
     overflow += 1;
   }
@@ -1083,6 +1100,9 @@ static void grid_draw_bordertext(VirtText vt, int col, int winbl, const int *hl_
     char *text = next_virt_text_chunk(vt, &i, &attr);
     if (text == NULL) {
       break;
+    }
+    if (attr == -1) {  // No highlight specified.
+      attr = default_attr;
     }
     // Skip characters from the beginning when title overflows available width.
     if (overflow > 0) {
@@ -1100,12 +1120,7 @@ static void grid_draw_bordertext(VirtText vt, int col, int winbl, const int *hl_
       }
       text = p;
     }
-    if (attr == -1) {  // No highlight specified.
-      attr = default_attr;
-    } else {
-      attr = hl_apply_winblend(winbl, attr);
-      attr = hl_combine_attr(win_hl_attr_normal, attr);
-    }
+    attr = hl_apply_winblend(winbl, attr);
     col += grid_line_puts(col, text, -1, attr);
   }
 }
@@ -1124,22 +1139,20 @@ static int get_bordertext_col(int total_col, int text_width, AlignTextPos align)
 }
 
 /// draw border on floating window grid
-void grid_draw_border(ScreenGrid *grid, WinConfig *config, int *adj, int winbl, int *hl_attr,
-                      int win_hl_attr_normal)
+void grid_draw_border(ScreenGrid *grid, WinConfig *config, int *adj, int winbl, int *hl_attr)
 {
+  int *attrs = config->border_attr;
   int default_adj[4] = { 1, 1, 1, 1 };
   if (adj == NULL) {
     adj = default_adj;
   }
   schar_T chars[8];
-  int border_attrs[8];
   if (!hl_attr) {
     hl_attr = hl_attr_active;
   }
 
   for (int i = 0; i < 8; i++) {
     chars[i] = schar_from_str(config->border_chars[i]);
-    border_attrs[i] = hl_combine_attr(win_hl_attr_normal, config->border_attr[i]);
   }
 
   int irow = grid->rows - adj[0] - adj[2];
@@ -1148,21 +1161,20 @@ void grid_draw_border(ScreenGrid *grid, WinConfig *config, int *adj, int winbl, 
   if (adj[0]) {
     screengrid_line_start(grid, 0, 0);
     if (adj[3]) {
-      grid_line_put_schar(0, chars[0], border_attrs[0]);
+      grid_line_put_schar(0, chars[0], attrs[0]);
     }
 
     for (int i = 0; i < icol; i++) {
-      grid_line_put_schar(i + adj[3], chars[1], border_attrs[1]);
+      grid_line_put_schar(i + adj[3], chars[1], attrs[1]);
     }
 
     if (config->title) {
       int title_col = get_bordertext_col(icol, config->title_width, config->title_pos);
-      grid_draw_bordertext(config->title_chunks, title_col, winbl, hl_attr,
-                           win_hl_attr_normal, kBorderTextTitle,
+      grid_draw_bordertext(config->title_chunks, title_col, winbl, hl_attr, kBorderTextTitle,
                            config->title_width - icol);
     }
     if (adj[1]) {
-      grid_line_put_schar(icol + adj[3], chars[2], border_attrs[2]);
+      grid_line_put_schar(icol + adj[3], chars[2], attrs[2]);
     }
     grid_line_flush();
   }
@@ -1170,13 +1182,13 @@ void grid_draw_border(ScreenGrid *grid, WinConfig *config, int *adj, int winbl, 
   for (int i = 0; i < irow; i++) {
     if (adj[3]) {
       screengrid_line_start(grid, i + adj[0], 0);
-      grid_line_put_schar(0, chars[7], border_attrs[7]);
+      grid_line_put_schar(0, chars[7], attrs[7]);
       grid_line_flush();
     }
     if (adj[1]) {
       int ic = (i == 0 && !adj[0] && chars[2]) ? 2 : 3;
       screengrid_line_start(grid, i + adj[0], 0);
-      grid_line_put_schar(icol + adj[3], chars[ic], border_attrs[ic]);
+      grid_line_put_schar(icol + adj[3], chars[ic], attrs[ic]);
       grid_line_flush();
     }
   }
@@ -1184,21 +1196,21 @@ void grid_draw_border(ScreenGrid *grid, WinConfig *config, int *adj, int winbl, 
   if (adj[2]) {
     screengrid_line_start(grid, irow + adj[0], 0);
     if (adj[3]) {
-      grid_line_put_schar(0, chars[6], border_attrs[6]);
+      grid_line_put_schar(0, chars[6], attrs[6]);
     }
 
     for (int i = 0; i < icol; i++) {
       int ic = (i == 0 && !adj[3] && chars[6]) ? 6 : 5;
-      grid_line_put_schar(i + adj[3], chars[ic], border_attrs[ic]);
+      grid_line_put_schar(i + adj[3], chars[ic], attrs[ic]);
     }
 
     if (config->footer) {
       int footer_col = get_bordertext_col(icol, config->footer_width, config->footer_pos);
-      grid_draw_bordertext(config->footer_chunks, footer_col, winbl, hl_attr, win_hl_attr_normal,
-                           kBorderTextFooter, config->footer_width - icol);
+      grid_draw_bordertext(config->footer_chunks, footer_col, winbl, hl_attr, kBorderTextFooter,
+                           config->footer_width - icol);
     }
     if (adj[1]) {
-      grid_line_put_schar(icol + adj[3], chars[4], border_attrs[4]);
+      grid_line_put_schar(icol + adj[3], chars[4], attrs[4]);
     }
     grid_line_flush();
   }
@@ -1234,34 +1246,4 @@ schar_T schar_from_char(int c)
   }
   utf_char2bytes(c, (char *)&sc);
   return sc;
-}
-
-schar_T schar_from_cluster_impl(const char *buf, size_t len, bool first_compose)
-{
-  // A final NUL must fit in MAX_SCHAR_SIZE. An extra space if this would compose
-  // with the previous cell
-  size_t maxlen = MAX_SCHAR_SIZE - 1 - (first_compose ? 1 : 0);
-  if (len > maxlen) {
-    len = maxlen;
-    while ((buf[len] & 0xC0) != 0xC0) {  // find start byte
-      len--;
-    }
-  }
-
-  if (first_compose) {
-    char cbuf[MAX_SCHAR_SIZE];
-    cbuf[0] = ' ';
-    memcpy(cbuf + 1, buf, len);
-    return schar_from_buf(cbuf, len + 1);
-  } else {
-    return schar_from_buf(buf, len);
-  }
-}
-
-schar_T unittest_schar_from_cluster(const char *buf, int *firstc)
-{
-  StrCharInfo ci = utf_ptr2StrCharInfo(buf);
-  ClusterInfo cli = utf_ClusterInfo(ci);
-  *firstc = ci.chr.value;
-  return ci.chr.value >= 0 ? schar_from_cluster(ci, cli) : 0;
 }

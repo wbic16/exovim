@@ -93,8 +93,8 @@ NOTE: [:q!](:q) `<Enter>`{normal} 会丢弃你做的任何更改。在接下来�
 
  4. 重复第 2 到 4 步，直到句子正确为止。
 
-The ccow jumpedd ovverr thhe mooon. [[The cow jumped over the moon.]]
-The cow jumped over the moon. [[The cow jumped over the moon.]]
+The ccow jumpedd ovverr thhe mooon.
+The cow jumped over the moon.
 
  5. 现在句子已经正确了，请继续学习第 1.4 课。
 
@@ -114,8 +114,8 @@ NOTE: 在学习本教程时，不必试图记住所有内容，你的 Neovim 词
  4. 每个错误修正后，按 `<Esc>`{normal} 键回到普通模式。
     重复第 2 到 4 步来修正整个句子。
 
-There is text misng this . [[There is some text missing from this line.]]
-There is some text missing from this line. [[There is some text missing from this line.]]
+There is text misng this .
+There is some text missing from this line.
 
  5. 当你熟练掌握插入文本后，请继续学习第 1.5 课。
 
@@ -132,10 +132,10 @@ There is some text missing from this line. [[There is some text missing from thi
 
  4. 将光标移动到标有 ✗ 的第二行，并重复第 2 和第 3 步来修正这个句子。
 
-There is some text missing from th [[There is some text missing from this line.]]
-There is some text missing from this line. [[There is some text missing from this line.]]
-There is also some text miss [[There is also some text missing here.]]
-There is also some text missing here. [[There is also some text missing here.]]
+There is some text missing from th
+There is some text missing from this line.
+There is also some text miss
+There is also some text missing here.
 
  5. 当你熟练掌握追加文本后，请继续学习第 1.6 课。
 
@@ -201,8 +201,8 @@ NOTE: 按 `<Esc>`{normal} 键会让你进入普通模式，或者取消一个不
 
  4. 输入 [d](d)[w](w) 让这个单词消失。
 
-There are a some words fun that don't belong paper in this sentence. [[There are some words that don't belong in this sentence.]]
-There are some words that don't belong in this sentence. [[There are some words that don't belong in this sentence.]]
+There are a some words fun that don't belong paper in this sentence.
+There are some words that don't belong in this sentence.
 
  5. 重复第 3 和第 4 步，直到句子正确，然后继续学习第 2.2 课。
 
@@ -218,7 +218,7 @@ There are some words that don't belong in this sentence. [[There are some words 
 
  4. 输入 `d$`{normal} 来删除到行尾的所有内容。
 
-Somebody typed the end of this line twice. end of this line twice. [[Somebody typed the end of this line twice.]]
+Somebody typed the end of this line twice. end of this line twice.
 
  5. 继续学习第 2.3 课，来理解这背后的原理。
 
@@ -256,7 +256,7 @@ NOTE: 在普通模式下，不带操作符、只按下移动键，将会像预�
 
  5. 用不同的数字重复第 2 和第 3 步。
 
-This is just a line with words you can move around in. [[-1]]
+This is just a line with words you can move around in.
 
  6. 继续学习第 2.5 课。
 
@@ -273,7 +273,7 @@ This is just a line with words you can move around in. [[-1]]
 
  3. 重复第 1 和第 2 步，但使用不同的计数，用一个命令删除剩余连续的全大写单词。
 
-This ABC DE line FGHI JK LMN OP of words is Q RS TUV cleaned up. [[This line of words is cleaned up.]]
+This ABC DE line FGHI JK LMN OP of words is Q RS TUV cleaned up.
 
 # 第 2.6 课：行操作
 
@@ -289,13 +289,13 @@ This ABC DE line FGHI JK LMN OP of words is Q RS TUV cleaned up. [[This line of 
 
  4. 输入 `2dd`{normal} 来删除两行。
 
-1)  Roses are red, [[1)  Roses are red,]]
-2)  Mud is fun, [[]]
-3)  Violets are blue, [[3)  Violets are blue,]]
-4)  I have a car, [[]]
-5)  Clocks tell time, [[]]
-6)  Sugar is sweet [[6)  Sugar is sweet]]
-7)  And so are you. [[7)  And so are you.]]
+1)  Roses are red,
+2)  Mud is fun,
+3)  Violets are blue,
+4)  I have a car,
+5)  Clocks tell time,
+6)  Sugar is sweet
+7)  And so are you.
 
 # 第 2.7 课：撤销命令（Undo）
 
@@ -315,8 +315,8 @@ This ABC DE line FGHI JK LMN OP of words is Q RS TUV cleaned up. [[This line of 
 
  7. 现在多次输入 `<C-r>`{normal}（Ctrl + R），来重做（redo）那些被撤销的命令。
 
-Fiix the errors oon thhis line and reeplace them witth undo. [[Fix the errors on this line and replace them with undo.]]
-Fix the errors on this line and replace them with undo. [[Fix the errors on this line and replace them with undo.]]
+Fiix the errors oon thhis line and reeplace them witth undo.
+Fix the errors on this line and replace them with undo.
 
  8. 这些都是非常有用的命令。现在请继续学习第 2 课的总结。
 
@@ -381,8 +381,8 @@ NOTE: 你也可以用 `P`{normal}（大写 P）将文本粘贴到光标之前。
 
  4. 重复第 2 和第 3 步，直到第一行和第二行完全一样。
 
-Whan this lime was tuoed in, someone presswd some wrojg keys! [[When this line was typed in, someone pressed some wrong keys!]]
-When this line was typed in, someone pressed some wrong keys! [[When this line was typed in, someone pressed some wrong keys!]]
+Whan this lime was tuoed in, someone presswd some wrojg keys!
+When this line was typed in, someone pressed some wrong keys!
 
  5. 现在请继续学习第 3.3 课。
 
@@ -402,8 +402,8 @@ NOTE: 请记住，你应该通过实践来学习，而不是死记硬背。
 
  5. 重复第 3 和第 4 步，直到第一句和第二句完全一样。
 
-This lubw has a few wptfd that mrrf changing usf the change operator. [[This line has a few words that need changing using the change operator.]]
-This line has a few words that need changing using the change operator. [[This line has a few words that need changing using the change operator.]]
+This lubw has a few wptfd that mrrf changing usf the change operator.
+This line has a few words that need changing using the change operator.
 
 请注意，[c](c)e 会删除单词并让你进入插入模式（Insert mode）。
 
@@ -423,8 +423,8 @@ This line has a few words that need changing using the change operator. [[This l
 
  5. 输入 `c$`{normal}，然后输入该行余下正确的内容（参照第二行），最后按 `<Esc>`{normal}。
 
-The end of this line needs some help to make it like the second. [[The end of this line needs to be corrected using the c$ command.]]
-The end of this line needs to be corrected using the c$ command. [[The end of this line needs to be corrected using the c$ command.]]
+The end of this line needs some help to make it like the second.
+The end of this line needs to be corrected using the c$ command.
 
 NOTE: 在输入时，你可以使用退格键（Backspace）来修正错误。
 
@@ -481,7 +481,7 @@ NOTE: 你可能会在屏幕右下角看到光标位置。这是因为设置了 [
  5. 要回到你之前的位置，按 `<C-o>`{normal}。（按住 `<Ctrl>`{normal} 键的同时按字母 `o`{normal}）。
     重复按可以回到更早的位置。`<C-i>`{normal} 则会前进。
 
-"errroor" is not the way to spell error; errroor is an error. [[-1]]
+"errroor" is not the way to spell error; errroor is an error.
 
 NOTE: 当搜索到达文件末尾时，它会从头开始继续搜索，除非 ['wrapscan']('wrapscan') 选项被关闭了。
 
@@ -499,7 +499,7 @@ NOTE: 当搜索到达文件末尾时，它会从头开始继续搜索，除非 [
 
  5. 将光标移动到另一个 (, ), [, ], {, } 上，看看 `%`{normal} 的效果。
 
-This ( is a test line with ('s, ['s, ] and {'s } in it. )) [[-1]]
+This ( is a test line with ('s, ['s, ] and {'s } in it. ))
 
 NOTE: 这在调试程序中不匹配的括号时非常有用！
 
@@ -521,7 +521,7 @@ NOTE: 这在调试程序中不匹配的括号时非常有用！
 ~~~
     加上 g [标志](:s_flags) 意味着在行内进行全局替换，也就是改变该行中所有出现的 "thee"。
 
-Usually thee best time to see thee flowers is in thee spring. [[Usually the best time to see the flowers is in the spring.]]
+Usually thee best time to see thee flowers is in thee spring.
 
  4. 要在两行之间替换一个字符串的所有出现，输入
 ~~~ cmd
@@ -699,12 +699,12 @@ NOTE: 你也可以读取一个外部命令的输出。例如：
 
  3. 现在输入一些文本，然后按 `<Esc>`{normal} 退出插入模式。完成后请删除你开启的行。
 
-After typing `o`{normal} the cursor is placed on the open line in Insert mode. [[-1]]
+After typing `o`{normal} the cursor is placed on the open line in Insert mode.
 
  4. 要在光标“上方”开启一个新行，只需输入[大写 O](O)，而不是小写 `o`{normal}。
     在下面这行上试试。完成后请删除你开启的行。
 
-Open up a line above this by typing O while the cursor is on this line. [[-1]]
+Open up a line above this by typing O while the cursor is on this line.
 
 # 第 6.2 课：追加命令（Append）
 
@@ -720,8 +720,8 @@ Open up a line above this by typing O while the cursor is on this line. [[-1]]
 
  5. 使用 `e`{normal} 移动到下一个不完整的单词，并重复第 3 和第 4 步。
 
-This li will allow you to pract appendi text to a line. [[This line will allow you to practice appending text to a line.]]
-This line will allow you to practice appending text to a line. [[This line will allow you to practice appending text to a line.]]
+This li will allow you to pract appendi text to a line.
+This line will allow you to practice appending text to a line.
 
 NOTE: [a](a)、[i](i) 和 [A](A) 都会进入同一个插入模式，唯一的区别是字符被插入的位置不同。
 
@@ -737,8 +737,8 @@ NOTE: [a](a)、[i](i) 和 [A](A) 都会进入同一个插入模式，唯一的�
 
  4. 重复以上步骤来替换剩下的 "xxx"。
 
-Adding 123 to xxx gives you xxx. [[Adding 123 to 456 gives you 579.]]
-Adding 123 to 456 gives you 579. [[Adding 123 to 456 gives you 579.]]
+Adding 123 to xxx gives you xxx.
+Adding 123 to 456 gives you 579.
 
 NOTE: 替换模式很像插入模式，但你输入的每个字符都会替换掉一个已有的字符。
 
@@ -762,8 +762,8 @@ NOTE: 替换模式很像插入模式，但你输入的每个字符都会替换�
  7. 使用可视模式选中 "item."，用 `y`{normal} 复制它，用 `j$`{normal} 移动到
     下一行的末尾，然后用 `p`{normal} 在那里粘贴文本。
 
-a) This is the first item. [[a) This is the first item.]]
-b) [[b) This is the second item.]]
+a) This is the first item.
+b)
 
 NOTE: 你可以把 `y`{normal} 当作一个操作符来使用：`yw`{normal} 会复制一个单词。
 

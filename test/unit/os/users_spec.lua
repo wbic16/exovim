@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe = t.describe
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local cimport = t.cimport
 local eq = t.eq
@@ -37,7 +36,7 @@ describe('users function', function()
       local ga_users = garray_new()
       eq(OK, users.os_get_usernames(ga_users))
       local user_count = garray_get_len(ga_users)
-      t.ok(user_count > 0)
+      assert.is_true(user_count > 0)
       local current_username_found = false
       for i = 0, user_count - 1 do
         local name = ffi.string((garray_get_item(ga_users, i)))
@@ -45,7 +44,7 @@ describe('users function', function()
           current_username_found = true
         end
       end
-      t.ok(current_username_found)
+      assert.is_true(current_username_found)
     end)
   end)
 

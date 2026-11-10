@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local eq = t.eq
 local pcall_err = t.pcall_err
 local clear = n.clear
@@ -122,28 +121,14 @@ describe('spellfile', function()
     api.nvim_set_option_value('spellfile', fname, {})
   end)
 
-  it('uses the current mkspellmem limits for each build', function()
-    local words = testdir .. '/words'
-    write_file(words, 'one\ntwo\nthree\n')
-    for _, case in ipairs({
-      { '16,16,1', 2 }, -- Compress while reading and at the end.
-      { '1000,50,10', 1 }, -- Compress only at the end.
-    }) do
-      api.nvim_set_option_value('mkspellmem', case[1], {})
-      local output = n.exec_capture('mkspell! ' .. testdir .. '/spell/test.spl ' .. words)
-      local _, count = output:gsub('Compressed case%-folded:', '')
-      eq(case[2], count)
-    end
-  end)
-
   describe('default location', function()
     it("is stdpath('data')/site/spell/en.utf-8.add", function()
       n.command('set spell')
       n.insert('abc')
       n.feed('zg')
       eq(
-        ('%s/site/spell/en.utf-8.add'):format(fn.stdpath('data')),
-        api.nvim_get_option_value('spellfile', {})
+        t.fix_slashes(fn.stdpath('data') .. '/site/spell/en.utf-8.add'),
+        t.fix_slashes(api.nvim_get_option_value('spellfile', {}))
       )
     end)
 
@@ -158,35 +143,6 @@ describe('spellfile', function()
       n.command('set spell spelllang=')
       n.insert('abc')
       eq("Vim(normal):E764: Option 'spellfile' is not set", pcall_err(n.command, 'normal! zg'))
-    end)
-
-    it('accepts overwrites on midword and syllable section, errors on memory leak', function()
-      api.nvim_set_option_value('runtimepath', testdir, {})
-      -- stylua: ignore
-
-      -- Set SN_MIDWORD and SN_SYLLABLE twice so the loader overwrites lp->sl_midword. Should
-      -- not leak memory.
-      write_file(testdir .. '/spell/en.ascii.spl',
-                 spellheader
-    --            ┌ Section identifier (#SN_MIDWORD)
-    --            │   ┌ Section flags (#SNF_REQUIRED or zero)
-    --            │   │   ┌ Section length (4 bytes, MSB first)
-              .. '\002\001\000\000\000\003abc'  -- SN_MIDWORD (midword = "abc")
-              .. '\002\001\000\000\000\003def'  -- Overwrites SN_MIDWORD (midword = "def")
-    --            ┌ Section identifier (#SN_SYLLABLE)
-    --            │   ┌ Section flags (#SNF_REQUIRED or zero)
-    --            │   │   ┌ Section length (4 bytes, MSB first)
-              .. '\009\001\000\000\000\003ghi'  -- SN_SYLLABLE (syllable = "ghi")
-              .. '\009\001\000\000\000\003jib'  -- Overwrites SN_SYLLABLE (syllable = "jib")
-              .. '\255'                         -- End of sections marker
-              .. '\000\000\000\000'             -- LWORDTREE len
-              .. '\000\000\000\000'             -- KWORDTREE len
-              .. '\000\000\000\000'             -- PREFIXTREE len
-      )
-
-      api.nvim_set_option_value('spelllang', 'en', {})
-      n.command('set spell') -- Should not error
-      eq(true, api.nvim_get_option_value('spell', {}))
     end)
   end)
 end)

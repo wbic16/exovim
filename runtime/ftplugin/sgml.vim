@@ -23,7 +23,7 @@ else
     let s:browsefilter .= "All Files (*)\t*\n"
 endif
 
-runtime! ftplugin/xml[.]{vim,lua} ftplugin/xml_*.{vim,lua} ftplugin/xml/*.{vim,lua}
+runtime! ftplugin/xml.vim ftplugin/xml_*.vim ftplugin/xml/*.vim
 let b:did_ftplugin = 1
 
 " Override our defaults if these were set by an included ftplugin.

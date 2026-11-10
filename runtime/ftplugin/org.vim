@@ -3,7 +3,6 @@
 " Previous Maintainer:  Luca Saccarola <github.e41mv@aleeas.com>
 " Maintainer:	This runtime file is looking for a new maintainer.
 " Last Change:	2025 Aug 05
-" 2026 Sep 07 by Vim project: fix escape in formatlistpat
 
 
 if exists("b:did_ftplugin")
@@ -21,7 +20,7 @@ setl commentstring=#\ %s
 setl comments=fb:*,fb:-,fb:+,b:#,b:\:
 
 setl formatoptions+=nql
-setl formatlistpat=^\\s*\\(\\(\\d\\\|\\a\\)\\+[.)]\\\|[+-]\\)\\s\\+
+setl formatlistpat=^\\s*\\(\\(\\d\\|\\a\\)\\+[.)]\\|[+-]\\)\\s\\+
 
 function OrgFoldExpr()
     let l:depth = match(getline(v:lnum), '\(^\*\+\)\@<=\( .*$\)\@=')

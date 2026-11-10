@@ -24,7 +24,6 @@ endfunction
 " netrw#fs#ComposePath: Appends a new part to a path taking different systems into consideration {{{
 
 function! netrw#fs#ComposePath(base, subdir)
-    const slash = !exists('+shellslash') || &shellslash ? '/' : '\'
     if has('amiga')
         let ec = a:base[strdisplaywidth(a:base)-1]
         if ec != '/' && ec != ':'
@@ -41,7 +40,7 @@ function! netrw#fs#ComposePath(base, subdir)
         if a:base =~ '[/\\]$'
             let ret = a:base . a:subdir
         else
-            let ret = a:base . slash . a:subdir
+            let ret = a:base . '/' . a:subdir
         endif
 
     elseif a:base =~ '^\a\{3,}://'
@@ -115,8 +114,8 @@ function! netrw#fs#Glob(direntry, expr, pare)
         keepalt 1sp
         keepalt enew
         let keep_liststyle = w:netrw_liststyle
-        let w:netrw_liststyle = netrw#Expose('THINLIST')
-        if netrw#Call('NetrwRemoteListing') == 0
+        let w:netrw_liststyle = s:THINLIST
+        if s:NetrwRemoteListing() == 0
             keepj keepalt %s@/@@
             let filelist = getline(1,$)
             q!

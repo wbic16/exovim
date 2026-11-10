@@ -86,15 +86,6 @@ func Test_compiler_without_arg()
   call assert_match(runtime .. '/compiler/' .. exp[-1] .. '.vim$', a[-1])
 endfunc
 
-" Test executing :compiler from the command line, not from a script
-func Test_compiler_commandline()
-  call system(GetVimCommandClean() .. ' -c "compiler gcc" -c "call writefile([b:current_compiler], ''XcompilerOut'')" -c "quit"')
-  call assert_equal(0, v:shell_error)
-  call assert_equal(["gcc"], readfile('XcompilerOut'))
-
-  call delete('XcompilerOut')
-endfunc
-
 func Test_compiler_completion()
   let clist = GetCompilerNames()->join(' ')
   call feedkeys(":compiler \<C-A>\<C-B>\"\<CR>", 'tx')
@@ -773,28 +764,6 @@ func Test_compiler_just()
   call setqflist([])
   call delete('Xjusterr.txt')
   compiler make
-endfunc
-
-func Test_compiler_cppcheck_project_path()
-  CheckUnix
-
-  let shell = &shell
-  set shell=sh
-  let dirname = 'X$(touch${IFS}Xcppcheck_dir)%'
-  let project = dirname .. '/compile_commands.json'
-  call mkdir(dirname, 'R')
-  call writefile(['[]'], project)
-  exe 'new ' .. fnameescape("X'$(touch${IFS}Xcppcheck_file)'")
-  try
-    compiler cppcheck
-    call assert_true(stridx(&l:makeprg, shellescape(project, 1)) >= 0)
-    silent! make!
-    call assert_false(filereadable('Xcppcheck_dir'))
-    call assert_false(filereadable('Xcppcheck_file'))
-  finally
-    bwipe!
-    let &shell = shell
-  endtry
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

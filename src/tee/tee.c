@@ -38,7 +38,7 @@
 # define sysconf(x) - 1
 #endif
 
-static void usage(void)
+void usage(void)
 {
   fprintf(stderr,
           "Neotee: a web-scale fork of tee\n"

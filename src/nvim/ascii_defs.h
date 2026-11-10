@@ -75,8 +75,13 @@
 #define Ctrl__          31
 
 // Character that separates dir names in a path.
-#define PATHSEP        '/'
-#define PATHSEPSTR     "/"
+#ifdef BACKSLASH_IN_FILENAME
+# define PATHSEP        psepc
+# define PATHSEPSTR     pseps
+#else
+# define PATHSEP        '/'
+# define PATHSEPSTR     "/"
+#endif
 
 /// Checks if `c` is a space or tab character.
 ///

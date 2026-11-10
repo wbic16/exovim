@@ -104,7 +104,7 @@ NOTE: [:q!](:q) `<Enter>`{normal} は全ての変更を破棄します。
 
  4. 文が正しくなるまで ステップ 2 から 4 を繰り返しましょう。
 
-その ううさぎ は つつきき を こええてて とびはねたた [[その うさぎ は つき を こえて とびはねた]]
+その ううさぎ は つつきき を こええてて とびはねたた
 
  5. 行が正しくなったら、レッスン 1.4 へ進みましょう。
 
@@ -126,8 +126,8 @@ NOTE: 全てのレッスンを通じて、頭だけで覚えようとしない�
  4. 間違いを修正したら `<Esc>`{normal} を押してノーマルモードに戻り、正しい文になる様にス
     テップ 2 から 4 を繰り返しましょう。
 
-この には 足り テキスト が 。 [[この 行 には 幾つか 足りない テキスト が ある。]]
-この 行 には 幾つか 足りない テキスト が ある。 [[この 行 には 幾つか 足りない テキスト が ある。]]
+この には 足り テキスト が 。
+この 行 には 幾つか 足りない テキスト が ある。
 
  5. 挿入の方法がわかったらレッスン 1.5 へ進みましょう。
 
@@ -145,10 +145,10 @@ NOTE: 全てのレッスンを通じて、頭だけで覚えようとしない�
  4. 2行目の ✗ と示された場所へ移動し、ステップ 2 から 3 を繰り返して文章を修正し
     ましょう。
 
-この 行 には 間違った テキスト が あり [[この 行 には 間違った テキスト が あります。]]
-この 行 には 間違った テキスト が あります。 [[この 行 には 間違った テキスト が あります。]]
-ここ にも 間違った テキス [[ここ にも 間違った テキスト が あります。]]
-ここ にも 間違った テキスト が あります。 [[ここ にも 間違った テキスト が あります。]]
+この 行 には 間違った テキスト が あり
+この 行 には 間違った テキスト が あります。
+ここ にも 間違った テキス
+ここ にも 間違った テキスト が あります。
 
  5. テキストの追加が軽快になってきたらレッスン 1.6 へ進みましょう。
 
@@ -216,7 +216,7 @@ NOTE: `<Esc>`{normal} キーを押すとノーマルモードに移行します�
 
  4. 単語を削除するために [d](d)[w](w) とタイプしましょう。
 
-この 文 紙 には いくつか たのしい 必要のない 単語 が 含まれて います。 [[この 文 には いくつか 必要のない 単語 が 含まれて います。]]
+この 文 紙 には いくつか たのしい 必要のない 単語 が 含まれて います。
 
  5. ステップ 3 と 4 を文が正しくなるまで繰り返し、レッスン 2.2 へ進みましょう。
 
@@ -232,7 +232,7 @@ NOTE: `<Esc>`{normal} キーを押すとノーマルモードに移行します�
  
  4. 行末まで削除するために `d$`{normal} とタイプしましょう。
 
-誰かがこの行の最後を2度タイプしました。 2度タイプしました。 [[誰かがこの行の最後を2度タイプしました。]]
+誰かがこの行の最後を2度タイプしました。 2度タイプしました。
 
  5. どういうことか理解するために、レッスン 2.3 へ進みましょう。
 
@@ -271,7 +271,7 @@ NOTE: ノーマルモードにてオペレータなしにモーションを押�
 
  5. ステップ 2 と 3 を違う数値を使って繰り返します。
 
-This is just a line with words you can move around in. [[-1]]
+This is just a line with words you can move around in.
 
  6. レッスン 2.5 に進みましょう。
 
@@ -290,7 +290,7 @@ This is just a line with words you can move around in. [[-1]]
  3. 異なるカウントを使ってステップ 1 と 2 を繰り返し、残りの連続した大文字の単語
     を削除します。
 
-このABC DE行のFGHI JK LMN OP単語はQ RS TUV綺麗になった。 [[この行の単語は綺麗になった。]]
+このABC DE行のFGHI JK LMN OP単語はQ RS TUV綺麗になった。
 
 # レッスン 2.6: 行の操作
 
@@ -307,13 +307,13 @@ This is just a line with words you can move around in. [[-1]]
  
  4. `2dd`{normal} とタイプして2行を削除します。
 
-1)  薔薇は赤く [[1)  薔薇は赤く]]
-2)  泥は楽しい [[]]
-3)  菫は青く [[3)  菫は青く]]
-4)  私は車をもっている [[]]
-5)  時計が時刻を告げる [[]]
-6)  砂糖は甘く [[6)  砂糖は甘く]]
-7)  そして貴方も [[7)  そして貴方も]]
+1)  薔薇は赤く
+2)  泥は楽しい
+3)  菫は青く
+4)  私は車をもっている
+5)  時計が時刻を告げる
+6)  砂糖は甘く
+7)  そして貴方も
 
 # Lesson 2.7: やり直しコマンド
 
@@ -334,7 +334,7 @@ This is just a line with words you can move around in. [[-1]]
  7. ではコマンドを再実行するのに `<C-r>`{normal} (Ctrl + R)を数回タイプしてみましょう(取り
     消しの取り消し)。
 
-このの行のの間違いを修正々し、後でそれらの修正をを取り消しまますす。 [[この行の間違いを修正し、後でそれらの修正を取り消します。]]
+このの行のの間違いを修正々し、後でそれらの修正をを取り消しまますす。
 
  8. これはとても便利なコマンドです。さぁレッスン 2 要約へ進みましょう。
 
@@ -399,8 +399,8 @@ NOTE: `P`{normal} (大文字 P)とタイプすることで、カーソルの前�
 
  4. 最初の行が正しくなるまでステップ 2 から 3 を繰り返しましょう。
 
-この合を人力した時ね、その人は幾つか問違ったキーを押しもした! [[この行を入力した時に、その人は幾つか間違ったキーを押しました!]]
-この行を入力した時に、その人は幾つか間違ったキーを押しました! [[この行を入力した時に、その人は幾つか間違ったキーを押しました!]]
+この合を人力した時ね、その人は幾つか問違ったキーを押しもした!
+この行を入力した時に、その人は幾つか間違ったキーを押しました!
 
  5. さぁ、レッスン 3.3 へ進みましょう。
 
@@ -420,8 +420,8 @@ NOTE: 実際に試しましょう。決して覚えるだけにはしないこ�
 
  5. 最初の行が次の行の様になるまでステップ 3 と 4 を繰り返します。
 
-This lubw has a few wptfd that mrrf changing usf the change operator. [[This line has a few words that need changing using the change operator.]]
-This line has a few words that need changing using the change operator. [[This line has a few words that need changing using the change operator.]]
+This lubw has a few wptfd that mrrf changing usf the change operator.
+This line has a few words that need changing using the change operator.
 
 [c](c)e は単語を削除した後、挿入モードに入ることに注意しましょう。
 
@@ -441,8 +441,8 @@ This line has a few words that need changing using the change operator. [[This l
 
  5. `c$`{normal} とタイプして行の残りを２行目の様にし、`<Esc>`{normal} を押しましょう。
 
-The end of this line needs some help to make it like the second. [[The end of this line needs to be corrected using the c$ command.]]
-The end of this line needs to be corrected using the c$ command. [[The end of this line needs to be corrected using the c$ command.]]
+The end of this line needs some help to make it like the second.
+The end of this line needs to be corrected using the c$ command.
 
 NOTE: タイプ中の間違いはバックスペースキーを使って直すこともできます。
 
@@ -504,7 +504,7 @@ NOTE: 画面の右下隅にカーソルの座標が既に表示されている�
  5. 元の場所に戻るには `<C-o>`{normal} (`<Ctrl>`{normal} を押し続けながら `o`{normal} をタイプ)を入力します。
     さらに戻るにはこれを繰り返します。`<C-i>`{normal} は前方向です。
 
-"errroor" は error とスペルが違います;  errroor はいわゆる error です。 [[-1]]
+"errroor" は error とスペルが違います;  errroor はいわゆる error です。
 
 NOTE: 検索がファイルの終わりに達すると、オプション ['wrapscan']('wrapscan') が設定されている場
       合は、ファイルの先頭から検索を続行します。
@@ -523,7 +523,7 @@ NOTE: 検索がファイルの終わりに達すると、オプション ['wraps
 
  5. 他の (, ), [, ], {, } でカーソルを移動し、`%`{normal} が何をしているか確認しましょう。
 
-This ( is a test line with ('s, ['s, ] and {'s } in it. )) [[-1]]
+This ( is a test line with ('s, ['s, ] and {'s } in it. ))
 
 NOTE: この機能は括弧が一致していないプログラムのデバッグにとても役立ちます!
 
@@ -547,7 +547,7 @@ NOTE: この機能は括弧が一致していないプログラムのデバッ�
     追加した g [フラグ](:s_flags)は行全体を置換することを意味します。
     この変更はその行で見つかった全ての箇所に対して行われます。
 
-Usually thee best time to see thee flowers is in thee spring. [[Usually the best time to see the flowers is in the spring.]]
+Usually thee best time to see thee flowers is in thee spring.
 
  4. 複数行から見つかる文字の全ての箇所を変更するには:
 ~~~ cmd
@@ -737,12 +737,12 @@ NOTE: 外部コマンドの出力を読み込むこともできます。例え�
  3. いくつか文字をタイプしてから、挿入モードを終了する為に `<Esc>`{normal} を入力します。
     その後、追加した行を削除してください。
 
- `o`{normal} をタイプするとカーソルは開いた行へ移動し挿入モードに入ります。 [[-1]]
+ `o`{normal} をタイプするとカーソルは開いた行へ移動し挿入モードに入ります。
 
  4. カーソルの上の行に挿入するには、小文字の `o`{normal} ではなく、[大文字の O](O) をタイプしま
     す。次の行で試してみましょう。試し終わったら追加した行を削除してください。
 
-この行の上へ挿入するには、この行へカーソルを置いて `O`{normal} をタイプします。 [[-1]]
+この行の上へ挿入するには、この行へカーソルを置いて `O`{normal} をタイプします。
 
 # レッスン 6.2: 追加コマンド
 
@@ -758,8 +758,8 @@ NOTE: 外部コマンドの出力を読み込むこともできます。例え�
 
  5. `e`{normal} を使って次の不完全な単語へ移動し、ステップ 3 と 4 を繰り返します。
 
-This li will allow you to pract appendi text to a line. [[This line will allow you to practice appending text to a line.]]
-This line will allow you to practice appending text to a line. [[This line will allow you to practice appending text to a line.]]
+This li will allow you to pract appendi text to a line.
+This line will allow you to practice appending text to a line.
 
 NOTE: [a](a), [i](i) と [A](A) は同じ挿入モードへ移りますが、文字が挿入される位置は異なります。
 
@@ -776,8 +776,8 @@ NOTE: [a](a), [i](i) と [A](A) は同じ挿入モードへ移りますが、文
 
  4. 残った "xxx" をステップを繰り返して置換しましょう。
 
-Adding 123 to xxx gives you xxx. [[Adding 123 to 456 gives you 579.]]
-Adding 123 to 456 gives you 579. [[Adding 123 to 456 gives you 579.]]
+Adding 123 to xxx gives you xxx.
+Adding 123 to 456 gives you 579.
 
 NOTE: 置換モードは挿入モードに似ていますが、全てのタイプされた文字は既存の文字を
       削除します。
@@ -802,8 +802,8 @@ NOTE: 置換モードは挿入モードに似ていますが、全てのタイ�
  7. ビジュアルモードで "item." を選択、`y`{normal} で yank、次の行の行末まで `j$`{normal} で移動
     し、 `p`{normal} でテキストをそこに put します。
 
-a) This is the first item. [[a) This is the first item.]]
-b) [[b) This is the second item.]]
+a) This is the first item.
+b)
 
 NOTE: `y`{normal} をオペレータとして使うこともできます。`yw`{normal} は単語を1つ yank します。
 

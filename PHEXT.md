@@ -1,6 +1,6 @@
-# PHEXT.md — phext support for this Neovim fork
+# PHEXT.md — phext support for this exovim fork
 
-This fork adds **phext scroll navigation** to Neovim as a purely additive
+This fork adds **phext scroll navigation** to exovim as a purely additive
 runtime/Lua plugin: no C changes, no changes to any existing upstream file.
 The patch set is recorded in [PATCHES.md](PATCHES.md); the design this
 implements is summarised below (full design: task 33.5.9/7.5.9/5.5.8 design
@@ -45,7 +45,7 @@ conforming phext is valid UTF-8 as a whole byte stream.
 | The `.phext` file format handling (load / index / serialise) | **A — canonical phext** | The file already *is* canonical phext: text, stable coordinate identity per scroll, per-scroll granularity, single-scroll access without scanning, provenance via git/SQ. The plugin adds no conversion, no sidecar, no shadow format; its Lua delimiter walk reads/writes the canonical stream and is cross-checked against an independent Python walker and (as test oracle) libphext semantics. |
 | Buffer contents (what the user edits) | **B — derived view** | A scroll buffer is a materialisation of one scroll, rebuilt from the canonical stream on every jump and disposable without loss; changes flow back only through `:write` (`buftype=acwrite`). |
 | The sparse index, outline (TOC), quickfix results, title list | **B — derived view** | All are rebuilt-from-canonical structures, invalidated by the session revision counter, never written back as truth. |
-| Undo history | **D — leave alone** | Session state with no stable identity or provenance value. Neovim's per-buffer undo is used as-is; undo is not persisted into the `.phext`. |
+| Undo history | **D — leave alone** | Session state with no stable identity or provenance value. exovim's per-buffer undo is used as-is; undo is not persisted into the `.phext`. |
 | Treesitter grammar, LSP, SQ sync, xz sealing | **D — leave alone (v1)** | Real projects with their own invariants; none is needed for navigation or byte-identical editing. Named refusals, not omissions. |
 
 ## Coordinate map
@@ -100,6 +100,36 @@ fills the quickfix list (module = coordinate); `:PhextTitles` picks a
 scroll by first line via `vim.ui.select`. Full reference:
 `runtime/doc/phext.txt`.
 
+## Phext-native UI
+
+Two pieces of presentation make the editor feel phext-native rather
+than like a text editor with a plugin bolted on; both are on by
+default and both are display-only (buffer bytes and undo history are
+never touched):
+
+- **The coordinate is always on screen.** Phext buffers get a
+  buffer-local statusline: `require('nvim.phext').status()` — the full
+  9D coordinate, the scroll's rank among the occupied scrolls, the
+  active dimension, and `[+]` when the session holds unsaved edits —
+  followed by the cursor's line,column *inside* the scroll, which the
+  statusline refreshes natively on every cursor move. Coordinate and
+  line/column are shown together, never instead of each other. If you
+  keep your own statusline, the same segment is available to it (and
+  to `'rulerformat'`) as `require('nvim.phext').status()`; the
+  coordinate is the part the ruler cannot show natively, which is why
+  it lives in the segment rather than in `'ruler'`.
+- **Scroll breaks are visible.** Whenever the displayed scroll
+  changes, a virtual line above line 1 — `PhextScrollBreak`
+  highlight — shows `─── scroll break ─── <old> → <new> ───`, and the
+  transition is echoed once. On open it shows the landing scroll and
+  the file's scroll count instead. Exactly one banner exists at a
+  time, always for the current scroll: you can always see where you
+  are and where you came from.
+
+Opt out per feature (Vim-style, 0 = off): `g:phext_ui_banner`,
+`g:phext_ui_statusline`, or the table form
+`g:phext_ui = { banner = false, statusline = false }`.
+
 ## Editing invariants (test-enforced)
 
 1. Delimiter bytes are never user-editable text (see buffer model).
@@ -119,7 +149,11 @@ scroll by first line via `vim.ui.select`. Full reference:
 ## Measured costs (agi.phext: 1,552,681 bytes, 7,294 scrolls)
 
 Measured 2026-11-08 with a stock Neovim 0.11.4 (LuaJIT) driving this
-runtime headlessly, on the Muse VM (not the build host of record):
+runtime headlessly, on the Muse VM (not the build host of record),
+against the original master-based (0.13.0-dev) tree. The runtime code
+is byte-identical on this fork's 0.12.6 release base; the functional
+battery was re-run in full on the release base — see the verification
+receipts in PATCHES.md.
 
 | operation | design budget | measured |
 |---|---|---|
@@ -148,9 +182,11 @@ tasks.phext and agi.phext.
 This fork's C tree is unmodified upstream, so it builds with
 [phcc](https://github.com/wbic16/phcc) (the phext-based TinyCC
 modernisation) exactly as upstream does, plus one CMake pre-seed.
-Verified 2026-11-08 on aletheia-core against phcc tip
-`bdf12df21530be0924dd3c8881d6687dd8ce42bf` and this patch's base
-`c868e1ab3d11ac2a0cc3c284b16808f3de5adf31`:
+First verified 2026-11-08 on aletheia-core against phcc tip
+`bdf12df21530be0924dd3c8881d6687dd8ce42bf` and the original
+master-based patch base `c868e1ab3d11ac2a0cc3c284b16808f3de5adf31`;
+re-verified on this fork's 0.12.6 release base — see the receipts in
+PATCHES.md. The recipe is unchanged:
 
 ```sh
 # deps are built first with the system compiler (see the L2b caveat):
@@ -173,7 +209,7 @@ cmake --build build-phcc
   into the final link line and the link fails. The value mirrors
   exactly what the same probe resolves under GCC on this platform.
 
-Receipts (2026-11-08, aletheia-core):
+Receipts (2026-11-08, aletheia-core, master-based tree):
 
 - **L1.5 — nlua0 byte-identity:** `libnlua0.so` built with gcc and
   with phcc; two real code generators (`gen_declarations.lua`,
@@ -182,7 +218,7 @@ Receipts (2026-11-08, aletheia-core):
   full-phcc configurations.
 - **L2a — full `nvim` link under phcc: PASS.** With the one flag
   above, configure and build complete with no source changes.
-  Binary: `build-phcc/bin/nvim`, NVIM v0.13.0-dev, SHA-256
+  Binary: `build-phcc/bin/nvim`, NVIM v0.13.0-dev (master base), SHA-256
   `47f583b0eb9120b89027c3e4580800b7cc66c8fb40dddee0cbab608b8c4259ce`.
   Smoke: `--version`, headless Lua, API buffer creation, and a file
   round-trip all pass; the functional subset
@@ -192,26 +228,110 @@ Receipts (2026-11-08, aletheia-core):
   phcc; compiling libuv itself under phcc is still open. No claim is
   made that the whole dependency tree is phcc-compiled.
 
+Receipts (2026-11-09, this fork's 0.12.6 release base):
+
+- **phcc @ `bdf12df21530`: PASS on the 0.12.6 tree** (control build,
+  rock-mountain; same recipe, Make generator where ninja is absent).
+  Configure + full link; `NVIM v0.12.6-exovim.1-e403245610`; binary
+  SHA-256
+  `11f4ef8a1a44849ceb682cb3a3e91e902dd020585a5a7a1f73c60ba9e2ecedde`;
+  the phext integration suite inside the phcc-built binary passes
+  **37/37** (perf there: open+index 162.1 ms, goto 0.190 ms — the gcc
+  build remains the release build).
+- **phcc @ `8217e426b3` (published tip as of 2026-11-09): FAIL** in
+  the first nlua0 objects — `phcc/include/stddef.h:17: error:
+  'nullptr' undeclared`. phcc's F42 commit (`9114a290`) added
+  `typedef typeof(nullptr) nullptr_t;` to phcc's own `<stddef.h>`;
+  the keyword is not enabled under this build's dialect flags, so the
+  header itself fails to parse. The bdf12df2 control on the identical
+  tree passing classifies this as a phcc-side regression, not a
+  property of the 0.12 C tree. Full record in PATCHES.md.
+
 The phext runtime plugin in this patch is pure Lua and loads
 identically under the phcc-built editor (cross-tested headlessly:
 open / goto / edit / write / mutation control / no-op write identity
 against an agi-scale phext).
 
+## Working with scrolls — proposed enhancements
+
+Status: **proposals, not implemented** (2026-11-09). They are recorded
+here so the design pressure is visible and v2 work starts from a
+considered list rather than rediscovering it.
+
+The premise every proposal shares: a coordinate is an *address*, not
+a *position*. Inserting a scroll never renumbers its neighbours — the
+address space is sparse and gaps are free, so "insert" means "occupy
+a free address", never "shift everything down". That single
+difference from line-based editing is what makes most of these cheap.
+
+- **`:PhextInsert {coord}`** — create-and-jump: like `:PhextNew`, but
+  it refuses an occupied coordinate instead of landing on it, so a
+  script or a fat-fingered goto can never silently land on someone
+  else's scroll. Nothing shifts; the scroll exists on `:write`. **(S)**
+- **Insert-relative in the TOC (`o` / `O`)** — in the `:PhextToc`
+  window, `o` creates a sibling scroll after the node under the cursor
+  (next free coordinate along the active dimension) and jumps to it;
+  `O` does the same before it. The outline is where structure is
+  visible, so it is where structure should be editable. **(M)**
+- **`:PhextDelete {coord}`** — delete any scroll by coordinate (today
+  `:PhextDelete` only empties the current one): asks for confirmation,
+  and the deleted text goes to a one-slot restore register, so a
+  single `:PhextRestore` (or a paste) brings it back. The coordinate
+  is freed; the gap remains — sparsity is a feature, not damage. **(S)**
+- **`:PhextMove {from} {to}`** — transplant a scroll's content to a
+  free coordinate and free the source: the move v1 punts on (goto +
+  yank + write + delete by hand). Refuses an occupied target unless
+  given `!`. Both coordinates land in the session jumplist, so `<C-o>`
+  still tells the truth. **(S)**
+- **Drag in the TOC; `g>` / `g<` drag keys** — in the outline, drag a
+  scroll entry up/down to re-home it along its lowest differing
+  dimension (a `:PhextMove` whose target is computed from the drop
+  point); in a scroll buffer, `g>` / `g<` nudge the current scroll one
+  step along the active dimension into the next free coordinate.
+  Spatial re-homing for the reordering people actually do. **(M)**
+- **Yank / paste a whole scroll** — `yP` yanks the current scroll
+  (coordinate + bytes) into the unnamed register as a scroll object,
+  not bare text; `gpP` pastes it at a prompted coordinate (completion
+  over free coordinates near the current one). Cross-file paste works:
+  the register carries the bytes, the target file's session supplies
+  the address space. **(M)**
+- **`:PhextDup`** — duplicate the current scroll at the next free
+  coordinate along the active dimension and jump to the copy: the
+  boilerplate-scroll workflow (headers, journal entries, per-day
+  scrolls) in one command. **(S)**
+- **`:PhextFree {prefix}`** — the next-free-coordinate finder: prints
+  (and preloads into the `gP` prompt) the lowest unoccupied coordinate
+  under a prefix — the answer to "where is there room in this book?",
+  which a sparse format should never make the user scan for. **(S)**
+- **Split / merge scrolls at the cursor** — `gS` splits the current
+  scroll at the cursor line: text below moves to the next free
+  coordinate along the active dimension; `gJ` (in the TOC) or
+  `:PhextMerge {coord}` merges a scroll into its populated successor.
+  The two structural edits a scroll-based document actually needs. **(M)**
+- **Compaction wizard (`:PhextCompact`)** — for the rare case where
+  gaps *are* the problem (publishing, handing a phext to a reader):
+  computes a renumbering plan that closes the gaps, shows it as a
+  preview-only diff (old → new for every moved scroll), and applies
+  it only on an explicit confirm — never silent, never automatic, and
+  the plan itself is kept as a scroll, the migration record. **(L)**
+
 ## Honest limits (v1)
 
 - No raw phext editing mode; no persistent empty scrolls; no scroll
-  rename/move command (goto + yank + write + delete covers it).
+  rename/move command (goto + yank + write + delete covers it;
+  first-class insert/delete/move commands are proposed in "Working
+  with scrolls — proposed enhancements" above).
 - Undo is per scroll *visit*: returning to a scroll restores its edited
   content (held in session state), but its undo stack starts fresh.
   Undo never crosses a scroll boundary.
-- The jumplist is Neovim's: entries record buffer + line, so after a
+- The jumplist is exovim's: entries record buffer + line, so after a
   coordinate jump swaps the buffer's content, `<C-o>` restores the
   scroll's buffer position approximately (the plugin pushes `m'` on
   every jump and restores per-scroll cursor positions itself, but a
   dedicated phext history stack is v2).
 - One buffer per file: no split view of two scrolls of the same file.
 - Scroll text containing NUL bytes cannot be represented faithfully in
-  a Neovim buffer and is outside the editing model.
+  an exovim buffer and is outside the editing model.
 - `:PhextSearch` is O(file bytes) per invocation — the one legitimately
   linear operation, run on demand only.
 - The help file is not yet listed in `runtime/doc/index.txt` (an

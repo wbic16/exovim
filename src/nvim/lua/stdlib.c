@@ -8,7 +8,6 @@
 #include <string.h>
 #include <uv.h>
 
-#include "nvim/context.h"
 #include "nvim/log.h"
 #ifdef NVIM_VENDOR_BIT
 # include "bit.h"
@@ -31,7 +30,6 @@
 #include "nvim/ex_eval.h"
 #include "nvim/fold.h"
 #include "nvim/globals.h"
-#include "nvim/keycodes.h"
 #include "nvim/lua/base64.h"
 #include "nvim/lua/converter.h"
 #include "nvim/lua/spell.h"
@@ -42,8 +40,6 @@
 #include "nvim/mbyte_defs.h"
 #include "nvim/memline.h"
 #include "nvim/memory.h"
-#include "nvim/message.h"
-#include "nvim/path.h"
 #include "nvim/pos_defs.h"
 #include "nvim/regexp.h"
 #include "nvim/regexp_defs.h"
@@ -467,13 +463,6 @@ int nlua_getvar(lua_State *lstate)
   return 1;
 }
 
-/// Checks if a path is a URL. See path_with_url().
-static int nlua_path_is_url(lua_State *const lstate) FUNC_ATTR_NONNULL_ALL
-{
-  lua_pushboolean(lstate, path_with_url(luaL_checkstring(lstate, 1)));
-  return 1;
-}
-
 /// Compare two strings, ignoring case
 ///
 /// Expects two values on the stack: compared strings. Returns one of the
@@ -594,7 +583,6 @@ static int nlua_with(lua_State *L)
   int flags = 0;
   buf_T *buf = NULL;
   win_T *win = NULL;
-  bool keepcwd = false;
   int log_level = -1;
 
 #define APPLY_FLAG(key, flag) \
@@ -613,8 +601,6 @@ static int nlua_with(lua_State *L)
         buf = handle_get_buffer((int)luaL_checkinteger(L, -1));
       } else if (strequal("win", k)) {
         win = handle_get_window((int)luaL_checkinteger(L, -1));
-      } else if (strequal("keepcwd", k)) {
-        keepcwd = v;
       } else if (strequal("log_level", k)) {
         log_level = (int)luaL_checkinteger(L, -1);
       } else {
@@ -654,28 +640,29 @@ static int nlua_with(lua_State *L)
 
   Error err = ERROR_INIT;
   TRY_WRAP(&err, {
-    CtxSwitch cs = { 0 };
-    bool switched = true;
+    aco_save_T aco;
+    win_execute_T win_execute_args;
 
     if (win) {
-      buf = NULL;  // `win` implies its buffer (vim._with() checks that it is `buf`).
+      tabpage_T *tabpage = win_find_tabpage(win);
+      if (!win_execute_before(&win_execute_args, win, tabpage)) {
+        goto end;
+      }
+    } else if (buf) {
+      aucmd_prepbuf(&aco, buf);
     }
 
-    if (win || buf || keepcwd) {
-      CtxSwitchFlags dirs = keepcwd ? kCtxKeepDirs : kCtxKeepCwd;
-      tabpage_T *tab = win ? win_find_tabpage(win) : NULL;
-      switched = ctx_switch(&cs, win, tab, buf, kCtxNoDisplay | dirs | (win ? kCtxValidate : 0));
-    }
+    int s = lua_gettop(L);
+    lua_pushvalue(L, 2);
+    status = lua_pcall(L, 0, LUA_MULTRET, 0);
+    rets = lua_gettop(L) - s;
 
-    if (switched) {
-      int s = lua_gettop(L);
-      lua_pushvalue(L, 2);
-      status = lua_pcall(L, 0, LUA_MULTRET, 0);
-      rets = lua_gettop(L) - s;
+    if (win) {
+      win_execute_after(&win_execute_args);
+    } else if (buf) {
+      aucmd_restbuf(&aco);
     }
-
-    // No-op if nothing was switched.  Restores even when ctx_switch() failed.
-    ctx_restore(&cs);
+    end:;
   });
 
   undo_cmdmod(&cmdmod);
@@ -695,53 +682,6 @@ static int nlua_with(lua_State *L)
   return rets;
 }
 
-/// Parses the internal representation of `keys` (as produced by nvim_replace_termcodes()) into
-/// a structured list of dicts representing one or more key-chords.
-static int nlua_keyparse(lua_State *L)
-{
-  luaL_argcheck(L, lua_isstring(L, 1), 1, "string expected");
-
-  char *escaped = vim_strsave_escape_ks((char *)lua_tostring(L, 1));
-  const char *p = escaped;
-
-  lua_newtable(L);
-
-  struct keychord data;
-
-  while (*p != NUL) {
-    // kTrue (same flags as keytrans()) so `keys` == keytrans(vim.keycode(…)).
-    const char *keys = str2special(&p, true, kTrue, &data);
-
-    lua_createtable(L, 0, 3);
-
-    lua_newtable(L);
-    for (int i = 0; mod_mask_table[i].name != 'A'; i++) {
-      if ((data.mods & mod_mask_table[i].mod_mask) == mod_mask_table[i].mod_flag) {
-        lua_pushlstring(L, &mod_mask_table[i].name, 1);
-        lua_rawseti(L, -2, (int)lua_objlen(L, -2) + 1);
-      }
-    }
-    lua_setfield(L, -2, "mod");
-
-    lua_pushlstring(L, data.key.data, data.key.size);
-    lua_setfield(L, -2, "key");
-
-    lua_pushstring(L, keys);
-    lua_setfield(L, -2, "keys");
-
-    if (data.key_alt.size != 0) {
-      lua_pushlstring(L, data.key_alt.data, data.key_alt.size);
-      lua_setfield(L, -2, "key_alt");
-    }
-
-    lua_rawseti(L, -2, (int)lua_objlen(L, -2) + 1);
-  }
-
-  xfree(escaped);
-
-  return 1;
-}
-
 // Access to internal functions. For use in runtime/
 static void nlua_state_add_internal(lua_State *const lstate)
 {
@@ -759,12 +699,6 @@ static void nlua_state_add_internal(lua_State *const lstate)
 
   lua_pushcfunction(lstate, &nlua_with);
   lua_setfield(lstate, -2, "_with_c");
-
-  // vim._core.keyparse
-  lua_getfield(lstate, -1, "_core");
-  lua_pushcfunction(lstate, &nlua_keyparse);
-  lua_setfield(lstate, -2, "keyparse");
-  lua_pop(lstate, 1);
 }
 
 void nlua_state_add_stdlib(lua_State *const lstate, bool is_thread)
@@ -851,12 +785,6 @@ void nlua_state_add_stdlib(lua_State *const lstate, bool is_thread)
   // vim.json
   lua_cjson_new(lstate);
   lua_setfield(lstate, -2, "json");
-
-  // vim._core.path_is_url
-  lua_getfield(lstate, -1, "_core");
-  lua_pushcfunction(lstate, &nlua_path_is_url);
-  lua_setfield(lstate, -2, "path_is_url");
-  lua_pop(lstate, 1);
 
 #ifdef NVIM_VENDOR_BIT
   // if building with puc lua, use internal fallback for require'bit'

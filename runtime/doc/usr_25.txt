@@ -4,8 +4,7 @@
 		     VIM USER MANUAL	by Bram Moolenaar
 
 
-==============================================================================
-Editing formatted text
+			     Editing formatted text
 
 
 Text hardly ever comes in one sentence per line.  This chapter is about

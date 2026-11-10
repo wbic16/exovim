@@ -19,8 +19,7 @@ local function colorize_hl_groups(patterns)
     end
 
     for lnum = start_lnum, end_lnum do
-      local line = assert(vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, true)[1])
-      local word = line:match(pat.match)
+      local word = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, true)[1]:match(pat.match)
       if vim.fn.hlexists(word) ~= 0 then
         vim.api.nvim_buf_set_extmark(0, ns, lnum - 1, 0, { end_col = #word, hl_group = word })
       end
@@ -30,20 +29,14 @@ local function colorize_hl_groups(patterns)
   vim.fn.setpos('.', save_cursor)
 end
 
---- @param bufname string
---- @param path string
-local function help_bufname_match(bufname, path)
-  return vim.endswith(bufname, path .. '.txt') or bufname:find(path .. '%.%a%ax$')
-end
-
 -- Add custom highlights for list in `:h highlight-groups`.
 local bufname = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
-if help_bufname_match(bufname, '/doc/syntax') then
+if vim.endswith(bufname, '/doc/syntax.txt') then
   colorize_hl_groups({
     { start = [[\*group-name\*]], stop = '^======', match = '^(%w+)\t' },
     { start = [[\*highlight-groups\*]], stop = '^======', match = '^(%w+)\t' },
   })
-elseif help_bufname_match(bufname, '/doc/treesitter') then
+elseif vim.endswith(bufname, '/doc/treesitter.txt') then
   colorize_hl_groups({
     {
       start = [[\*treesitter-highlight-groups\*]],
@@ -51,11 +44,11 @@ elseif help_bufname_match(bufname, '/doc/treesitter') then
       match = '^@[%w%p]+',
     },
   })
-elseif help_bufname_match(bufname, '/doc/diagnostic') then
+elseif vim.endswith(bufname, '/doc/diagnostic.txt') then
   colorize_hl_groups({
     { start = [[\*diagnostic-highlights\*]], stop = '^======', match = '^(%w+)' },
   })
-elseif help_bufname_match(bufname, '/doc/lsp') then
+elseif vim.endswith(bufname, '/doc/lsp.txt') then
   colorize_hl_groups({
     { start = [[\*lsp-highlight\*]], stop = '^------', match = '^(%w+)' },
     { start = [[\*lsp-semantic-highlight\*]], stop = '^======', match = '^@[%w%p]+' },
@@ -94,13 +87,12 @@ local function runnables()
   for _, match, metadata in query:iter_matches(root, 0, 0, -1) do
     for id, nodes in pairs(match) do
       local name = query.captures[id]
-      local node = assert(nodes[1])
+      local node = nodes[1]
+      local start, _, end_ = node:parent():range()
 
       if name == 'code' then
-        local start, _, end_ = assert(node:parent()):range()
         local code = vim.treesitter.get_node_text(node, 0)
-        local lang_id = assert(metadata[id]).lang --[[@as integer]]
-        local lang_node = assert(match[lang_id][1])
+        local lang_node = match[metadata[id].lang][1] --[[@as TSNode]]
         local lang = vim.treesitter.get_node_text(lang_node, 0)
         for i = start + 1, end_ do
           code_blocks[i] = { lang = lang, code = code }
@@ -132,7 +124,7 @@ local url_ns = vim.api.nvim_create_namespace('nvim.help.urls')
 local function urls()
   local filepath = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
 
-  if vim.fs.relpath(assert(vim.env.VIMRUNTIME), filepath) ~= nil then
+  if vim.fs.relpath(vim.env.VIMRUNTIME, filepath) ~= nil then
     local base = 'https://neovim.io/doc/user/helptag/?tag='
     local query = vim.treesitter.query.parse(
       'vimdoc',
@@ -156,7 +148,7 @@ local function urls()
             vim.api.nvim_buf_set_extmark(0, url_ns, start_line, start_col, {
               end_line = end_line,
               end_col = end_col,
-              url = base .. vim.uri.encode(tag),
+              url = base .. vim.uri_encode(tag),
             })
           end
         end

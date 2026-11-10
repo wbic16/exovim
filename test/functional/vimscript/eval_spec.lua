@@ -13,8 +13,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, setup, teardown, pending, finally =
-  t.describe, t.it, t.before_each, t.setup, t.teardown, t.pending, t.finally
 local mkdir = t.mkdir
 local pcall_err = t.pcall_err
 local clear = n.clear
@@ -87,7 +85,7 @@ describe('backtick expansion', function()
     eq({ 'file2' }, eval('argv()'))
     if t.is_os('win') then
       command(':silent args `dir /s/b *4`')
-      eq({ 'subdir/file4' }, eval('map(argv(), \'fnamemodify(v:val, ":.")\')'))
+      eq({ 'subdir\\file4' }, eval('map(argv(), \'fnamemodify(v:val, ":.")\')'))
     else
       command(':silent args `echo */*4`')
       eq({ 'subdir/file4' }, eval('argv()'))
@@ -95,7 +93,7 @@ describe('backtick expansion', function()
   end)
 
   it('with shell=fish', function()
-    t.skip(fn.executable('fish') == 0, 'N/A: missing "fish" command')
+    t.skip(fn.executable('fish') == 0, 'missing "fish" command')
 
     command('set shell=fish')
     command(':silent args `echo ***2`')
@@ -221,10 +219,10 @@ describe('listing functions using :function', function()
     command('let A = {-> 1}')
     local num = exec_capture('echo A'):match("function%('<lambda>(%d+)'%)")
     eq(
-      t.dedent([[
-           function <lambda>%s(...)
-        1  return 1
-           endfunction]]):format(num),
+      ([[
+   function <lambda>%s(...)
+1  return 1
+   endfunction]]):format(num),
       exec_capture(('function <lambda>%s'):format(num))
     )
   end)

@@ -30,11 +30,6 @@ vim.v.argf = ...
 --- @type string[]
 vim.v.argv = ...
 
---- `v:true` during `multicursor` cascade, `v:false` otherwise.
---- Read-only.
---- @type boolean
-vim.v.cascading = ...
-
 --- Argument for evaluating 'formatexpr' and used for the typed
 --- character when using <expr> in an abbreviation `:map-<expr>`.
 --- It is also used by the `InsertCharPre`, `InsertEnter`,
@@ -134,7 +129,7 @@ vim.v.dying = ...
 
 --- Number of screen cells that can be used for an `:echo` message
 --- in the last screen line before causing the `hit-enter` prompt
---- (no longer applicable when `ui2` is enabled).
+--- (or "overflow" with `ui2`).
 ---
 --- Depends on 'showcmd', 'ruler' and 'columns'.  You need to
 --- check 'cmdheight' for whether there are full-width lines
@@ -674,10 +669,9 @@ vim.v.shell_error = ...
 vim.v.stacktrace = ...
 
 --- The reason Nvim started. Possible values:
---- - "normal"      Normal startup, yearning for life, etc.
---- - "restart"     Started by `:restart`.
---- - "restart!"    Started by `:restart!`.
---- - "remote-ssh"  Started by `remote-ssh`.
+---   - "normal"    normal startup.
+---   - "restart"   started by `:restart`.
+---   - "restart!"  started by `:restart!`.
 ---
 --- Read-only.
 --- @type string
@@ -779,10 +773,10 @@ vim.v.t_string = ...
 --- @type string
 vim.v.termrequest = ...
 
---- The most recent OSC, DCS, APC, or recognized CSI (DA1, kitty
---- multiple-cursors) control sequence received by Nvim from the
---- host-terminal. Can be read in a `TermResponse` event handler
---- after querying the terminal.
+--- The value of the most recent OSC or DCS control sequence
+--- received by Nvim from the terminal. This can be read in a
+--- `TermResponse` event handler after querying the terminal using
+--- another escape sequence.
 --- @type string
 vim.v.termresponse = ...
 
@@ -820,15 +814,6 @@ vim.v.throwpoint = ...
 --- `expr7` when used with numeric operators).  Read-only.
 --- @type boolean
 vim.v['true'] = ...
-
---- Timestamp (nanoseconds since UNIX epoch) indicating the most
---- recent user activity, i.e. when a key is received from a UI
---- (TUI input or `nvim_input()`).
----
---- Initialized to 0 (no user activity since startup).
---- Read-only.
---- @type integer
-vim.v.useractive = ...
 
 --- Value of the current item of a `List` or `Dictionary`.  Only
 --- valid while evaluating the expression used with `map()` and

@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local setpos = n.fn.setpos
 local getpos = n.fn.getpos
 local insert = n.insert

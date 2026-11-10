@@ -58,8 +58,8 @@ static LuaTableProps nlua_traverse_table(lua_State *const lstate)
                               // or type keys.
   LuaTableProps ret;
   CLEAR_FIELD(ret);
-  if (!lua_checkstack(lstate, 3)) {
-    semsg(_("E1502: Lua failed to grow stack to %i"), lua_gettop(lstate) + 3);
+  if (!lua_checkstack(lstate, lua_gettop(lstate) + 3)) {
+    semsg(_("E1502: Lua failed to grow stack to %i"), lua_gettop(lstate) + 2);
     ret.type = kObjectTypeNil;
     return ret;
   }
@@ -196,7 +196,7 @@ bool nlua_pop_typval(lua_State *lstate, typval_T *ret_tv)
   kvi_init(stack);
   kvi_push(stack, ((TVPopStackItem){ .tv = ret_tv }));
   while (ret && kv_size(stack)) {
-    if (!lua_checkstack(lstate, 3)) {
+    if (!lua_checkstack(lstate, lua_gettop(lstate) + 3)) {
       semsg(_("E1502: Lua failed to grow stack to %i"), lua_gettop(lstate) + 3);
       ret = false;
       break;
@@ -417,14 +417,7 @@ static bool typval_conv_special = false;
 
 #define TYPVAL_ENCODE_ALLOW_SPECIALS true
 
-// A value pushes at most 3 slots (`nlua_create_typed_table()`) before the next value's check.
-#define TYPVAL_ENCODE_CHECK_BEFORE \
-  do { \
-    if (!lua_checkstack(lstate, 3)) { \
-      semsg(_("E5102: Lua failed to grow stack to %i"), lua_gettop(lstate) + 3); \
-      return FAIL; \
-    } \
-  } while (0)
+#define TYPVAL_ENCODE_CHECK_BEFORE
 
 #define TYPVAL_ENCODE_CONV_NIL(tv) \
   do { \
@@ -492,6 +485,11 @@ static bool typval_conv_special = false;
 
 #define TYPVAL_ENCODE_CONV_LIST_START(tv, len) \
   do { \
+    if (!lua_checkstack(lstate, lua_gettop(lstate) + 3)) { \
+      semsg(_("E5102: Lua failed to grow stack to %i"), \
+            lua_gettop(lstate) + 3); \
+      return false; \
+    } \
     lua_createtable(lstate, (int)(len), 0); \
     lua_pushnumber(lstate, 1); \
   } while (0)
@@ -509,7 +507,14 @@ static bool typval_conv_special = false;
   lua_rawset(lstate, -3)
 
 #define TYPVAL_ENCODE_CONV_DICT_START(tv, dict, len) \
-  lua_createtable(lstate, 0, (int)(len))
+  do { \
+    if (!lua_checkstack(lstate, lua_gettop(lstate) + 3)) { \
+      semsg(_("E5102: Lua failed to grow stack to %i"), \
+            lua_gettop(lstate) + 3); \
+      return false; \
+    } \
+    lua_createtable(lstate, 0, (int)(len)); \
+  } while (0)
 
 #define TYPVAL_ENCODE_SPECIAL_DICT_KEY_CHECK(label, kv_pair)
 
@@ -581,7 +586,7 @@ static bool typval_conv_special = false;
 
 /// Convert Vimscript typval_T to Lua value
 ///
-/// Pushes one value: `nil` on failure. May only fail if Lua failed to grow stack.
+/// Should leave single value in Lua stack. May only fail if Lua failed to grow stack.
 ///
 /// @param  lstate  Lua interpreter state.
 /// @param[in]  tv  typval_T to convert.
@@ -592,9 +597,11 @@ bool nlua_push_typval(lua_State *lstate, typval_T *const tv, int flags)
   typval_conv_special = (flags & kNluaPushSpecial);
   const int initial_size = lua_gettop(lstate);
 
+  if (!lua_checkstack(lstate, initial_size + 2)) {
+    semsg(_("E1502: Lua failed to grow stack to %i"), initial_size + 4);
+    return false;
+  }
   if (encode_vim_to_lua(lstate, tv, "nlua_push_typval argument") == FAIL) {
-    lua_settop(lstate, initial_size);
-    lua_pushnil(lstate);
     return false;
   }
   assert(lua_gettop(lstate) == initial_size + 1);
@@ -724,7 +731,7 @@ void nlua_push_Array(lua_State *lstate, const Array array, int flags)
 void nlua_push_handle(lua_State *lstate, const handle_T item, int flags)
   FUNC_ATTR_NONNULL_ALL
 {
-  lua_pushnumber(lstate, (lua_Number)item);
+  lua_pushnumber(lstate, (lua_Number)(item));
 }
 
 /// Convert given Object to Lua value
@@ -734,7 +741,6 @@ void nlua_push_Object(lua_State *lstate, Object *obj, int flags)
   FUNC_ATTR_NONNULL_ALL
 {
   switch (obj->type) {
-  case kObjectTypeUnset:
   case kObjectTypeNil:
     if (flags & kNluaPushSpecial) {
       lua_pushnil(lstate);
@@ -968,7 +974,7 @@ Array nlua_pop_Array(lua_State *lstate, Arena *arena, Error *err)
 
 /// Convert Lua table to dictionary
 ///
-/// Always pops one value from the stack. Does not check whether topmost
+/// Always pops one value from the stack. Does not check whether whether topmost
 /// value on the stack is a table.
 ///
 /// @param  lstate  Lua interpreter state.
@@ -1060,7 +1066,7 @@ Object nlua_pop_Object(lua_State *const lstate, bool ref, Arena *arena, Error *c
   while (!ERROR_SET(err) && kv_size(stack)) {
     ObjPopStackItem cur = kv_pop(stack);
     if (cur.container) {
-      if (!lua_checkstack(lstate, 3)) {
+      if (!lua_checkstack(lstate, lua_gettop(lstate) + 3)) {
         api_set_error(err, kErrorTypeException, "Lua failed to grow stack");
         break;
       }
@@ -1289,7 +1295,7 @@ void nlua_pop_keydict(lua_State *L, void *retval, FieldHashfn hashy, char **err_
     // [dict, key, value]
     size_t len;
     const char *s = lua_tolstring(L, -2, &len);
-    const KeySetLink *field = hashy(s, len);
+    KeySetLink *field = hashy(s, len);
     if (!field) {
       api_set_error(err, kErrorTypeValidation, "invalid key: %.*s", (int)len, s);
       lua_pop(L, 3);  // []

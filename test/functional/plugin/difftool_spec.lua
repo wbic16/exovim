@@ -1,12 +1,9 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, setup, teardown, finally =
-  t.describe, t.it, t.before_each, t.setup, t.teardown, t.finally
 local clear = n.clear
 local command = n.command
 local eq = t.eq
-local eq_partial = t.eq_partial
 local fn = n.fn
 
 local pathsep = n.get_pathsep()
@@ -37,18 +34,23 @@ describe('nvim.difftool', function()
 
   it('shows added, modified, and deleted files in quickfix', function()
     command(('DiffTool %s %s'):format(testdir_left, testdir_right))
+    local qflist = fn.getqflist()
+    local entries = {}
+    for _, item in ipairs(qflist) do
+      table.insert(entries, { text = item.text, rel = item.user_data and item.user_data.rel })
+    end
 
     -- Should show:
     -- file1.txt as modified (M)
     -- file2.txt as deleted (D)
     -- file3.txt as added (A)
     -- file4 with space.txt as modified (M)
-    eq_partial({
-      { text = 'M', user_data = { rel = 'file1.txt' } },
-      { text = 'D', user_data = { rel = 'file2.txt' } },
-      { text = 'A', user_data = { rel = 'file3.txt' } },
-      { text = 'M', user_data = { rel = 'file4 with space.txt' } },
-    }, fn.getqflist())
+    eq({
+      { text = 'M', rel = 'file1.txt' },
+      { text = 'D', rel = 'file2.txt' },
+      { text = 'A', rel = 'file3.txt' },
+      { text = 'M', rel = 'file4 with space.txt' },
+    }, entries)
   end)
 
   it('has consistent split layout', function()
@@ -75,13 +77,18 @@ describe('nvim.difftool', function()
 
     -- Run difftool
     command(('DiffTool %s %s'):format(testdir_left, testdir_right))
+    local qflist = fn.getqflist()
+    local entries = {}
+    for _, item in ipairs(qflist) do
+      table.insert(entries, { text = item.text, rel = item.user_data and item.user_data.rel })
+    end
 
     -- file2.txt should not be reported as added or deleted anymore
-    eq_partial({
-      { text = 'M', user_data = { rel = 'file1.txt' } },
-      { text = 'A', user_data = { rel = 'file3.txt' } },
-      { text = 'M', user_data = { rel = 'file4 with space.txt' } },
-    }, fn.getqflist())
+    eq({
+      { text = 'M', rel = 'file1.txt' },
+      { text = 'A', rel = 'file3.txt' },
+      { text = 'M', rel = 'file4 with space.txt' },
+    }, entries)
   end)
 
   it('has autocmds when diff window is opened', function()
@@ -133,11 +140,16 @@ describe('nvim.difftool', function()
     eq(3, #fn.getwininfo())
 
     -- Verify quickfix list has the expected entries
-    eq_partial({
-      { text = 'M', user_data = { rel = 'file1.txt' } },
-      { text = 'D', user_data = { rel = 'file2.txt' } },
-      { text = 'A', user_data = { rel = 'file3.txt' } },
-      { text = 'M', user_data = { rel = 'file4 with space.txt' } },
-    }, fn.getqflist())
+    local qflist = fn.getqflist()
+    local entries = {}
+    for _, item in ipairs(qflist) do
+      table.insert(entries, { text = item.text, rel = item.user_data and item.user_data.rel })
+    end
+    eq({
+      { text = 'M', rel = 'file1.txt' },
+      { text = 'D', rel = 'file2.txt' },
+      { text = 'A', rel = 'file3.txt' },
+      { text = 'M', rel = 'file4 with space.txt' },
+    }, entries)
   end)
 end)

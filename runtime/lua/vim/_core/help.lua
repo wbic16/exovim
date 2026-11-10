@@ -1,8 +1,5 @@
 local M = {}
 
-local echo_err = require('vim._core.util').echo_err
-local fs = require('vim.fs')
-
 local tag_exceptions = {
   -- Interpret asterisk (star, '*') literal but name it 'star'
   ['*'] = 'star',
@@ -42,7 +39,7 @@ local tag_exceptions = {
   ['expr-<=?'] = '<=?',
   ['expr-<?'] = '<?',
   ['expr-==?'] = '==?',
-  ['expr-=~?'] = '=\\~?',
+  ['expr-=~?'] = '=~?',
   ['expr->=?'] = '>=?',
   ['expr->?'] = '>?',
   ['expr-is?'] = 'is?',
@@ -106,16 +103,12 @@ function M.escape_subject(word)
 
     -- Change caret notation to 'CTRL-', except '^_'
     -- E.g. 'i^G^J' --> 'iCTRL-GCTRL-J'
-    -- Only treat '^' as control notation when followed by a caret-notation
-    -- char (a letter or one of "?@[\]^{"); otherwise leave it literal so
-    -- patterns like ':set^=' are not wrongly split. '{' is included so
-    -- '^{char}' matches the 'CTRL-{char}' placeholder tag.
-    word = word:gsub('%^([%a?@\\[\\%]{^])', 'CTRL-%1')
+    word = word:gsub('%^([^_])', 'CTRL-%1')
     -- Add underscores around 'CTRL-X' characters
     -- E.g. 'iCTRL-GCTRL-J' --> 'i_CTRL-G_CTRL-J'
     -- Only exception: 'CTRL-{character}'
-    word = word:gsub('([^-_])CTRL%-', '%1_CTRL-')
-    word = word:gsub('(CTRL%-[^{])([^%u_\\-])', '%1_%2')
+    word = word:gsub('([^_])CTRL%-', '%1_CTRL-')
+    word = word:gsub('(CTRL%-[^{])([^-_\\])', '%1_%2')
 
     -- Skip function arguments
     -- E.g. 'abs({expr})' --> 'abs'
@@ -205,13 +198,10 @@ local function trim_tag(tag, offset)
     e = e - 1
   end
 
-  -- Truncate function or generic arguments, e.g. "foo('bar')" => "foo", "Task<R...>" => "Task".
+  -- Truncate at "(" with args, e.g. "foo('bar')" => "foo".
   -- But keep "()" since it's part of valid tags like "vim.fn.expand()".
   for i = s, e do
-    if
-      tag:sub(i, i) == '<'
-      or (tag:sub(i, i) == '(' and not (i + 1 <= e and tag:sub(i + 1, i + 1) == ')'))
-    then
+    if tag:sub(i, i) == '(' and not (i + 1 <= e and tag:sub(i + 1, i + 1) == ')') then
       e = i - 1
       break
     end
@@ -250,15 +240,9 @@ end
 ---
 ---@return string? resolved The resolved help tag, or nil if no match found
 function M.resolve_tag()
-  local tag = vim.fn.expand('<cWORD>') --[[@as string]]
+  local tag = vim.fn.expand('<cWORD>')
   if not tag or tag == '' then
     return nil
-  end
-
-  -- In type annotations, "?" means nullable rather than a help-search wildcard.
-  local nullable_type = tag:match('^%(`([%w_.]+)[%[%]]*%?`%)$')
-  if nullable_type and #vim.fn.getcompletion(nullable_type, 'help') > 0 then
-    return nullable_type
   end
 
   -- Compute cursor offset within <cWORD>.
@@ -362,7 +346,7 @@ function M.local_additions()
   local plugins = {}
   local pattern = lang and ('doc/*.{txt,%sx}'):format(lang) or 'doc/*.txt'
   for _, docpath in ipairs(vim.api.nvim_get_runtime_file(pattern, true)) do
-    if not vim.fs.relpath(assert(vim.env.VIMRUNTIME), docpath) then
+    if not vim.fs.relpath(vim.env.VIMRUNTIME, docpath) then
       -- '/path/to/doc/plugin.txt' --> 'plugin'
       local plugname = vim.fs.basename(docpath):sub(1, -5)
       -- prefer language-specific files over .txt
@@ -403,191 +387,6 @@ function M.local_additions()
         vim.api.nvim_buf_set_lines(buf, linenr, linenr, true, lines)
       end)
       break
-    end
-  end
-end
-
----Language code of a help file: "en" for "*.txt", "nl" for "*.nlx". See |help-translated|.
----@param file string
----@return string?
-local function helpfile_lang(file)
-  local ext = file:sub(-4):lower()
-  return ext == '.txt' and 'en' or ext:match('^%.(%a%a)x$')
-end
-
----Report duplicate tags.
----@param tags string[] sorted tags file lines
-local function report_duplicates(tags)
-  local prevtag
-
-  for i, tagline in ipairs(tags) do
-    local curtag = tagline:match('^[^\t]*')
-    if curtag == prevtag then
-      local curfn = tagline:match('\t([^\t]*)')
-      local prevfn = assert(tags[i - 1]):match('\t([^\t]*)')
-      local filenames = prevfn ~= curfn and (curfn .. ' and ' .. prevfn) or curfn
-      echo_err(('E154: Duplicate tag "%s" in %s'):format(curtag, filenames))
-    end
-    prevtag = curtag
-  end
-end
-
-local helptags_pattern ---@type vim.lpeg.Pattern
-do
-  local P, S, R, B, C, Ct = vim.lpeg.P, vim.lpeg.S, vim.lpeg.R, vim.lpeg.B, vim.lpeg.C, vim.lpeg.Ct
-  local any = P(1)
-  local eof = -any
-  local space = S(' \t')
-  -- Accept LF, CRLF, and an unterminated final line.
-  local newline = P('\r') ^ -1 * P('\n')
-  local line_end = newline + P('\r') ^ -1 * eof
-  local line_start = -B(any) + B(P('\n'))
-  -- Assert surrounding whitespace without consuming it, so adjacent tags can share it.
-  local tag = (line_start + B(space))
-    * P('*')
-    * C((any - S('* \t|\n')) ^ 1)
-    * P('*')
-    * #(space + line_end)
-  -- An example continues through blank or indented lines.
-  local example_line = newline + space * (any - P('\n')) ^ 0 * (P('\n') + eof)
-  local example = (line_start + B(P(' ')))
-    * P('>')
-    * R('az', '09') ^ 0
-    * line_end
-    * example_line ^ 0
-  -- Skip ordinary text in spans; consume invalid markers one character at a time.
-  local text = (any - S('*>')) ^ 1 + any
-  helptags_pattern = Ct(((example + tag + text) ^ 0) --[[@as vim.lpeg.Pattern]])
-end
-
----Extract tags from {file} and add to list of tags. Modifies {tags}.
----@param tags string[]
----@param file string
----@param name string Path of {file} relative to the help directory, as stored in the tags file.
-local function extract_tags(tags, file, name)
-  local f = io.open(file, 'r')
-  if not f then
-    echo_err(('E153: Unable to open %s for reading'):format(file))
-    return
-  end
-  -- Read once to avoid stdio calls and locking for every line.
-  local source = assert(f:read('*a'))
-  f:close()
-
-  for _, tagname in ipairs(helptags_pattern:match(source)) do
-    tags[#tags + 1] = ('%s\t%s\t/*%s*'):format(tagname, name, tagname:gsub('[\\/]', '\\%0'))
-  end
-end
-
---- Extract tags from helpfiles and combine in a single 'tags' file.
---- @param helpfiles string[] list of helpfiles
---- @param dir string Help directory; tag entries name the helpfiles relative to it.
---- @param outpath string path to write the 'tags' file to.
---- @param index_tag string? Filename for the "help-tags" entry, if included
---- @param ignore_writeerr boolean don't report a tags file that cannot be written
-function M.gen_tagsfile(helpfiles, dir, outpath, index_tag, ignore_writeerr)
-  -- Avoid scanning helpfiles when the output cannot be written (:helptags ALL).
-  local f = io.open(outpath, 'w')
-  if not f then
-    if not ignore_writeerr then
-      echo_err(('E152: Cannot open %s for writing'):format(outpath))
-    end
-    return
-  end
-
-  ---@type string[] Tags file lines: "tag<Tab>file<Tab>search command".
-  local tags = {}
-
-  -- (1) extract tags from all files
-  for _, file in ipairs(helpfiles) do
-    extract_tags(tags, file, fs.relpath(dir, file) or fs.basename(file))
-  end
-
-  if index_tag then
-    table.insert(tags, ('help-tags\t%s\t1'):format(index_tag))
-  end
-
-  -- (2) sort by byte value, as |tags-file-format| requires.
-  -- PUC Lua uses strcoll(), so use C collation for this sort.
-  -- The stdlib annotation omits nil, which queries the current locale.
-  --- @diagnostic disable-next-line: param-type-mismatch
-  local locale = assert(os.setlocale(nil, 'collate'))
-  os.setlocale('C', 'collate')
-  table.sort(tags)
-  os.setlocale(locale, 'collate')
-
-  -- (3) report duplicates
-  report_duplicates(tags)
-
-  -- (4) write tags to file
-  for _, tag in ipairs(tags) do
-    f:write(tag, '\n')
-  end
-  f:close()
-end
-
---- Create a "tags" file for all help files in the given directory.
----
---- The directory {dir} is generally a "doc" directory that contains "*.txt"
---- helpfiles.
----
---- @param dir string? Path to directory with help files. If `nil` (or |vim.NIL|),
---- generate tags for every `doc` directory in the runtimepath.
---- @param include_index_tag? boolean (default: false) Whether to include the "help-tags" tag.
-function M.gen_tags(dir, include_index_tag)
-  if dir == vim.NIL then
-    dir = nil
-  end
-  vim.validate('dir', dir, 'string', true)
-  vim.validate('include_index_tag', include_index_tag, 'boolean', true)
-
-  local dirs = dir and { vim.fs.normalize(dir) } or vim.api.nvim_get_runtime_file('doc', true)
-  local vimruntime = vim.fs.normalize(vim.fs.joinpath(assert(vim.env.VIMRUNTIME), 'doc'))
-
-  if dir and vim.fn.isdirectory(assert(dirs[1])) == 0 then
-    echo_err(('E150: Not a directory: %s'):format(dir))
-    return
-  end
-
-  for _, directory in ipairs(dirs) do
-    -- Resolve once for traversal and relpath(), avoiding getcwd() for every file.
-    -- Keep directory for messages and the VIMRUNTIME comparison.
-    local absdir = vim.fs.abspath(directory)
-    local files = vim.fs.find(function(name, _)
-      return helpfile_lang(name) ~= nil
-    end, {
-      path = absdir,
-      type = 'file',
-      follow = true,
-      limit = math.huge,
-    })
-
-    if vim.tbl_isempty(files) then
-      echo_err(('E151: No match: %s'):format(vim.fs.joinpath(directory, '**/*.txt')))
-    end
-
-    -- categorize helpfiles per language, see |help-translated|
-    ---@type table<string, string[]>
-    local per_lang = {}
-    for _, file in ipairs(files) do
-      local lang = assert(helpfile_lang(file))
-      per_lang[lang] = per_lang[lang] or {}
-      table.insert(per_lang[lang], file)
-    end
-
-    for lang, langfiles in pairs(per_lang) do
-      -- English is an exception: "*.txt" files generate the "tags" file.
-      local tagsfile = lang == 'en' and 'tags' or ('tags-%s'):format(lang)
-      local outpath = vim.fs.joinpath(directory, tagsfile)
-      -- ":helptags ALL" walks 'runtimepath', which may contain read-only directories.
-      local ignore_writeerr = dir == nil
-      M.gen_tagsfile(
-        langfiles,
-        absdir,
-        outpath,
-        (include_index_tag or directory == vimruntime) and tagsfile or nil,
-        ignore_writeerr
-      )
     end
   end
 end

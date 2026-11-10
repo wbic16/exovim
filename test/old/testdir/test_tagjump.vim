@@ -1239,12 +1239,17 @@ func Test_tselect_listing()
 
   call feedkeys("\<CR>", "t")
   let l = split(execute("tselect first"), "\n")
-  " Nvim: :tselect goes through vim.ui.select().
   let expected =<< [DATA]
-Select a tag:
-1:   FS  v    first              Xfoo
-2:   FS  v    first              Xfoo
+  # pri kind tag               file
+  1 FS  v    first             Xfoo
+               typeref:typename:int 
+               1
+  2 FS  v    first             Xfoo
+               typeref:typename:char 
+               2
 [DATA]
+" Type number and <Enter> (q or empty cancels):
+" Nvim: Prompt message is sent to cmdline prompt.
 
   call assert_equal(expected, l)
 

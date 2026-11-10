@@ -2,7 +2,6 @@
 --- Highlighting is enabled by default.
 
 local api = vim.api
-local nvim_on = require('vim._core.util').nvim_on
 local lsp = vim.lsp
 local util = lsp.util
 local Capability = require('vim.lsp._capability')
@@ -46,7 +45,7 @@ local function get_contrast_color(color)
   -- Source: https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
   -- Using power 2.2 is a close approximation to full piecewise transform
   local R, G, B = (r / 255) ^ 2.2, (g / 255) ^ 2.2, (b / 255) ^ 2.2
-  local is_bright = (0.2126 * R + 0.7152 * G + 0.0722 * B) > 0.179
+  local is_bright = (0.2126 * R + 0.7152 * G + 0.0722 * B) > 0.5
   return is_bright and '#000000' or '#ffffff'
 end
 
@@ -55,24 +54,23 @@ end
 --- @return string
 local function get_hex_code(color)
   -- The RGB values in lsp.Color are in the [0-1] range, but we want them to be in the [0-255] range instead.
-  --- @param n decimal
-  local rgb = vim.tbl_map(function(n)
+  --- @param n number
+  color = vim.tbl_map(function(n)
     return math.floor((n * 255) + 0.5)
   end, color)
 
-  return ('#%02x%02x%02x'):format(rgb.red, rgb.green, rgb.blue):lower()
+  return ('#%02x%02x%02x'):format(color.red, color.green, color.blue):lower()
 end
 
 --- Cache of the highlight groups that we've already created.
---- @type table<string, boolean>
+--- @type table<string, true>
 local color_cache = {}
-local n_color_cache = 0
 
 --- Gets or creates the highlight group for the given LSP color information.
 ---
 --- @param hex_code string
 --- @param style string
---- @return string?
+--- @return string
 local function get_hl_group(hex_code, style)
   if style ~= 'background' then
     style = 'foreground'
@@ -80,27 +78,17 @@ local function get_hl_group(hex_code, style)
 
   local hl_name = ('LspDocumentColor_%s_%s'):format(hex_code:sub(2), style)
 
-  if color_cache[hl_name] then
-    return hl_name
+  if not color_cache[hl_name] then
+    if style == 'background' then
+      api.nvim_set_hl(0, hl_name, { bg = hex_code, fg = get_contrast_color(hex_code) })
+    else
+      api.nvim_set_hl(0, hl_name, { fg = hex_code })
+    end
+
+    color_cache[hl_name] = true
   end
 
-  -- Limit number of created highlight groups to 10000 to not approach near
-  -- a hard limit of 19999 highlight groups (`:h E849`)
-  if n_color_cache > 10000 then
-    vim.notify_once(
-      'E849: The maximum number of highlight groups has been reached.',
-      vim.log.levels.WARN
-    )
-    return nil
-  end
-
-  local hl_opts = style == 'background' and { bg = hex_code, fg = get_contrast_color(hex_code) }
-    or { fg = hex_code }
-  local ok = pcall(api.nvim_set_hl, 0, hl_name, hl_opts)
-  color_cache[hl_name] = ok
-  n_color_cache = n_color_cache + (ok and 1 or 0)
-
-  return ok and hl_name or nil
+  return hl_name
 end
 
 --- @class (private) vim.lsp.document_color.Provider : vim.lsp.Capability
@@ -122,14 +110,37 @@ function Provider:new(bufnr)
   --- @type vim.lsp.document_color.Provider
   self = Capability.new(self, bufnr)
 
-  nvim_on('ColorScheme', self.augroup, { desc = 'Refresh document_color' }, function()
-    color_cache = {}
-    n_color_cache = 0
-    for client_id, _ in pairs(self.client_state) do
-      self:clear(client_id)
-      self:request(client_id)
-    end
-  end)
+  api.nvim_create_autocmd('LspNotify', {
+    group = self.augroup,
+    buf = self.bufnr,
+    callback = function(ev)
+      local client_id = ev.data.client_id ---@type integer
+
+      if not self.client_state[client_id] then
+        return
+      end
+
+      if ev.data.method == 'textDocument/didClose' then
+        self:clear(client_id)
+      end
+
+      if ev.data.method == 'textDocument/didChange' or ev.data.method == 'textDocument/didOpen' then
+        self:request(client_id)
+      end
+    end,
+  })
+
+  api.nvim_create_autocmd('ColorScheme', {
+    group = self.augroup,
+    desc = 'Refresh document_color',
+    callback = function()
+      color_cache = {}
+      for client_id, _ in pairs(self.client_state) do
+        self:clear(client_id)
+        self:request(client_id)
+      end
+    end,
+  })
 
   return self
 end
@@ -152,18 +163,6 @@ function Provider:on_detach(client_id)
     api.nvim_buf_clear_namespace(self.bufnr, state.namespace, 0, -1)
     self.client_state[client_id] = nil
   end
-end
-
----@private
----@param client_id integer
-function Provider:on_close(client_id)
-  self:clear(client_id)
-end
-
----@private
----@param client_id integer
-function Provider:on_change(client_id)
-  self:request(client_id)
 end
 
 --- |lsp-handler| for the `textDocument/documentColor` method.
@@ -239,53 +238,60 @@ function Provider:clear(client_id)
   end
 end
 
---- @package
-function Provider:on_win()
-  local style = document_color_opts.style
-
-  for _, state in pairs(self.client_state) do
-    if
-      state.processed_version == util.buf_versions[self.bufnr]
-      and state.processed_version ~= state.applied_version
-    then
-      api.nvim_buf_clear_namespace(self.bufnr, state.namespace, 0, -1)
-
-      for _, hl in ipairs(state.hl_info) do
-        if type(style) == 'function' then
-          style(self.bufnr, hl.range, hl.hex_code)
-        elseif style == 'foreground' or style == 'background' then
-          api.nvim_buf_set_extmark(
-            self.bufnr,
-            state.namespace,
-            hl.range.start_row,
-            hl.range.start_col,
-            {
-              end_row = hl.range.end_row,
-              end_col = hl.range.end_col,
-              hl_group = hl.hl_group,
-              strict = false,
-            }
-          )
-        else
-          -- Default swatch: \uf0c8
-          local swatch = style == 'virtual' and ' ' or style
-          api.nvim_buf_set_extmark(
-            self.bufnr,
-            state.namespace,
-            hl.range.start_row,
-            hl.range.start_col,
-            {
-              virt_text = { { swatch, hl.hl_group } },
-              virt_text_pos = 'inline',
-            }
-          )
-        end
-      end
-
-      state.applied_version = state.processed_version
+local document_color_ns = api.nvim_create_namespace('nvim.lsp.document_color')
+api.nvim_set_decoration_provider(document_color_ns, {
+  on_win = function(_, _, bufnr)
+    local provider = Provider.active[bufnr]
+    if not provider then
+      return
     end
-  end
-end
+
+    local style = document_color_opts.style
+
+    for _, state in pairs(provider.client_state) do
+      if
+        state.processed_version == util.buf_versions[bufnr]
+        and state.processed_version ~= state.applied_version
+      then
+        api.nvim_buf_clear_namespace(bufnr, state.namespace, 0, -1)
+
+        for _, hl in ipairs(state.hl_info) do
+          if type(style) == 'function' then
+            style(bufnr, hl.range, hl.hex_code)
+          elseif style == 'foreground' or style == 'background' then
+            api.nvim_buf_set_extmark(
+              bufnr,
+              state.namespace,
+              hl.range.start_row,
+              hl.range.start_col,
+              {
+                end_row = hl.range.end_row,
+                end_col = hl.range.end_col,
+                hl_group = hl.hl_group,
+                strict = false,
+              }
+            )
+          else
+            -- Default swatch: \uf0c8
+            local swatch = style == 'virtual' and ' ' or style
+            api.nvim_buf_set_extmark(
+              bufnr,
+              state.namespace,
+              hl.range.start_row,
+              hl.range.start_col,
+              {
+                virt_text = { { swatch, hl.hl_group } },
+                virt_text_pos = 'inline',
+              }
+            )
+          end
+        end
+
+        state.applied_version = state.processed_version
+      end
+    end
+  end,
+})
 
 --- @param provider vim.lsp.document_color.Provider
 --- @return vim.lsp.document_color.HighlightInfo?, integer?
@@ -319,7 +325,7 @@ function M.color_presentation()
     return
   end
 
-  local uri = vim.uri.from_buf(bufnr)
+  local uri = vim.uri_from_bufnr(bufnr)
   local client = assert(lsp.get_client_by_id(client_id))
 
   --- @type lsp.ColorPresentationParams

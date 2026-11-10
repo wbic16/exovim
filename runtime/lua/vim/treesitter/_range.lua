@@ -1,5 +1,4 @@
 local api = vim.api
-local util = require('vim.pos._util')
 
 local M = {}
 
@@ -26,8 +25,52 @@ local M = {}
 
 ---@alias Range Range2|Range4|Range6
 
--- TODO(ofseed): directly use `cmp_pos` from `util` and replace all exported usages.
-M.cmp_pos = util.cmp_pos
+---@param a_row integer
+---@param a_col integer
+---@param b_row integer
+---@param b_col integer
+---@return integer
+--- 1: a > b
+--- 0: a == b
+--- -1: a < b
+local function cmp_pos(a_row, a_col, b_row, b_col)
+  if a_row == b_row then
+    if a_col > b_col then
+      return 1
+    elseif a_col < b_col then
+      return -1
+    else
+      return 0
+    end
+  elseif a_row > b_row then
+    return 1
+  end
+
+  return -1
+end
+
+M.cmp_pos = {
+  lt = function(...)
+    return cmp_pos(...) == -1
+  end,
+  le = function(...)
+    return cmp_pos(...) ~= 1
+  end,
+  gt = function(...)
+    return cmp_pos(...) == 1
+  end,
+  ge = function(...)
+    return cmp_pos(...) ~= -1
+  end,
+  eq = function(...)
+    return cmp_pos(...) == 0
+  end,
+  ne = function(...)
+    return cmp_pos(...) ~= 0
+  end,
+}
+
+setmetatable(M.cmp_pos, { __call = cmp_pos })
 
 ---Check if a variable is a valid range object
 ---@param r any
@@ -80,8 +123,6 @@ function M.intersection(r1, r2)
   if #r1 == 4 or #r2 == 4 then
     local rs = M.cmp_pos.le(r1[1], r1[2], r2[1], r2[2]) and r2 or r1
     local re = M.cmp_pos.ge(r1[3], r1[4], r2[3], r2[4]) and r2 or r1
-    -- This branch implements the Range4 overload.
-    ---@diagnostic disable-next-line: return-type-mismatch
     return { rs[1], rs[2], re[3], re[4] }
   end
 
@@ -97,8 +138,6 @@ function M.unpack4(r)
     return r[1], 0, r[2], 0
   end
   local off_1 = #r == 6 and 1 or 0
-  -- EmmyLua does not narrow tuple fields from the range length.
-  ---@diagnostic disable-next-line: return-type-mismatch
   return r[1], r[2], r[3 + off_1], r[4 + off_1]
 end
 
@@ -168,58 +207,12 @@ function M.add_bytes(source, range)
     return range --[[@as Range6]]
   end
 
-  -- EmmyLua incorrectly makes range nullable after the table check.
-  ---@cast range -nil
   local start_row, start_col, end_row, end_col = M.unpack4(range)
   -- TODO(vigoux): proper byte computation here, and account for EOL ?
   local start_byte = get_offset(source, start_row) + start_col
   local end_byte = get_offset(source, end_row) + end_col
 
   return { start_row, start_col, start_byte, end_row, end_col, end_byte }
-end
-
----@param range Range
-function M.visual_select(range)
-  local start_row, start_col, end_row, end_col = M.unpack4(range)
-
-  -- If the selection ends at column 0, adjust the position to the end of the previous line.
-  if end_col == 0 then
-    end_row = end_row - 1
-    end_col = #vim.fn.getline(end_row + 1) + 1
-  end
-
-  if vim.o.selection == 'exclusive' then
-    end_col = end_col + 1
-  end
-
-  if not vim.fn.mode():find('^[vV\22]') then
-    -- Operator-pending: select directly, not via "gv", to keep the user's '< '> (|omap-info|).
-    api.nvim_win_set_cursor(0, { start_row + 1, start_col })
-    vim.cmd.normal({ 'v', bang = true })
-    api.nvim_win_set_cursor(0, { end_row + 1, end_col - 1 })
-    return
-  end
-
-  if vim.fn.visualmode() ~= 'v' then
-    -- Reset visualmode() to 'v'
-    vim.cmd.normal({ 'v\27', bang = true })
-  end
-
-  local cursor_other_end_of_selection = false
-  local visual_col, visual_row = vim.fn.col('v'), vim.fn.line('v')
-  local cursor_col, cursor_row = vim.fn.col('.'), vim.fn.line('.')
-  if M.cmp_pos.gt(visual_row, visual_col, cursor_row, cursor_col) then
-    cursor_other_end_of_selection = true
-  end
-
-  vim.fn.setpos("'<", { 0, start_row + 1, start_col + 1, 0 })
-  vim.fn.setpos("'>", { 0, end_row + 1, end_col, 0 })
-
-  if cursor_other_end_of_selection then
-    vim.cmd.normal({ 'gvo', bang = true })
-  else
-    vim.cmd.normal({ 'gv', bang = true })
-  end
 end
 
 return M

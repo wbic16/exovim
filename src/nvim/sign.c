@@ -20,12 +20,13 @@
 #include "nvim/decoration.h"
 #include "nvim/decoration_defs.h"
 #include "nvim/drawscreen.h"
+#include "nvim/edit.h"
 #include "nvim/errors.h"
 #include "nvim/eval/funcs.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
-#include "nvim/ex_cmds.h"
 #include "nvim/ex_cmds_defs.h"
+#include "nvim/ex_docmd.h"
 #include "nvim/extmark.h"
 #include "nvim/fold.h"
 #include "nvim/gettext_defs.h"
@@ -33,10 +34,8 @@
 #include "nvim/grid.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/highlight_group.h"
-#include "nvim/insert.h"
 #include "nvim/macros_defs.h"
 #include "nvim/map_defs.h"
-#include "nvim/mark.h"
 #include "nvim/marktree.h"
 #include "nvim/marktree_defs.h"
 #include "nvim/mbyte.h"
@@ -118,7 +117,7 @@ static void buf_set_sign(buf_T *buf, uint32_t *id, char *group, int prio, linenr
   sign.priority = (DecorPriority)prio;
 
   bool has_hl = (sp->sn_line_hl || sp->sn_num_hl || sp->sn_cul_hl);
-  uint32_t decor_flags = (sp->sn_text[0] ? MT_FLAG_DECOR_SIGNTEXT : 0)
+  uint16_t decor_flags = (sp->sn_text[0] ? MT_FLAG_DECOR_SIGNTEXT : 0)
                          | (has_hl ? MT_FLAG_DECOR_SIGNHL : 0);
 
   DecorInline decor = { .ext = true, .data.ext = { .vt = NULL, .sh_idx = decor_put_sh(sign) } };
@@ -265,8 +264,7 @@ static void sign_list_placed(buf_T *rbuf, char *group)
   while (buf != NULL && !got_int) {
     if (buf_has_signs(buf)) {
       msg_putchar('\n');
-      const char *fname = buf->b_fname ? buf->b_fname : _("Untitled");
-      snprintf(lbuf, MSG_BUF_LEN, _("Signs for %s:"), fname);
+      vim_snprintf(lbuf, MSG_BUF_LEN, _("Signs for %s:"), buf->b_fname);
       msg_puts_hl(lbuf, HLF_D, false);
     }
 
@@ -357,9 +355,10 @@ size_t describe_sign_text(char *buf, schar_T *sign_text)
 /// "sp" is NULL for signs added through nvim_buf_set_extmark().
 int init_sign_text(sign_T *sp, schar_T *sign_text, char *text)
 {
+  char *s;
   char *endp = text + (int)strlen(text);
 
-  for (char *s = sp ? text : endp; s + 1 < endp; s++) {
+  for (s = sp ? text : endp; s + 1 < endp; s++) {
     if (*s == '\\') {
       // Remove a backslash, so that it is possible to use a space.
       STRMOVE(s, s + 1);
@@ -368,24 +367,24 @@ int init_sign_text(sign_T *sp, schar_T *sign_text, char *text)
   }
   // Count cells and check for non-printable chars
   int cells = 0;
-  StrCharInfo ci = utf_ptr2StrCharInfo(text);
-
-  while (*ci.ptr != NUL) {
-    ClusterInfo cli = utf_ClusterInfo(ci);
-    if (!vim_isprintc(ci.chr.value) || cells + cli.cells > SIGN_WIDTH) {
-      if (sp != NULL) {
-        semsg(_("E239: Invalid sign text: %s"), text);
-      }
-      return FAIL;
+  for (s = text; s < endp; s += utfc_ptr2len(s)) {
+    int c;
+    sign_text[cells] = utfc_ptr2schar(s, &c);
+    if (!vim_isprintc(c)) {
+      break;
     }
-
-    sign_text[cells] = schar_from_cluster(ci, cli);
-    assert(cli.cells <= 2);  // need to revisit this if SIGN_WIDTH is ever increased
-    if (cli.cells == 2) {
+    int width = utf_ptr2cells(s);
+    if (width == 2) {
       sign_text[cells + 1] = 0;
     }
-    cells += cli.cells;
-    ci = cli.next;
+    cells += width;
+  }
+  // Currently must be empty, one or two display cells
+  if (s != endp || cells > SIGN_WIDTH) {
+    if (sp != NULL) {
+      semsg(_("E239: Invalid sign text: %s"), text);
+    }
+    return FAIL;
   }
 
   if (cells < 1) {
@@ -607,11 +606,11 @@ static linenr_T sign_jump(int id, char *group, buf_T *buf)
       emsg(_("E934: Cannot jump to a buffer that does not have a name"));
       return -1;
     }
-    setpcmark();
-    if (do_ecmd(buf->b_fnum, NULL, NULL, NULL, lnum,
-                buf_hide(curbuf) ? ECMD_HIDE : 0, curwin) == FAIL) {
-      return -1;
-    }
+    size_t cmdlen = strlen(buf->b_fname) + 24;
+    char *cmd = xmallocz(cmdlen);
+    snprintf(cmd, cmdlen, "e +%" PRId64 " %s", (int64_t)lnum, buf->b_fname);
+    do_cmdline_cmd(cmd);
+    xfree(cmd);
   }
 
   foldOpenCursor();
@@ -917,11 +916,7 @@ static dict_T *sign_get_info_dict(sign_T *sp)
   for (int i = 0; i < 4; i++) {
     if (hl[i] > 0) {
       const char *p = get_highlight_name_ext(NULL, hl[i] - 1, false);
-      if (p == NULL) {
-        tv_dict_add_str_len(d, arg[i], strlen(arg[i]), S_LEN("NONE"));
-      } else {
-        tv_dict_add_str(d, arg[i], strlen(arg[i]), p);
-      }
+      tv_dict_add_str(d, arg[i], strlen(arg[i]), p ? p : "NONE");
     }
   }
   return d;

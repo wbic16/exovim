@@ -1,8 +1,6 @@
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local exec = n.exec
 local feed = n.feed
@@ -37,7 +35,7 @@ describe('display', function()
     ]])
     feed('VG7kk')
     screen:expect([[
-      {7:  }{17:^foo}                                                       |
+      {7:  }^f{17:oo}                                                       |
       {7:  }foo                                                       |*6
       {5:-- VISUAL LINE --}                                           |
     ]])

@@ -296,7 +296,7 @@ void pty_proc_teardown(Loop *loop)
 static void init_child(PtyProc *ptyproc)
   FUNC_ATTR_NONNULL_ALL FUNC_ATTR_NORETURN
 {
-#ifdef HAVE__NSGETENVIRON
+#if defined(HAVE__NSGETENVIRON)
 # define environ (*_NSGetEnviron())
 #else
   extern char **environ;

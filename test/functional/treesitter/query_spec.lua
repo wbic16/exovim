@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local dedent = t.dedent
 local eq = t.eq
@@ -883,9 +882,9 @@ void ui_refresh(void)
         local query0 = vim.treesitter.query.parse('c', query)
         local match_preds = query0._match_predicates
         local called = 0
-        function query0._match_predicates(...)
+        function query0:_match_predicates(...)
           called = called + 1
-          return match_preds(...)
+          return match_preds(self, ...)
         end
         local parser = vim.treesitter.get_parser(0, 'c')
         local root = parser:parse()[1]:root()

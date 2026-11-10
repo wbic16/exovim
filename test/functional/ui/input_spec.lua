@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local clear = n.clear
 local feed, next_msg, eq = n.feed, n.next_msg, t.eq
 local command = n.command
@@ -182,7 +181,6 @@ describe('input split utf sequences', function()
 
   it('can be mapped', function()
     command('inoremap ► E296BA')
-    command('set ttimeoutlen=100') -- CI test runners may cause timeout otherwise
     local str = '►'
     feed('i' .. str:sub(1, 1))
     vim.uv.sleep(10)

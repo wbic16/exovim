@@ -32,8 +32,8 @@ nner (w)ord（修改内部单词）*
 
   5. 导航到 'cake' 单词的任意位置，然后输入 `ciw<CTRL-r>b<ESC>`{normal}
 
-a) Edward will henceforth be in charge of the cookie rations [[-1]]
-b) In this capacity, Vince will have sole cake discretionary powers [[b) In this capacity, Edward will have sole cookie discretionary powers]]
+a) Edward will henceforth be in charge of the cookie rations
+b) In this capacity, Vince will have sole cake discretionary powers
 
 NOTE: 删除操作同样可以存入寄存器，例如 `"sdiw`{normal} 会将被光标下的单词删除并存入寄存器 s。
 
@@ -59,8 +59,8 @@ NOTE: 删除操作同样可以存入寄存器，例如 `"sdiw`{normal} 会将被
 NOTE: 所有对 `system` 的调用都依赖于操作系统，例如在 Windows 上应使用
       `system('date /t')`{vim}   或  `:r!date /t`{vim}
 
-I have forgotten the exact number of seconds in a day, is it 84600? [[I have forgotten the exact number of seconds in a day, is it 86400]]
-Today's date is:  [[-1]]
+I have forgotten the exact number of seconds in a day, is it 84600?
+Today's date is: 
 
 NOTE: 同样效果也可以通过 `:pu=`{normal}`system('date')`{vim} 实现，
       或者用更少的按键 `:r!date`{vim}
@@ -86,7 +86,7 @@ NOTE: 你应该会发现，当新的整行删除内容被添加进来时，之�
 
   5. 现在，按顺序 (p)aste（粘贴）以下寄存器中的内容：c, 7, 4, 8, 2。例如，使用 `"7p`{normal}
 
-0. This [[-1]]
+0. This
 9. wobble
 8. secret
 7. is
@@ -129,7 +129,7 @@ NOTE: 光标在该行的确切位置并不重要！
 NOTE: 多次练习这个操作以达到熟练：`ma$%"ad'a`{normal}
 
 ~~~ cmd
-AAA [[-1]]
+AAA
 function itGotRealBigRealFast() {
   if ( somethingIsTrue ) {
     doIt()

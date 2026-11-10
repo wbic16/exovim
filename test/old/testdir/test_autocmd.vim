@@ -1138,7 +1138,6 @@ endfunc
 func Test_autocmd_SessLoadPre()
   tabnew
   set noswapfile
-  mkview! Xview.vim
   mksession! Session.vim
 
   call assert_false(exists('g:session_loaded_var'))
@@ -1155,7 +1154,6 @@ func Test_autocmd_SessLoadPre()
     endfunc
 
     func! OnSessionLoadPre()
-      call Assert(exists('g:SessionLoad'), 'SessionLoadPre: session IS loading')
       call Assert(!exists('g:session_loaded_var'),
             \ 'SessionLoadPre: var NOT set')
     endfunc
@@ -1185,7 +1183,7 @@ func Test_autocmd_SessLoadPre()
   " --- Run child Vim ---
   call system(
         \ GetVimCommand('Xvimrc')
-        \ .. ' --headless --noplugins -S Xview.vim -S Session.vim -c cq'
+        \ .. ' --headless --noplugins -S Session.vim -c cq'
         \ )
 
   call WaitForAssert({-> assert_true(filereadable('XerrorsPost'))})
@@ -1197,7 +1195,7 @@ func Test_autocmd_SessLoadPre()
   call assert_match('SessionLoadPost DONE', errors)
 
   set swapfile
-  for file in ['Session.vim', 'Sessionx.vim', 'Xview.vim', 'XerrorsPost']
+  for file in ['Session.vim', 'Sessionx.vim', 'XerrorsPost']
     call delete(file)
   endfor
 endfunc
@@ -1205,10 +1203,10 @@ endfunc
 " Closing a window might cause an endless loop
 " E814 for older Vims
 func Test_autocmd_bufwipe_in_SessLoadPost()
-  set noswapfile
   edit Xtest
   tabnew
   file Xsomething
+  set noswapfile
   mksession!
 
   let content =<< trim [CODE]
@@ -3128,40 +3126,7 @@ func Test_autocmd_once()
   close
 
   call assert_fails('au WinNew * ++once ++once echo bad', 'E983:')
-  call assert_false(exists('#WinNew'))
 endfunc
-
-func Test_autocmd_dup_arg()
-  " Duplicate ++once / ++nested, or the legacy "nested" used twice, must
-  " error out *and* not create the autocommand.  Using an environment
-  " variable in the pattern also exercises the error-exit path that frees
-  " the expanded pattern (checked by the address/leak sanitizers).
-  augroup XdupTest
-    au!
-  augroup END
-  let $XAUTODIR = 'Xfoo'
-
-  " New behavior: duplicate ++once now aborts, the autocmd is not added
-  call assert_fails('au XdupTest WinNew $XAUTODIR/* ++once ++once echo bad', 'E983:')
-  call assert_false(exists('#XdupTest#WinNew'))
-
-  call assert_fails('au XdupTest WinNew $XAUTODIR/* ++nested ++nested echo bad', 'E983:')
-  call assert_false(exists('#XdupTest#WinNew'))
-
-  call assert_fails('au XdupTest WinNew $XAUTODIR/* nested nested echo bad', 'E983:')
-  call assert_false(exists('#XdupTest#WinNew'))
-
-  " "nested" without "++" is rejected in Vim9 script (also frees the pattern)
-  "call assert_fails('vim9cmd au XdupTest WinNew $XAUTODIR/* nested echo bad', 'E1078:')
-  call assert_false(exists('#XdupTest#WinNew'))
-
-  augroup XdupTest
-    au!
-  augroup END
-  augroup! XdupTest
-  let $XAUTODIR = ''
-endfunc
-
 
 func Test_autocmd_bufreadpre()
   new
@@ -3913,9 +3878,6 @@ endfunc
 
 " Fuzzer found some strange combination that caused a crash.
 func Test_autocmd_normal_mess()
-  " Uses `q/` (cmdwin) in autocmd; with non-blocking cmdwin (#40312) the
-  " expected E1159 path now hits E1513 (winfixbuf) instead.
-  throw 'Skipped: Nvim supports cmdwin freedom #40312'
   " For unknown reason this hangs on MS-Windows
   CheckNotMSWindows
 
@@ -3935,7 +3897,6 @@ func Test_autocmd_normal_mess()
 endfunc
 
 func Test_autocmd_closing_cmdwin()
-  throw 'Skipped: Nvim supports cmdwin freedom #40312'
   " For unknown reason this hangs on MS-Windows
   CheckNotMSWindows
 
@@ -4086,37 +4047,6 @@ func Test_v_event_readonly()
   au! TextYankPost
 endfunc
 
-func s:YankWithNestedEvent()
-  let before = deepcopy(v:event)
-  cd Xveventdir
-  cd -
-  call add(g:Xouter, [before, deepcopy(v:event)])
-endfunc
-
-" v:event of an autocommand is restored after a nested autocommand that
-" also uses v:event
-func Test_v_event_nested()
-  call mkdir('Xveventdir', 'R')
-  let g:Xouter = []
-  let g:Xinner = []
-  autocmd TextYankPost * ++nested call s:YankWithNestedEvent()
-  autocmd DirChangedPre * call add(g:Xinner, deepcopy(v:event))
-  new
-  call setline(1, 'text')
-  normal! yy
-  au! TextYankPost
-  au! DirChangedPre
-  bwipe!
-
-  call assert_equal(1, len(g:Xouter))
-  call assert_equal(g:Xouter[0][0], g:Xouter[0][1])
-  call assert_equal('y', g:Xouter[0][1].operator)
-  call assert_equal(['text'], g:Xouter[0][1].regcontents)
-  call assert_equal(2, len(g:Xinner))
-  call assert_match('Xveventdir$', g:Xinner[0].directory)
-  unlet g:Xouter g:Xinner
-endfunc
-
 " Test for ModeChanged pattern
 func Test_mode_changes()
   let g:index = 0
@@ -4183,12 +4113,11 @@ func Test_mode_changes()
   au ModeChanged n:c let g:n_to_c += 1
   let g:c_to_n = 0
   au ModeChanged c:n let g:c_to_n += 1
-  " Nvim: Cannot test non-blocking cmdwin (#40312) using feedkeys() 'x' flag.
-  "let g:mode_seq += ['c', 'n', 'c', 'n']
-  "call feedkeys("q:\<C-C>\<Esc>", 'tnix')
-  "call assert_equal(len(g:mode_seq) - 1, g:index)
-  "call assert_equal(2, g:n_to_c)
-  "call assert_equal(2, g:c_to_n)
+  let g:mode_seq += ['c', 'n', 'c', 'n']
+  call feedkeys("q:\<C-C>\<Esc>", 'tnix')
+  call assert_equal(len(g:mode_seq) - 1, g:index)
+  call assert_equal(2, g:n_to_c)
+  call assert_equal(2, g:c_to_n)
 
   let g:n_to_v = 0
   au ModeChanged n:v let g:n_to_v += 1
@@ -4389,11 +4318,10 @@ func Test_autocmd_creates_new_window_on_bufleave()
   setlocal bufhidden=wipe
   autocmd BufLeave <buffer> diffsplit c.txt
   bn
-  " curbuf set for the new split opened for c.txt, due to BufLeave
-  call assert_equal(2, winnr('$'))
+  call assert_equal(1, winnr('$'))
   call assert_equal('a.txt', bufname('%'))
-  call assert_equal('b.txt', bufname('#'))
-  %bw!
+  bw a.txt
+  bw c.txt
 endfunc
 
 " Ensure `expected` was just recently written as a Vim session
@@ -4690,32 +4618,6 @@ func Test_autocmd_BufWinLeave_with_vsp()
   bw
   call CleanUpTestAuGroup()
   exe "bw! " .. dummy
-endfunc
-
-func Test_autocmd_BufWinLeave_with_vsp2()
-  edit Xfoo
-  split Xbar
-  split
-  let s:fired = 0
-  augroup testing
-    autocmd!
-    autocmd BufWinLeave Xfoo ++once ++nested
-          \ execute 'autocmd WinEnter * ++once let s:fired = 1'
-          \  .. '| call assert_equal(3, win_findbuf(bufnr(''Xbar''))->len())'
-          \  .. '| quit'
-          \| call assert_fails('vsplit Xfoo', 'E1546:')
-  augroup END
-  bw Xfoo
-  call assert_equal(1, s:fired)
-  " After 9.1.0764, Xbar's b_nwindows would be 0 if autocmds closed the new
-  " split before E1546, causing it to be unloaded despite being in a window.
-  call assert_equal(0, bufexists('Xfoo'))
-  call assert_equal(1, win_findbuf(bufnr('Xbar'))->len())
-  call assert_equal(1, bufloaded('Xbar'))
-
-  call CleanUpTestAuGroup()
-  unlet! s:fired
-  %bw!
 endfunc
 
 func Test_OptionSet_cmdheight()
@@ -5299,278 +5201,6 @@ func Test_win_tabclose_autocmd()
   endtry
   call assert_equal(1, tabpagenr('$'))
   bw!
-endfunc
-
-func Test_buffer_b_nwindows()
-  " In these cases, b_nwindows of the Xbars was 1 despite being in no windows.
-  " Would cause weird failures in other tests, as they would be un-deletable.
-  edit Xfoo1
-  augroup testing
-    autocmd!
-    autocmd BufUnload * ++once edit Xbar1
-  augroup END
-  bdelete
-  call assert_equal([], win_findbuf(bufnr('Xfoo1')))
-  call assert_equal([], win_findbuf(bufnr('Xbar1')))
-  call assert_equal(1, bufexists('Xfoo1'))
-  call assert_equal(1, bufexists('Xbar1'))
-  %bw!
-  call assert_equal(0, bufexists('Xfoo1'))
-  call assert_equal(0, bufexists('Xbar1'))
-
-  split Xbar2
-  enew
-  augroup testing
-    autocmd!
-    autocmd BufWinLeave * ++once buffer Xbar2
-  augroup END
-  quit
-  call assert_equal([], win_findbuf(bufnr('Xbar2')))
-  call assert_equal(1, bufexists('Xbar2'))
-  %bw!
-  call assert_equal(0, bufexists('Xbar2'))
-
-  edit Xbar3
-  enew
-  setlocal bufhidden=hide
-  let s:win = win_getid()
-  tabnew
-  augroup testing
-    autocmd!
-    autocmd BufHidden * ++once call win_execute(s:win, 'buffer Xbar3')
-  augroup END
-  tabonly
-  call assert_equal([], win_findbuf(bufnr('Xbar3')))
-  call assert_equal(1, bufexists('Xbar3'))
-  %bw!
-  call assert_equal(0, bufexists('Xbar3'))
-  unlet! s:win
-
-  edit Xbar4
-  split Xfoo4
-  augroup testing
-    autocmd!
-    autocmd BufWinLeave * ++once call assert_equal('Xfoo4', bufname())
-          \| edit Xbar4
-  augroup END
-  edit Xbar4
-  call assert_equal(0, bufloaded('Xfoo4'))
-  call assert_equal(1, bufexists('Xfoo4'))
-  " After 8.2.2354, Xfoo4 wrongly had b_nwindows of 1, so couldn't be wiped.
-  call assert_equal([], win_findbuf('Xfoo4'))
-  %bw!
-  call assert_equal(0, bufexists('Xfoo4'))
-
-  call CleanUpTestAuGroup()
-  %bw!
-endfunc
-
-" Test that an autocmd triggered by v:swapchoice == 'q' that switches buffers
-" doesn't cause b_nwindows to be wrong.
-func Test_SwapExists_b_nwindows()
-  let lines =<< trim END
-    set nocompatible directory=.
-
-    let g:buf = bufnr()
-    new
-
-    func SwapExists()
-      let v:swapchoice = 'q'
-      autocmd BufWinLeave * ++nested ++once buffer Xfoo
-    endfunc
-
-    func SafeState()
-      edit Xfoo
-      edit <script>
-      %bw!
-      call writefile([bufexists('Xfoo')], 'XnwindowsSwapExists.out')
-      qall!
-    endfunc
-
-    autocmd SwapExists * ++nested ++once call SwapExists()
-    autocmd SafeState * ++nested ++once call SafeState()
-  END
-  call writefile(lines, 'XnwindowsSwapExists.vim', 'D')
-
-  new XnwindowsSwapExists.vim
-  if RunVim('', '', ' -S XnwindowsSwapExists.vim')
-    call assert_equal(['0'], readfile('XnwindowsSwapExists.out'))
-    call delete('XnwindowsSwapExists.out')
-  endif
-
-  %bw!
-endfunc
-
-func Test_TextPutX()
-  enew!
-
-  let g:pre_event = []
-  let g:post_event = []
-  au TextPutPre * let g:pre_event = copy(v:event)
-  au TextPutPost * let g:post_event = copy(v:event)
-
-  call setreg('a', ['foo'], 'v')
-  norm "ap
-  call assert_equal(
-        \ #{regcontents: ['foo'], regname: 'a', operator: 'p',
-        \ visual: v:false, regtype: 'v'},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-
-  call setreg('', ['hello'], 'V')
-  norm P
-  call assert_equal(
-        \ #{regcontents: ['hello'], regname: '',  operator: 'P',
-        \ visual: v:false, regtype: 'V'},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-
-  call setreg('', ['maybe', 'true'], 'V')
-  norm Vp
-  call assert_equal(
-        \ #{regcontents: ['maybe', 'true'], regname: '',  operator: 'P',
-        \ regtype: 'V', visual: v:true},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-  call assert_equal({}, v:event)
-
-  call feedkeys("iinserted text\<CR>below\<Esc>", 'x')
-  norm ".p
-  call assert_equal(
-        \ #{regcontents: ["inserted text\nbelow"], regname: '.',
-        \ operator: 'p', regtype: 'v', visual: v:false},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-
-  call feedkeys("\"=201\<CR>p", 'x')
-  call assert_equal(
-        \ #{regcontents: ["201"], regname: '=',
-        \ operator: 'p', regtype: 'v', visual: v:false},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-
-  vsplit some.txt
-  wincmd l
-  norm "#p
-  call assert_equal(
-        \ #{regcontents: ["some.txt"], regname: '#',
-        \ operator: 'p', regtype: 'v', visual: v:false},
-        \ g:pre_event)
-  call assert_equal(g:pre_event, g:post_event)
-  wincmd h
-  bw!
-
-  if has('clipboard_working')
-    let @+ = 'clipboard'
-
-    norm "+p
-    call assert_equal(
-          \ #{regcontents: ["clipboard"], regname: '+',
-          \ operator: 'p', regtype: 'v', visual: v:false},
-          \ g:pre_event)
-    call assert_equal(g:pre_event, g:post_event)
-  endif
-
-  %delete " Clear buffer
-
-  au! TextPutPre
-  au! TextPutPost
-  let g:pre_event = []
-  let g:post_event = []
-
-  au TextPutPre * call setreg(v:event['regname'],
-        \ getreg('', 0, v:true) + ['!']) " Unnamed register should be same as regname
-
-  call setreg('', ['hello', 'world'])
-  norm p
-  call assert_equal(['', 'hello', 'world', '!'], getline(1, '$'))
-
-  au! TextPutPre
-
-  " Test that special registers cannot be modified
-  %delete
-  au TextPutPre * call setreg('=', '"modified"') | let g:pre_event = copy(v:event)
-
-  " Set up the expression register to evaluate to a known value.
-  call feedkeys("\"=\"original\"\<CR>p", 'x')
-
-  " The original value is what got put, not the modified one.
-  call assert_equal(['original'], getline(1, '$'))
-
-  " v:event still reports the original value.
-  call assert_equal(['original'], g:pre_event['regcontents'])
-
-  au! TextPutPre
-  let g:pre_event = []
-
-  for round in range(2)
-    " Recursive ". register calls have the same contents for post and pre.
-    au TextPutPre * put . | let g:pre_event = copy(v:event)
-    au TextPutPost * let g:post_event = copy(v:event)
-
-    call feedkeys("iinserted\<Esc>", 'x')
-    norm! ".p
-
-    call assert_equal(
-          \ #{regcontents: ["inserted"], regname: '.',
-          \ operator: 'p', regtype: 'v', visual: v:false},
-          \ g:pre_event)
-    call assert_equal(g:pre_event, g:post_event)
-
-    au! TextPutPre
-    au! TextPutPost
-
-    " Pasting ". register without TextPutPre/TextPutPost autocommands should
-    " not interfere with these autocommands in the next round.
-    norm! ".p
-  endfor
-
-  unlet g:post_event
-  unlet g:pre_event
-  bwipe!
-endfunc
-
-" Test that attempting to put text in normal mode terminal buffer does not
-" result in a crash. This only happens when terminal is only window in tabpage
-" it seems.
-func Test_TextPutPost_term_norm()
-  CheckFeature terminal
-
-  tabnew
-  term ++curwin
-
-  let bnr = bufnr('$')
-  call WaitForAssert({-> assert_equal('running', term_getstatus(bnr))})
-
-  call feedkeys("\<C-\>\<C-N>", 'xt')
-  call WaitForAssert({-> assert_equal('running,normal', term_getstatus(bnr))})
-
-  let err = 0
-
-  try
-    call feedkeys("p", 'xt')
-  catch /^Vim\%((\S\+)\)\=:E21:/
-    let err = 1
-  endtry
-
-  call assert_true(err)
-
-  unlet err
-  bwipe!
-endfunc
-
-func Test_setfname_wipe_in_autocmd()
-  edit Xsetfname_a
-  let bnr = bufnr()
-  badd Xsetfname_other
-  badd Xsetfname_b
-  augroup Xtest
-    exe 'au BufWipeout Xsetfname_b ++once bwipe! ' .. bnr
-  augroup END
-  call assert_fails('file Xsetfname_b', 'E937:')
-  au! Xtest
-  augroup! Xtest
-  %bwipe!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

@@ -39,10 +39,6 @@ func Test_highlight()
   call assert_equal("Group3         xxx cleared",
 				\ split(execute("hi Group3"), "\n")[0])
   call assert_fails("hi Crash term='asdf", "E475:")
-
-  if has('gui_running')
-    call assert_fails('hi NotUsed guibg=none', 'E1361:')
-  endif
 endfunc
 
 func HighlightArgs(name)
@@ -658,7 +654,7 @@ func Test_cursorcolumn_insert_on_tab()
     set cursorcolumn
     call cursor(2, 2)
   END
-  call writefile(lines, 'Xcuc_insert_on_tab', 'D')
+  call writefile(lines, 'Xcuc_insert_on_tab')
 
   let buf = RunVimInTerminal('-S Xcuc_insert_on_tab', #{rows: 8})
   call TermWait(buf)
@@ -677,30 +673,7 @@ func Test_cursorcolumn_insert_on_tab()
   call VerifyScreenDump(buf, 'Test_cursorcolumn_insert_on_tab_2', {})
 
   call StopVimInTerminal(buf)
-endfunc
-
-" The column highlighted with 'cursorcolumn' must be the column of the cursor,
-" also after a command that moved the cursor into virtual space and back.
-func Test_cursorcolumn_virtualedit()
-  CheckScreendump
-
-  let lines =<< trim END
-    set virtualedit=all
-    set cursorcolumn
-    call setline(1, ['', '', ''])
-    call cursor(3, 1)
-  END
-  call writefile(lines, 'Xcuc_virtualedit', 'D')
-
-  let buf = RunVimInTerminal('-S Xcuc_virtualedit', #{rows: 8})
-  call TermWait(buf)
-  call VerifyScreenDump(buf, 'Test_cursorcolumn_virtualedit_1', {})
-
-  call term_sendkeys(buf, "\<Del>")
-  call TermWait(buf)
-  call VerifyScreenDump(buf, 'Test_cursorcolumn_virtualedit_1', {})
-
-  call StopVimInTerminal(buf)
+  call delete('Xcuc_insert_on_tab')
 endfunc
 
 func Test_cursorcolumn_callback()
@@ -798,7 +771,6 @@ func Test_visual_sbr()
   let buf = RunVimInTerminal('-S Xtest_visual_sbr', {'rows': 6,'columns': 60})
 
   call term_sendkeys(buf, "v$")
-  call WaitForAssert({-> assert_match('VISUAL.*\d\+\s\+\d', term_getline(buf, 6))}, 1000)
   call VerifyScreenDump(buf, 'Test_visual_sbr_1', {})
 
   " clean up

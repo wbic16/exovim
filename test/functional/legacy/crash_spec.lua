@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local it, before_each, finally = t.it, t.before_each, t.finally
 local assert_alive = n.assert_alive
 local clear = n.clear
 local command = n.command
@@ -21,12 +20,7 @@ it('no crash when ending Visual mode while editing buffer closes window', functi
   assert_alive()
 end)
 
-it('no crash when ending Visual mode closes the window being closed', function()
-  command('source test/old/testdir/crash/poc_modechanged.vim')
-  assert_alive()
-end)
-
-it('no crash when ending Visual mode closes the window to switch to', function()
+it('no crash when ending Visual mode close the window to switch to', function()
   command('new')
   command('autocmd ModeChanged v:n ++once only')
   feed('v')

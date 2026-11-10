@@ -3,8 +3,6 @@ local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 local tt = require('test.functional.testterm')
 
-local describe, it, before_each, pending, finally =
-  t.describe, t.it, t.before_each, t.pending, t.finally
 local clear = n.clear
 local eq = t.eq
 local eval = n.eval
@@ -590,6 +588,9 @@ describe('jobs', function()
 
   it('can redefine callbacks being used by a job', function()
     local screen = Screen.new()
+    screen:set_default_attr_ids({
+      [1] = { bold = true, foreground = Screen.colors.Blue },
+    })
     source([[
       function! g:JobHandler(job_id, data, event)
       endfunction
@@ -612,6 +613,11 @@ describe('jobs', function()
 
   it('requires funcrefs for script-local (s:) functions', function()
     local screen = Screen.new(60, 5)
+    screen:set_default_attr_ids({
+      [1] = { bold = true, foreground = Screen.colors.Blue1 },
+      [2] = { foreground = Screen.colors.Grey100, background = Screen.colors.Red },
+      [3] = { bold = true, foreground = Screen.colors.SeaGreen4 },
+    })
 
     -- Pass job callback names _without_ `function(...)`.
     source([[
@@ -625,7 +631,7 @@ describe('jobs', function()
         \ })
     ]])
 
-    screen:expect { any = '{9:E120: Using <SID> not in a script context: s:OnEvent}' }
+    screen:expect { any = '{2:E120: Using <SID> not in a script context: s:OnEvent}' }
   end)
 
   it('does not repeat output with slow output handlers', function()
@@ -1022,20 +1028,15 @@ describe('jobs', function()
 
       it('can pass 0 to check if a job exists', function()
         source([[
-        let g:jobs = has('win32') ? [
+        call rpcnotify(g:channel, 'wait', jobwait(has('win32') ? [
         \  jobstart('Start-Sleep -Milliseconds 50; exit 4'),
         \  jobstart('Start-Sleep -Milliseconds 300; exit 5'),
         \  ] : [
         \  jobstart('sleep 0.05; exit 4'),
         \  jobstart('sleep 0.3; exit 5'),
-        \  ]
-        call rpcnotify(g:channel, 'wait', jobwait(g:jobs, 0))
+        \  ], 0))
         ]])
         eq({ 'notification', 'wait', { { -1, -1 } } }, next_msg())
-
-        -- With a timeout, keeps waiting for the second job after the first one exits.
-        command([[call rpcnotify(g:channel, 'wait', jobwait(g:jobs, 10000))]])
-        eq({ 'notification', 'wait', { { 4, 5 } } }, next_msg())
       end)
     end)
 
@@ -1246,30 +1247,6 @@ describe('jobs', function()
     end)
   end)
 
-  it('jobstop() kill timeout excludes prior event-loop blocking #42521', function()
-    skip(is_os('win'), 'N/A: no SIGTERM on Windows')
-    local rv = exec_lua(function()
-      local code --- @type integer?
-      -- Ignores SIGTERM, so only SIGKILL (after the kill timeout) stops it.
-      local job = vim.fn.jobstart({ 'sh', '-c', "trap '' TERM; sleep 10" }, {
-        on_exit = function(_, c)
-          code = c
-        end,
-      })
-      -- Ensure the cached loop time is stale/outdated relative to the jobstop() kill timeout.
-      vim.uv.sleep(500)
-      local start = vim.uv.hrtime()
-      vim.fn.jobstop(job)
-      -- Wake the loop often: a stale timer fires on the first wakeup.
-      vim.wait(5000, function()
-        return code ~= nil
-      end, 10)
-      return { code = code, elapsed = (vim.uv.hrtime() - start) / 1e6 }
-    end)
-    eq(137, rv.code)
-    ok(rv.elapsed >= 1900, '>= 1900 ms', rv.elapsed)
-  end)
-
   it('jobstop on same id before stopped', function()
     command('let j = jobstart(["cat", "-"], g:job_opts)')
     neq(0, eval('j'))
@@ -1278,6 +1255,9 @@ describe('jobs', function()
   end)
 
   describe('running tty-test program', function()
+    if skip(is_os('win')) then
+      return
+    end
     local function next_chunk()
       local rv
       while true do
@@ -1287,12 +1267,6 @@ describe('jobs', function()
           data[i] = data[i]:gsub('\n', '\000')
         end
         rv = table.concat(data, '\n')
-        if is_os('win') then
-          -- ConPTY injects its own terminal escapes (init/teardown CSI+OSC) and pads redraw rows
-          -- with trailing spaces around tty-test's plain output.
-          rv = rv:gsub('\27%[[%d;?]*[%a~]', ''):gsub('\27%][^\7]*\7', '')
-          rv = rv:gsub('[%s]+$', '')
-        end
         rv = rv:gsub('\r\n$', ''):gsub('^\r\n', '')
         if rv ~= '' then
           break
@@ -1329,14 +1303,12 @@ describe('jobs', function()
 
     it('resizing window', function()
       command('call jobresize(j, 40, 10)')
-      -- Windows: ConPTY emits a full screen redraw, so prior content ("tty ready") may prefix the new line.
-      matches('rows: 10, cols: 40$', next_chunk())
+      eq('rows: 10, cols: 40', next_chunk())
       command('call jobresize(j, 10, 40)')
-      matches('rows: 40, cols: 10$', next_chunk())
+      eq('rows: 40, cols: 10', next_chunk())
     end)
 
     it('jobclose() sends SIGHUP', function()
-      skip(is_os('win'), 'N/A: SIGHUP is a POSIX signal')
       command('call jobclose(j)')
       local msg = next_msg()
       msg = (msg[2] == 'stdout') and next_msg() or msg -- Skip stdout, if any.

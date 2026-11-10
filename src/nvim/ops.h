@@ -1,6 +1,5 @@
 #pragma once
 
-#include <lauxlib.h>  // for LUA_NOREF
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -48,8 +47,9 @@ enum {
   OP_FUNCTION     = 27,  ///< "g@" call 'operatorfunc'
   OP_NR_ADD       = 28,  ///< "<C-A>" Add to the number or alphabetic character
   OP_NR_SUB       = 29,  ///< "<C-X>" Subtract from the number or alphabetic character
-  OP_MCURSOR      = 30,  ///< "zq" place a multicursor at (repeated) motion.
 };
 
 #include "ops.h.generated.h"
 #include "ops.h.inline.generated.h"
+
+EXTERN LuaRef repeat_luaref INIT( = LUA_NOREF);  ///< LuaRef for "."

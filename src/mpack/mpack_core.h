@@ -7,8 +7,8 @@
 
 #include <assert.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __GNUC__
 # define FPURE __attribute__((const))

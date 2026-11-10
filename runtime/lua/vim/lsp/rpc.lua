@@ -1,8 +1,8 @@
 local log = require('vim.lsp.log')
 local protocol = require('vim.lsp.protocol')
-local net_transport = require('vim.net._transport')
+local lsp_transport = require('vim.lsp._transport')
 local strbuffer = require('vim._core.stringbuffer')
-local validate = vim.validate
+local validate, schedule_wrap = vim.validate, vim.schedule_wrap
 
 --- Embeds the given string into a table and correctly computes `Content-Length`.
 ---
@@ -25,25 +25,21 @@ end
 --- We ignore lines ending with `\n` that don't contain `content-length`, since some servers
 --- write log to standard output and there's no way to avoid it.
 --- See https://github.com/neovim/neovim/pull/35743#pullrequestreview-3379705828
---- @param ptr vim._core.stringbuffer.ptr The ptr to buffer to parse
---- @param start integer The starting index of the buffer to parse, 0-based
---- @param len integer The length of the header to parse
+--- @param header string The header to parse
 --- @return integer
-local function get_content_length(ptr, start, len)
+local function get_content_length(header)
   local state = 'name'
-  local i, end_ = start, start + len
+  local i, len = 1, #header
   local j, name = 1, 'content-length'
   local buf = strbuffer.new()
   local digit = true
-  while i < end_ do
-    local c = ptr[i]
+  while i <= len do
+    local c = header:byte(i)
     if state == 'name' then
       if c >= 65 and c <= 90 then -- lower case
         c = c + 32
       end
-      if c == 10 then -- a blank line or a line with a prefix of header
-        j = 1
-      elseif (c == 32 or c == 9) and j == 1 then -- luacheck: ignore 542
+      if (c == 32 or c == 9) and j == 1 then -- luacheck: ignore 542
         -- skip OWS for compatibility only
       elseif c == name:byte(j) then
         j = j + 1
@@ -58,7 +54,7 @@ local function get_content_length(ptr, start, len)
         i = i - 1
       end
     elseif state == 'value' then
-      if c == 13 and ptr[i + 1] == 10 then -- must end with \r\n
+      if c == 13 and header:byte(i + 1) == 10 then -- must end with \r\n
         local value = buf:get()
         if digit then
           return vim._assert_integer(value)
@@ -77,11 +73,7 @@ local function get_content_length(ptr, start, len)
     end
     i = i + 1
   end
-  local header = strbuffer.new()
-  for k = start, end_ - 1 do
-    header:put(string.char(ptr[k]))
-  end
-  error('Content-Length not found in header: ' .. header:tostring())
+  error('Content-Length not found in header: ' .. header)
 end
 
 local M = {}
@@ -145,18 +137,20 @@ function M.rpc_response_error(code, message, data)
   -- TODO should this error or just pick a sane error (like InternalError)?
   ---@type string
   local code_name = assert(protocol.ErrorCodes[code], 'Invalid RPC error code')
-  return {
+  return setmetatable({
     code = code,
     message = message or code_name,
     data = data,
-  }
+  }, {
+    __tostring = M.format_rpc_error,
+  })
 end
 
 --- Dispatchers for LSP message types.
 --- @class vim.lsp.rpc.Dispatchers
 --- @inlinedoc
---- @field notification fun(method: string, params: table)
---- @field server_request fun(method: string, params: table): any?, lsp.ResponseError?
+--- @field notification fun(method: vim.lsp.protocol.Method.ServerToClient, params: table)
+--- @field server_request fun(method: vim.lsp.protocol.Method.ServerToClient, params: table): any?, lsp.ResponseError?
 --- @field on_exit fun(code: integer, signal: integer)
 --- @field on_error fun(code: integer, err: any)
 
@@ -164,7 +158,7 @@ end
 local default_dispatchers = {
   --- Default dispatcher for notifications sent to an LSP server.
   ---
-  ---@param method string The invoked LSP method
+  ---@param method vim.lsp.protocol.Method.ServerToClient The invoked LSP method
   ---@param params table Parameters for the invoked LSP method
   notification = function(method, params)
     log.debug('notification', method, params)
@@ -172,7 +166,7 @@ local default_dispatchers = {
 
   --- Default dispatcher for requests sent to an LSP server.
   ---
-  ---@param method string The invoked LSP method
+  ---@param method vim.lsp.protocol.Method.ServerToClient The invoked LSP method
   ---@param params table Parameters for the invoked LSP method
   ---@return any result (always nil for the default dispatchers)
   ---@return lsp.ResponseError error `vim.lsp.protocol.ErrorCodes.MethodNotFound`
@@ -198,36 +192,25 @@ local default_dispatchers = {
   end,
 }
 
---- Parse one `Content-Length` framed message from `strbuf`.
----
---- Returns a body after consuming one full frame, returns nil if more bytes are needed.
---- Raises an error if the buffered data is not a valid frame.
----
----@param strbuf vim._core.stringbuffer
----@return string?
-local function message_decoder(strbuf)
-  local header_len ---@type integer?
-  local ptr, len = strbuf:ref()
-  for i = 0, len - 4 do
-    -- Find the header boundary "\r\n\r\n"
-    -- (compare bytes instead of string.find(), to avoid a string alloc).
-    if ptr[i] == 13 and ptr[i + 1] == 10 and ptr[i + 2] == 13 and ptr[i + 3] == 10 then
-      header_len = i + 2
-      break
+--- @async
+local function request_parser_loop()
+  local buf = strbuffer.new()
+  while true do
+    local msg = buf:tostring()
+    local header_end = msg:find('\r\n\r\n', 1, true)
+    if header_end then
+      local header = buf:get(header_end + 1)
+      buf:skip(2) -- skip past header boundary
+      local content_length = get_content_length(header)
+      while strbuffer.len(buf) < content_length do
+        buf:put(coroutine.yield())
+      end
+      local body = buf:get(content_length)
+      buf:put(coroutine.yield(body))
+    else
+      buf:put(coroutine.yield())
     end
   end
-
-  if not header_len then
-    return nil
-  end
-
-  local content_length = get_content_length(ptr, 0, header_len)
-  if strbuffer.len(strbuf) < header_len + 2 + content_length then
-    return nil
-  end
-
-  strbuf:skip(header_len + 2) -- skip past header boundary
-  return strbuf:get(content_length)
 end
 
 --- @private
@@ -237,128 +220,47 @@ end
 function M.create_read_loop(handle_body, on_exit, on_error)
   on_exit = on_exit or function() end
   on_error = on_error or function() end
-  local message_stream = net_transport.MessageStream.new(
-    message_decoder,
-    format_message_with_content_length,
-    function(err, chunk)
-      if err then
-        on_error(err, client_errors.READ_ERROR)
-      elseif chunk then
-        handle_body(chunk)
-      else
-        on_exit()
-      end
-    end,
-    function(err)
-      on_error(err, client_errors.INVALID_SERVER_MESSAGE)
-    end
-  )
-
+  local co = coroutine.create(request_parser_loop)
+  coroutine.resume(co)
   return function(err, chunk)
-    message_stream:feed(err, chunk)
+    if err then
+      on_error(err, M.client_errors.READ_ERROR)
+      return
+    end
+
+    if not chunk then
+      on_exit()
+      return
+    end
+
+    if coroutine.status(co) == 'dead' then
+      return
+    end
+
+    while true do
+      local ok, res = coroutine.resume(co, chunk)
+      if not ok then
+        on_error(res, M.client_errors.INVALID_SERVER_MESSAGE)
+        break
+      elseif res then
+        handle_body(res)
+        chunk = ''
+      else
+        break
+      end
+    end
   end
 end
 
---- Client RPC object
---- @class vim.lsp.rpc.Client
---- @field private message_index integer
---- @field private message_callbacks table<integer, function> dict of message_id to callback
---- @field private notify_reply_callbacks table<integer, function> dict of message_id to callback
---- @field private transport vim.net.Transport
---- @field private message_stream vim.net.MessageStream
---- @field private dispatchers vim.lsp.rpc.Dispatchers
----
---- Sends a request to the LSP server.
---- @field request fun(method: vim.lsp.protocol.Method.ClientToServer.Request, params: table?, callback: fun(err?: lsp.ResponseError, result: any, request_id: integer), notify_reply_callback?: fun(message_id: integer)):boolean,integer?
----
---- Sends a notification to the LSP server.
---- @field notify fun(method: vim.lsp.protocol.Method.ClientToServer.Notification, params: any): boolean
----
---- Indicates if the RPC is closing.
---- @field is_closing fun(): boolean
----
---- Terminates the RPC client.
---- @field terminate fun()
+---@class (private) vim.lsp.rpc.Client
+---@field message_index integer
+---@field message_callbacks table<integer, function> dict of message_id to callback
+---@field notify_reply_callbacks table<integer, function> dict of message_id to callback
+---@field transport vim.lsp.rpc.Transport
+---@field dispatchers vim.lsp.rpc.Dispatchers
 local Client = {}
 
----@package
----@param dispatchers vim.lsp.rpc.Dispatchers
----@param transport vim.net.Transport
----@param decode fun(buf: vim._core.stringbuffer): string?
----@param format fun(msg: string): string
----@return vim.lsp.rpc.Client
-function Client.new(dispatchers, transport, decode, format)
-  local result = {
-    message_index = 0,
-    message_callbacks = {},
-    notify_reply_callbacks = {},
-    transport = transport,
-    dispatchers = dispatchers,
-  }
-
-  ---@private
-  function result.is_closing()
-    return result.transport:is_closing()
-  end
-
-  ---@private
-  function result.terminate()
-    result.transport:terminate()
-  end
-
-  ---@private
-  ---@param method (vim.lsp.protocol.Method.ClientToServer.Request) The invoked LSP method
-  ---@param params (table?) Parameters for the invoked LSP method
-  ---@param callback fun(err: lsp.ResponseError?, result: any) Callback to invoke
-  ---@param notify_reply_callback? fun(message_id: integer) Callback to invoke as soon as a request is no longer pending
-  ---@return boolean success `true` if request could be sent, `false` if not
-  ---@return integer? message_id if request could be sent, `nil` if not
-  function result.request(method, params, callback, notify_reply_callback)
-    return result:_request(method, params, callback, notify_reply_callback)
-  end
-
-  ---@private
-  ---@param method (vim.lsp.protocol.Method.ClientToServer.Notification) The invoked LSP method
-  ---@param params (table?) Parameters for the invoked LSP method
-  ---@return boolean `true` if notification could be sent, `false` if not
-  function result.notify(method, params)
-    return result:_notify(method, params)
-  end
-
-  ---@cast result vim.lsp.rpc.Client
-  local self = setmetatable(result, { __index = Client })
-
-  self.message_stream = net_transport.MessageStream.new(decode, format, function(err, data)
-    if err then
-      self:on_error(client_errors.READ_ERROR, err)
-    elseif data then
-      self:handle_body(data)
-    else
-      ---@diagnostic disable-next-line: invisible
-      self.transport:terminate()
-    end
-  end, function(err)
-    self:on_error(client_errors.INVALID_SERVER_MESSAGE, err)
-    ---@diagnostic disable-next-line: invisible
-    self.transport:terminate()
-  end)
-
-  transport:listen(function(err, data)
-    ---@diagnostic disable-next-line: invisible
-    self.message_stream:feed(err, data)
-  end, dispatchers.on_exit)
-  return self
-end
-
 ---@private
----@param payload {
----  jsonrpc: '2.0',
----  id?: number|string|vim.NIL,
----  method?: string,
----  params?: table,
----  error?: lsp.ResponseError,
----  result?: any
----}
 function Client:encode_and_send(payload)
   log.debug('rpc.send', payload)
   if self.transport:is_closing() then
@@ -366,7 +268,7 @@ function Client:encode_and_send(payload)
   end
   local jsonstr = vim.json.encode(payload)
 
-  self.transport:write(self.message_stream.encode(jsonstr))
+  self.transport:write(format_message_with_content_length(jsonstr))
   return true
 end
 
@@ -375,7 +277,7 @@ end
 ---@param method vim.lsp.protocol.Method.ClientToServer.Notification The invoked LSP method
 ---@param params any Parameters for the invoked LSP method
 ---@return boolean `true` if notification could be sent, `false` if not
-function Client:_notify(method, params)
+function Client:notify(method, params)
   return self:encode_and_send({
     jsonrpc = '2.0',
     method = method,
@@ -385,9 +287,6 @@ end
 
 ---@private
 --- sends an error object to the remote LSP process.
----@param request_id number|string|vim.NIL
----@param err lsp.ResponseError?
----@param result any
 function Client:send_response(request_id, err, result)
   return self:encode_and_send({
     id = request_id,
@@ -398,7 +297,7 @@ function Client:send_response(request_id, err, result)
 end
 
 ---@package
---- Sends a request to the LSP server and runs {callback} upon response.
+--- Sends a request to the LSP server and runs {callback} upon response. |vim.lsp.rpc.request()|
 ---
 ---@param method vim.lsp.protocol.Method.ClientToServer.Request The invoked LSP method
 ---@param params table? Parameters for the invoked LSP method
@@ -406,7 +305,7 @@ end
 ---@param notify_reply_callback? fun(message_id: integer) Callback to invoke as soon as a request is no longer pending
 ---@return boolean success `true` if request could be sent, `false` if not
 ---@return integer? message_id if request could be sent, `nil` if not
-function Client:_request(method, params, callback, notify_reply_callback)
+function Client:request(method, params, callback, notify_reply_callback)
   validate('callback', callback, 'function')
   validate('notify_reply_callback', notify_reply_callback, 'function', true)
   self.message_index = self.message_index + 1
@@ -422,20 +321,47 @@ function Client:_request(method, params, callback, notify_reply_callback)
     return false
   end
 
-  self.message_callbacks[message_id] = vim.schedule_wrap(callback)
+  self.message_callbacks[message_id] = schedule_wrap(callback)
   if notify_reply_callback then
-    self.notify_reply_callbacks[message_id] = vim.schedule_wrap(notify_reply_callback)
+    self.notify_reply_callbacks[message_id] = schedule_wrap(notify_reply_callback)
   end
   return result, message_id
 end
 
 ---@package
 ---@param errkind vim.lsp.rpc.ClientErrors
----@param err any
-function Client:on_error(errkind, err)
+---@param ... any
+function Client:on_error(errkind, ...)
   assert(M.client_errors[errkind])
   -- TODO what to do if this fails?
-  pcall(self.dispatchers.on_error, errkind, err)
+  pcall(self.dispatchers.on_error, errkind, ...)
+end
+
+---@private
+---@param errkind integer
+---@param status boolean
+---@param head any
+---@param ... any
+---@return boolean status
+---@return any head
+---@return any? ...
+function Client:pcall_handler(errkind, status, head, ...)
+  if not status then
+    self:on_error(errkind, head, ...)
+    return status, head
+  end
+  return status, head, ...
+end
+
+---@private
+---@param errkind integer
+---@param fn function
+---@param ... any
+---@return boolean status
+---@return any head
+---@return any? ...
+function Client:try_call(errkind, fn, ...)
+  return self:pcall_handler(errkind, pcall(fn, ...))
 end
 
 -- TODO periodically check message_callbacks for old requests past a certain
@@ -447,35 +373,29 @@ end
 function Client:handle_body(body)
   local ok, decoded = pcall(vim.json.decode, body)
   if not ok then
-    self:on_error(client_errors.INVALID_SERVER_JSON, decoded)
-    return
-  elseif type(decoded) ~= 'table' then
-    self:on_error(client_errors.INVALID_SERVER_MESSAGE, decoded)
+    self:on_error(M.client_errors.INVALID_SERVER_JSON, decoded)
     return
   end
-
   log.debug('rpc.receive', decoded)
 
-  if
-    -- Received a request.
-    type(decoded.method) == 'string' and decoded.id
-  then
-    if type(decoded.id) ~= 'number' and type(decoded.id) ~= 'string' and decoded.id ~= vim.NIL then
-      log.error(
-        'Server request id must be a number or string, got ' .. type(decoded.id),
-        decoded.method,
-        decoded.id
-      )
-      self:on_error(client_errors.INVALID_SERVER_MESSAGE, decoded)
-      return
-    end
-
+  if type(decoded) ~= 'table' then
+    self:on_error(M.client_errors.INVALID_SERVER_MESSAGE, decoded)
+  elseif type(decoded.method) == 'string' and decoded.id and decoded.id ~= vim.NIL then
+    local id_type = type(decoded.id)
+    assert(id_type == 'number' or id_type == 'string', 'Request id must be a number or a string')
+    local err --- @type lsp.ResponseError?
     -- Schedule here so that the users functions don't trigger an error and
     -- we can still use the result.
     vim.schedule(coroutine.wrap(function()
-      xpcall(function()
-        local result, err = self.dispatchers.server_request(decoded.method, decoded.params)
-        log.debug('server_request: callback result', { result = result, err = err })
+      local status, result
+      status, result, err = self:try_call(
+        M.client_errors.SERVER_REQUEST_HANDLER_ERROR,
+        self.dispatchers.server_request,
+        decoded.method,
+        decoded.params
+      )
+      log.debug('server_request: callback result', { status = status, result = result, err = err })
+      if status then
         if result == nil and err == nil then
           error(
             string.format(
@@ -489,42 +409,31 @@ function Client:handle_body(body)
             type(err) == 'table',
             'err must be a table. Use rpc_response_error to help format errors.'
           )
-          assert(
+          ---@type string
+          local code_name = assert(
             protocol.ErrorCodes[err.code],
             'Errors must use protocol.ErrorCodes. Use rpc_response_error to help format errors.'
           )
+          err.message = err.message or code_name
         end
-        self:send_response(decoded.id, err, result)
-      end, function(err)
-        self:on_error(client_errors.SERVER_REQUEST_HANDLER_ERROR, err)
-        self:send_response(
-          decoded.id,
-          M.rpc_response_error(protocol.ErrorCodes.InternalError, err),
-          nil
-        )
-      end)
+      else
+        -- On an exception, result will contain the error message.
+        err = M.rpc_response_error(protocol.ErrorCodes.InternalError, result)
+        result = nil
+      end
+      self:send_response(decoded.id, err, result)
     end))
+  -- Proceed only if exactly one of 'result' or 'error' is present, as required by the LSP spec:
+  -- - If 'error' is nil, then 'result' must be present.
+  -- - If 'result' is nil, then 'error' must be present (and not vim.NIL).
   elseif
-    -- Received a response to a request we sent.
     decoded.id
+    and decoded.id ~= vim.NIL
+    and (
+      (decoded.error == nil and decoded.result ~= nil)
+      or (decoded.result == nil and decoded.error ~= nil and decoded.error ~= vim.NIL)
+    )
   then
-    -- If there was an error in detecting the id in the Request object
-    -- (e.g. Parse error/Invalid Request), it must be Null.
-    if decoded.id == vim.NIL then
-      log.warn('Server sent response with null id', decoded)
-      self:on_error(client_errors.INVALID_SERVER_MESSAGE, decoded)
-      return
-    end
-    -- Proceed only if exactly one of 'result' or 'error' is present,
-    -- as required by the JSON-RPC spec:
-    -- * If 'error' is nil, then 'result' must be present.
-    -- * If 'result' is nil, then 'error' must be present (and not vim.NIL).
-    if (decoded.error == nil or decoded.error == vim.NIL) and decoded.result == nil then
-      log.error('Server respond empty result and error', decoded)
-      self:on_error(client_errors.INVALID_SERVER_MESSAGE, decoded)
-      return
-    end
-
     -- We sent a number, so we expect a number.
     local result_id = vim._assert_integer(decoded.id)
 
@@ -557,31 +466,104 @@ function Client:handle_body(body)
     if callback then
       self.message_callbacks[result_id] = nil
       validate('callback', callback, 'function')
-      xpcall(function()
-        callback(decoded.error, decoded.result ~= vim.NIL and decoded.result or nil, result_id)
-      end, function(err)
-        self:on_error(client_errors.SERVER_RESULT_CALLBACK_ERROR, err)
-      end)
+      if decoded.error then
+        setmetatable(decoded.error, { __tostring = M.format_rpc_error })
+      end
+      self:try_call(
+        M.client_errors.SERVER_RESULT_CALLBACK_ERROR,
+        callback,
+        decoded.error,
+        decoded.result ~= vim.NIL and decoded.result or nil,
+        result_id
+      )
     else
-      self:on_error(client_errors.NO_RESULT_CALLBACK_FOUND, decoded)
+      self:on_error(M.client_errors.NO_RESULT_CALLBACK_FOUND, decoded)
       log.error('No callback found for server response id ' .. result_id)
     end
-  elseif
-    -- Received a notification.
-    type(decoded.method) == 'string'
-  then
-    xpcall(function()
-      assert(
-        self.dispatchers.notification(decoded.method, decoded.params) == nil,
-        'notification handlers should not return a value'
-      )
-    end, function(err)
-      self:on_error(client_errors.NOTIFICATION_HANDLER_ERROR, err)
-    end)
+  elseif decoded.id == vim.NIL then
+    log.warn('Server sent response with null id', decoded.error)
+    self:on_error(M.client_errors.INVALID_SERVER_MESSAGE, decoded)
+  elseif type(decoded.method) == 'string' then
+    -- Notification
+    self:try_call(
+      M.client_errors.NOTIFICATION_HANDLER_ERROR,
+      self.dispatchers.notification,
+      decoded.method,
+      decoded.params
+    )
   else
     -- Invalid server message
-    self:on_error(client_errors.INVALID_SERVER_MESSAGE, decoded)
+    self:on_error(M.client_errors.INVALID_SERVER_MESSAGE, decoded)
   end
+end
+
+---@param dispatchers vim.lsp.rpc.Dispatchers
+---@param transport vim.lsp.rpc.Transport
+---@return vim.lsp.rpc.Client
+local function new_client(dispatchers, transport)
+  local state = {
+    message_index = 0,
+    message_callbacks = {},
+    notify_reply_callbacks = {},
+    transport = transport,
+    dispatchers = dispatchers,
+  }
+  return setmetatable(state, { __index = Client })
+end
+
+--- Client RPC object
+--- @class vim.lsp.rpc.PublicClient
+---
+--- See [vim.lsp.rpc.request()]
+--- @field request fun(method: vim.lsp.protocol.Method.ClientToServer.Request, params: table?, callback: fun(err?: lsp.ResponseError, result: any, request_id: integer), notify_reply_callback?: fun(message_id: integer)):boolean,integer?
+---
+--- See [vim.lsp.rpc.notify()]
+--- @field notify fun(method: vim.lsp.protocol.Method.ClientToServer.Notification, params: any): boolean
+---
+--- Indicates if the RPC is closing.
+--- @field is_closing fun(): boolean
+---
+--- Terminates the RPC client.
+--- @field terminate fun()
+
+---@param client vim.lsp.rpc.Client
+---@return vim.lsp.rpc.PublicClient
+local function public_client(client)
+  ---@type vim.lsp.rpc.PublicClient
+  ---@diagnostic disable-next-line: missing-fields
+  local result = {}
+
+  ---@private
+  function result.is_closing()
+    return client.transport:is_closing()
+  end
+
+  ---@private
+  function result.terminate()
+    client.transport:terminate()
+  end
+
+  --- Sends a request to the LSP server and runs {callback} upon response.
+  ---
+  ---@param method (vim.lsp.protocol.Method.ClientToServer.Request) The invoked LSP method
+  ---@param params (table?) Parameters for the invoked LSP method
+  ---@param callback fun(err: lsp.ResponseError?, result: any) Callback to invoke
+  ---@param notify_reply_callback? fun(message_id: integer) Callback to invoke as soon as a request is no longer pending
+  ---@return boolean success `true` if request could be sent, `false` if not
+  ---@return integer? message_id if request could be sent, `nil` if not
+  function result.request(method, params, callback, notify_reply_callback)
+    return client:request(method, params, callback, notify_reply_callback)
+  end
+
+  --- Sends a notification to the LSP server.
+  ---@param method (vim.lsp.protocol.Method.ClientToServer.Notification) The invoked LSP method
+  ---@param params (table?) Parameters for the invoked LSP method
+  ---@return boolean `true` if notification could be sent, `false` if not
+  function result.notify(method, params)
+    return client:notify(method, params)
+  end
+
+  return result
 end
 
 ---@param dispatchers vim.lsp.rpc.Dispatchers?
@@ -599,17 +581,36 @@ local function merge_dispatchers(dispatchers)
   ---@type vim.lsp.rpc.Dispatchers
   local merged = {
     notification = (
-      dispatchers.notification and vim.schedule_wrap(dispatchers.notification)
+      dispatchers.notification and schedule_wrap(dispatchers.notification)
       or default_dispatchers.notification
     ),
     on_error = (
-      dispatchers.on_error and vim.schedule_wrap(dispatchers.on_error)
+      dispatchers.on_error and schedule_wrap(dispatchers.on_error)
       or default_dispatchers.on_error
     ),
     on_exit = dispatchers.on_exit or default_dispatchers.on_exit,
     server_request = dispatchers.server_request or default_dispatchers.server_request,
   }
   return merged
+end
+
+--- @param client vim.lsp.rpc.Client
+--- @param on_exit? fun()
+local function create_client_read_loop(client, on_exit)
+  --- @param body string
+  local function handle_body(body)
+    client:handle_body(body)
+  end
+
+  --- @param errkind vim.lsp.rpc.ClientErrors
+  local function on_error(err, errkind)
+    client:on_error(errkind, err)
+    if errkind == M.client_errors.INVALID_SERVER_MESSAGE then
+      client.transport:terminate()
+    end
+  end
+
+  return M.create_read_loop(handle_body, on_exit, on_error)
 end
 
 --- Create a LSP RPC client factory that connects to either:
@@ -623,10 +624,8 @@ end
 ---
 ---@param host_or_path string host to connect to or path to a pipe/domain socket
 ---@param port integer? TCP port to connect to. If absent the first argument must be a pipe
----@return fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.Client
+---@return fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
 function M.connect(host_or_path, port)
-  log.info('Connecting RPC client', { host_or_path = host_or_path, port = port })
-
   validate('host_or_path', host_or_path, 'string')
   validate('port', port, 'number', true)
 
@@ -635,13 +634,19 @@ function M.connect(host_or_path, port)
 
     dispatchers = merge_dispatchers(dispatchers)
 
-    local transport = net_transport.TransportConnect.new(host_or_path, port, vim.lsp.log._self)
-    return Client.new(dispatchers, transport, message_decoder, format_message_with_content_length)
+    local transport = lsp_transport.TransportConnect.new()
+    local client = new_client(dispatchers, transport)
+    local on_read = create_client_read_loop(client, function()
+      transport:terminate()
+    end)
+    transport:connect(host_or_path, port, on_read, dispatchers.on_exit)
+
+    return public_client(client)
   end
 end
 
 --- Additional context for the LSP server process.
---- @class vim.net.transport.ExtraSpawnParams
+--- @class vim.lsp.rpc.ExtraSpawnParams
 --- @inlinedoc
 --- @field cwd? string Working directory for the LSP server process
 --- @field detached? boolean Detach the LSP server process from the current process
@@ -653,8 +658,8 @@ end
 ---
 --- @param cmd string[] Command to start the LSP server.
 --- @param dispatchers? vim.lsp.rpc.Dispatchers
---- @param extra_spawn_params? vim.net.transport.ExtraSpawnParams
---- @return vim.lsp.rpc.Client
+--- @param extra_spawn_params? vim.lsp.rpc.ExtraSpawnParams
+--- @return vim.lsp.rpc.PublicClient
 function M.start(cmd, dispatchers, extra_spawn_params)
   log.info('Starting RPC client', { cmd = cmd, extra = extra_spawn_params })
 
@@ -663,8 +668,12 @@ function M.start(cmd, dispatchers, extra_spawn_params)
 
   dispatchers = merge_dispatchers(dispatchers)
 
-  local transport = net_transport.TransportRun.new(cmd, extra_spawn_params, vim.lsp.log._self)
-  return Client.new(dispatchers, transport, message_decoder, format_message_with_content_length)
+  local transport = lsp_transport.TransportRun.new()
+  local client = new_client(dispatchers, transport)
+  local on_read = create_client_read_loop(client)
+  transport:run(cmd, extra_spawn_params, on_read, dispatchers.on_exit)
+
+  return public_client(client)
 end
 
 return M

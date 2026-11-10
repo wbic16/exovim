@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local command = n.command
 local eq = t.eq
 local clear = n.clear
@@ -9,20 +8,7 @@ local fn = n.fn
 local pcall_err = t.pcall_err
 local assert_alive = n.assert_alive
 
-describe('nlua_call_excmd excmds', function()
-  -- Exercise nlua_call_excmd by testing commands implemented with it (:log, :lsp).
-
-  before_each(function()
-    clear()
-  end)
-
-  it('error propagation, formatting', function()
-    t.eq('Vim(lsp):E5800: Invalid :lsp subcommand: bogus', pcall_err(command, 'lsp bogus'))
-    t.matches('Vim%(log%):E5200: No such log.*', pcall_err(command, 'log bogus'))
-  end)
-end)
-
-describe('excmds', function()
+describe('Ex cmds', function()
   before_each(function()
     clear()
   end)

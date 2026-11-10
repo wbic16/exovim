@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, finally = t.describe, t.it, t.before_each, t.finally
 local clear, eq, eval, next_msg, ok, source = n.clear, t.eq, n.eval, n.next_msg, t.ok, n.source
 local command, fn, api = n.command, n.fn, n.api
 local feed = n.feed
@@ -34,7 +33,7 @@ describe('channels', function()
     source(init)
   end)
 
-  it('can connect to socket', function()
+  pending('can connect to socket', function()
     local server = n.new_session(true)
     set_session(server)
     local address = fn.serverlist()[1]
@@ -61,46 +60,6 @@ describe('channels', function()
     eq({ 'notification', 'data', { id, res } }, next_msg())
     command("call chansend(g:id, msgpackdump([[2,'nvim_command',['quit']]]))")
     eq({ 'notification', 'data', { id, { '' } } }, next_msg())
-  end)
-
-  it('emits ChanClose when RPC socket reaches EOF', function()
-    local client = get_session()
-    local server = n.new_session(true)
-    finally(function()
-      set_session(client)
-      if server then
-        server:close()
-      end
-    end)
-    set_session(server)
-    local address = fn.serverlist()[1]
-    set_session(client)
-
-    api.nvim_set_var('address', address)
-    exec_lua(function()
-      _G.closed_event = nil
-      vim.api.nvim_create_autocmd('ChanClose', {
-        callback = function()
-          _G.closed_event = vim.deepcopy(vim.v.event.info)
-        end,
-      })
-    end)
-    command("let g:id = sockconnect('pipe', address, {'rpc': v:true})")
-    local id = eval('g:id')
-    ok(id > 0)
-    eq(5, eval("rpcrequest(g:id, 'nvim_eval', '2+3')"))
-
-    server:close()
-    server = nil
-    set_session(client)
-    retry(nil, 3000, function()
-      local info = exec_lua(function()
-        return _G.closed_event
-      end)
-      eq(id, info.id)
-      eq('socket', info.stream)
-      eq('rpc', info.mode)
-    end)
   end)
 
   it('dont crash due to garbage in rpc #23781', function()
@@ -240,13 +199,12 @@ describe('channels', function()
       eq('stdout', msg[2])
       eq(id, msg[3][1])
       accumulated = accumulated .. table.concat(msg[3][2], '\n')
-      -- Windows: strip terminal escapes injected by ConPTY (CSI/OSC).
-      accumulated = accumulated:gsub('\27%[[%d;?]*[%a~]', ''):gsub('\27%][^\7]*\7', '')
     end
     eq(expected, accumulated)
   end
 
   it('can use stdio channel with pty', function()
+    skip(is_os('win'))
     source([[
       let g:job_opts = {
       \ 'on_stdout': function('OnEvent'),
@@ -271,20 +229,11 @@ describe('channels', function()
     local id = eval('g:id')
     ok(id > 0)
 
-    -- Windows ConPTY does not echo input to the master, unlike POSIX ptys.
-    local echo_text = is_os('win') and '' or 'TEXT\r\n'
-    local echo_blobs = is_os('win') and '' or 'Blobs!\r\n'
-
     command("call chansend(id, 'TEXT\n')")
-    expect_stdout(id, echo_text .. "[1, ['TEXT', ''], 'stdin']")
+    expect_stdout(id, "TEXT\r\n[1, ['TEXT', ''], 'stdin']")
 
     command('call chansend(id, 0z426c6f6273210a)')
-    expect_stdout(id, echo_blobs .. "[1, ['Blobs!', ''], 'stdin']")
-
-    -- Windows: the assertions below depend on POSIX pty canonical-mode behavior (echo, backspace handling, EOT-as-EOF).
-    if is_os('win') then
-      return
-    end
+    expect_stdout(id, "Blobs!\r\n[1, ['Blobs!', ''], 'stdin']")
 
     command("call chansend(id, 'neovan')")
     expect_stdout(id, 'neovan')
@@ -306,6 +255,7 @@ describe('channels', function()
   end)
 
   it('stdio channel can use rpc and stderr simultaneously', function()
+    skip(is_os('win'))
     source([[
       let g:job_opts = {
       \ 'on_stderr': function('OnEvent'),
@@ -325,10 +275,8 @@ describe('channels', function()
     command(
       "let id = jobstart([ g:nvim_prog, '-u', 'NONE', '-i', 'NONE', '--cmd', 'set noswapfile', '--headless', '--cmd', g:code], g:job_opts)"
     )
-    -- On Windows the stderr write may be delivered before the RPC notify.
-    local notif1 = { 'notification', 'message', { 'hi there!', 1 } }
-    local notif2 = { 'notification', 'stderr', { 3, { 'trouble!' } } }
-    n.expect_msg_seq({ notif1, notif2 }, { notif2, notif1 })
+    eq({ 'notification', 'message', { 'hi there!', 1 } }, next_msg())
+    eq({ 'notification', 'stderr', { 3, { 'trouble!' } } }, next_msg())
 
     eq(30, eval("rpcrequest(id, 'nvim_eval', '[chansend(v:stderr, \"math??\"), 5*6][1]')"))
     eq({ 'notification', 'stderr', { 3, { 'math??' } } }, next_msg())

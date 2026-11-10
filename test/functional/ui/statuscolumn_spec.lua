@@ -2,7 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local command = n.command
 local eq = t.eq
@@ -500,7 +499,7 @@ describe('statuscolumn', function()
       {8:wrapped 1 4}aaaaaaaa                                  |
       {8:buffer  0 5}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 5}aaaaaaaa                                  |
-      {8:virtual-1 5}virt_line                                 |
+      {8:virtual-2 5}virt_line                                 |
       {8:virtual-1 6}virt_line above                           |
       {8:buffer  0 6}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 6}aaaaaaaa                                  |
@@ -518,7 +517,7 @@ describe('statuscolumn', function()
       {8:wrapped 1 4}aaaaaaaa                                  |
       {8:buffer  0 5}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 5}aaaaaaaa                                  |
-      {8:virtual-1 5}virt_line                                 |
+      {8:virtual-3 5}virt_line                                 |
       {8:virtual-2 5}virt_line                                 |
       {8:virtual-1 6}virt_line above                           |
       {8:buffer  0 6}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -533,6 +532,8 @@ describe('statuscolumn', function()
     exec_lua('vim.api.nvim_buf_set_extmark(0, ns, 15, 0, { virt_lines = {{{"END", ""}}} })')
     feed('GkJzz')
     screen:expect([[
+      {8:buffer  0 12}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {8:wrapped 1 12}aaaaaaaaa                                |
       {8:buffer  0 13}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 13}aaaaaaaaa                                |
       {8:buffer  0 14}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -541,7 +542,7 @@ describe('statuscolumn', function()
       {15:wrapped 1 15}{19:aaaaaaaaa^ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}|
       {15:wrapped 2 15}{19:aaaaaaaaaaaaaaaaaaa                      }|
       {8:virtual-1 15}END                                      |
-      {1:~                                                    }|*5
+      {1:~                                                    }|*3
                                                            |
     ]])
     -- Also test virt_lines when 'cpoptions' includes "n"
@@ -551,6 +552,8 @@ describe('statuscolumn', function()
       vim.api.nvim_buf_set_extmark(0, ns, 14, 0, { virt_lines = {{{"virt_line2", ""}}} })
     ]])
     screen:expect([[
+      {8:buffer  0 12}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      aaaaaaaaa                                            |
       {8:buffer  0 13}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       aaaaaaaaa                                            |
       {8:buffer  0 14}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -558,10 +561,10 @@ describe('statuscolumn', function()
       {15:buffer  0 15}{19:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}|
       {19:aaaaaaaaa^ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}|
       {19:aaaaaaa                                              }|
-      {8:virtual-1 15}virt_line1                               |
+      {8:virtual-3 15}virt_line1                               |
       {8:virtual-2 15}virt_line2                               |
-      {8:virtual-3 15}END                                      |
-      {1:~                                                    }|*3
+      {8:virtual-1 15}END                                      |
+      {1:~                                                    }|
                                                            |
     ]])
     -- Also test "col_rows" code path for 'relativenumber' cursor movement
@@ -570,6 +573,8 @@ describe('statuscolumn', function()
       set stc=%{v:virtnum<0?'virtual':(!v:virtnum?'buffer':'wrapped')}%=%{'\ '.v:virtnum.'\ '.v:lnum.'\ '.v:relnum}
     ]])
     screen:expect([[
+      {8:buffer  0 12 3}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {8:wrapped 1 12 3}aaaaaaaaaaa                            |
       {8:buffer  0 13 2}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 13 2}aaaaaaaaaaa                            |
       {8:buffer  0 14 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -577,14 +582,16 @@ describe('statuscolumn', function()
       {8:buffer  0 15 0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 15 0}aaaaaaaaaaa^ aaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 2 15 0}aaaaaaaaaaaaaaaaaaaaaaa                |
-      {8:virtual-1 15 0}virt_line1                             |
+      {8:virtual-3 15 0}virt_line1                             |
       {8:virtual-2 15 0}virt_line2                             |
-      {8:virtual-3 15 0}END                                    |
-      {1:~                                                    }|*3
+      {8:virtual-1 15 0}END                                    |
+      {1:~                                                    }|
                                                            |
     ]])
     feed('kk')
     screen:expect([[
+      {8:buffer  0 12 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {8:wrapped 1 12 1}aaaaaaaaaaa                            |
       {8:buffer  0 13 0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 13 0}aaaaaaaaaa^a                            |
       {8:buffer  0 14 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
@@ -592,65 +599,10 @@ describe('statuscolumn', function()
       {8:buffer  0 15 2}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 1 15 2}aaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {8:wrapped 2 15 2}aaaaaaaaaaaaaaaaaaaaaaa                |
-      {8:virtual-1 15 2}virt_line1                             |
+      {8:virtual-3 15 2}virt_line1                             |
       {8:virtual-2 15 2}virt_line2                             |
-      {8:virtual-3 15 2}END                                    |
-      {1:~                                                    }|*3
-                                                           |
-    ]])
-    feed('gg5<C-E>')
-    exec_lua([[
-      vim.api.nvim_buf_set_extmark(0, ns, 5, 0, {
-        virt_lines_above = true, virt_lines = {{{"virt_line above", ""}}} })
-    ]])
-    screen:expect([[
-      {8:virtual -2 5 1}virt_line                              |
-      {8:virtual -1 6 0}virt_line above                        |
-      {8:virtual -2 6 0}virt_line above                        |
-      {8:buffer   0 6 0}^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 6 0}aaaaaaaaaaa                            |
-      {8:buffer   0 7 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 7 1}aaaaaaaaaaa                            |
-      {8:buffer   0 8 2}{13:+--  1 line: aaaaaaaaaaaaaaaaaaaaaaaaaa}|
-      {8:buffer   0 9 3}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 9 3}aaaaaaaaaaa                            |
-      {8:buffer  0 10 4}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped 1 10 4}aaaaaaaaaaa                            |
-      {8:buffer  0 11 5}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{1:@@@}|
-                                                           |
-    ]])
-    feed('<C-E>')
-    screen:expect([[
-      {8:virtual -1 6 0}virt_line above                        |
-      {8:virtual -2 6 0}virt_line above                        |
-      {8:buffer   0 6 0}^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 6 0}aaaaaaaaaaa                            |
-      {8:buffer   0 7 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 7 1}aaaaaaaaaaa                            |
-      {8:buffer   0 8 2}{13:+--  1 line: aaaaaaaaaaaaaaaaaaaaaaaaaa}|
-      {8:buffer   0 9 3}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 9 3}aaaaaaaaaaa                            |
-      {8:buffer  0 10 4}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped 1 10 4}aaaaaaaaaaa                            |
-      {8:buffer  0 11 5}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped 1 11 5}aaaaaaaaaaa                            |
-                                                           |
-    ]])
-    feed('<C-E>')
-    screen:expect([[
-      {8:virtual -2 6 0}virt_line above                        |
-      {8:buffer   0 6 0}^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 6 0}aaaaaaaaaaa                            |
-      {8:buffer   0 7 1}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 7 1}aaaaaaaaaaa                            |
-      {8:buffer   0 8 2}{13:+--  1 line: aaaaaaaaaaaaaaaaaaaaaaaaaa}|
-      {8:buffer   0 9 3}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped  1 9 3}aaaaaaaaaaa                            |
-      {8:buffer  0 10 4}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped 1 10 4}aaaaaaaaaaa                            |
-      {8:buffer  0 11 5}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
-      {8:wrapped 1 11 5}aaaaaaaaaaa                            |
-      {8:buffer  0 12 6}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{1:@@@}|
+      {8:virtual-1 15 2}END                                    |
+      {1:~                                                    }|
                                                            |
     ]])
   end)
@@ -676,13 +628,12 @@ describe('statuscolumn', function()
             if a:mods !=# '    '
               let g:testvar ..= '(' .. a:mods .. ')'
             endif
-            let [g:lnum, g:virtnum] = [v:lnum, v:virtnum]
           endfunction
           let g:testvar = ''
         ]])
       end)
 
-      it('clicks', function()
+      it('clicks work with mousemodel=' .. model, function()
         api.nvim_set_option_value('statuscolumn', '%0@MyClickFunc@%=%l%T', {})
         api.nvim_input_mouse('left', 'press', '', 0, 0, 0)
         eq('0 1 l 4', eval('g:testvar'))
@@ -766,7 +717,7 @@ describe('statuscolumn', function()
         end
       end)
 
-      it('clicks and highlights with control characters', function()
+      it('clicks and highlights work with control characters', function()
         api.nvim_set_option_value('statuscolumn', '\t%#NonText#\1%0@MyClickFunc@\t\1%T\t%##\1', {})
         screen:expect([[
           {8:^I}{1:^A^I^A^I}{8:^A}aaaaa                                    |*4
@@ -854,27 +805,6 @@ describe('statuscolumn', function()
                                                                |
         ]])
       end)
-
-      it('sets v:virt/lnum', function()
-        api.nvim_buf_set_lines(0, 5, 5, false, { ('a'):rep(100) })
-        api.nvim_set_option_value('statuscolumn', '%0@MyClickFunc@%=%l%T', {})
-        exec_lua([[
-          vim.api.nvim_buf_set_extmark(0, ns, 5, 0, {
-            virt_lines_above = true, virt_lines = {{{"virt_line above", ""}}} })
-          vim.api.nvim_buf_set_extmark(0, ns, 4, 0, { virt_lines = {{{"virt_line", ""}}} })
-          vim.api.nvim_buf_set_extmark(0, ns, 5, 0, { virt_lines = {{{"virt_line", ""}}} })
-        ]])
-        api.nvim_input_mouse('left', 'press', '', 0, 2, 0)
-        eq({ 5, -1 }, eval('[g:lnum, g:virtnum]'))
-        api.nvim_input_mouse('left', 'press', '', 0, 3, 0)
-        eq({ 6, -1 }, eval('[g:lnum, g:virtnum]'))
-        api.nvim_input_mouse('left', 'press', '', 0, 4, 0)
-        eq({ 6, 0 }, eval('[g:lnum, g:virtnum]'))
-        api.nvim_input_mouse('left', 'press', '', 0, 5, 0)
-        eq({ 6, 1 }, eval('[g:lnum, g:virtnum]'))
-        api.nvim_input_mouse('left', 'press', '', 0, 6, 0)
-        eq({ 6, -2 }, eval('[g:lnum, g:virtnum]'))
-      end)
     end)
   end
 
@@ -955,7 +885,6 @@ describe('statuscolumn', function()
   end)
 
   it('works with cmdwin', function()
-    -- The cmdwin sets its own window-local 'statuscolumn' (cmdwin-char).
     feed(':set stc=%l<CR>q:k$')
     screen:expect([[
       {8: 7}aaaaa                                              |
@@ -963,11 +892,11 @@ describe('statuscolumn', function()
       {8: 9}aaaaa                                              |
       {8:10}aaaaa                                              |
       {2:[No Name] [+]                                        }|
-      {1::}set stc=%^l                                          |
-      {1::}                                                    |
+      {1::}{8:1}set stc=%^l                                         |
+      {1::}{8:2}                                                   |
       {1:~                                                    }|*5
       {3:[Command Line]                                       }|
-      :set stc=%l                                          |
+      :                                                    |
     ]])
   end)
 
@@ -1200,23 +1129,6 @@ describe('statuscolumn', function()
       {8: 5│}aaaaa                                             |
                                                            |
     ]])
-  end)
-
-  it('redrawn during nvim_exec_autocmds({buf})', function()
-    command([[let &statuscolumn='%{g:actual_curwin == win_getid() ? "CUR" : "NC"}']])
-    local buf = api.nvim_create_buf(true, false)
-    api.nvim_open_win(buf, false, { split = 'right' })
-    api.nvim_create_autocmd('User', { command = 'redraw!' })
-    screen:expect([[
-      {8:CUR}aaaaa                  │{8:NC}                        |
-      {8:CUR}aaaaa                  │{1:~                         }|*3
-      {8:CUR}^aaaaa                  │{1:~                         }|
-      {8:CUR}aaaaa                  │{1:~                         }|*7
-      {3:[No Name] [+]              }{2:[No Name]                 }|
-                                                           |
-    ]])
-    api.nvim_exec_autocmds('User', { buf = buf })
-    screen:expect_unchanged()
   end)
 
   it('does not break wrapping at unprintable chars #41198', function()

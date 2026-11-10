@@ -4,7 +4,6 @@
 "		Ken Takata <https://github.com/k-takata>
 " Last Change:	2024 Apr 12
 "		2024 Jun 02 by Riley Bruins <ribru17@gmail.com> ('commentstring')
-"		2026 Jun 27 by Vim Project (normalize recommended style guard)
 "
 " Most of the part was copied from c.vim.
 
@@ -22,8 +21,7 @@ set cpo-=C
 
 let b:undo_ftplugin = "setl fo< com< ofu< cms< def< inc<"
 
-if get(g:, 'arduino_recommended_style',
-      \ get(g:, 'filetype_recommended_style', 1))
+if !exists("g:arduino_recommended_style") || g:arduino_recommended_style != 0
   " Use the default setting of Arduino IDE.
   setlocal expandtab tabstop=2 softtabstop=2 shiftwidth=2
   let b:undo_ftplugin ..= " et< ts< sts< sw<"

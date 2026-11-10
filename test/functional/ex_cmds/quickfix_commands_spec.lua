@@ -2,8 +2,6 @@ local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each, after_each, finally =
-  t.describe, t.it, t.before_each, t.after_each, t.finally
 local feed = n.feed
 local eq = t.eq
 local pcall_err = t.pcall_err
@@ -15,24 +13,6 @@ local api = n.api
 local source = n.source
 
 local file_base = 'Xtest-functional-ex_cmds-quickfix_commands'
-
-local function eq_qflist(expected, actual)
-  eq(
-    vim.tbl_map(function(entry)
-      return vim.tbl_extend('force', {
-        end_col = 0,
-        end_lnum = 0,
-        module = '',
-        nr = -1,
-        pattern = '',
-        type = '',
-        valid = 1,
-        vcol = 0,
-      }, entry)
-    end, expected),
-    actual
-  )
-end
 
 before_each(clear)
 
@@ -61,11 +41,39 @@ for _, c in ipairs({ 'l', 'c' }) do
 
     it('work', function()
       command(('%s %s'):format(filecmd, file))
+      -- Second line of each entry (i.e. `nr=-1, …`) was obtained from actual
+      -- results. First line (i.e. `{lnum=…`) was obtained from legacy test.
       local list = {
-        { lnum = 700, col = 10, text = 'Line 700', bufnr = 2 },
-        { lnum = 800, col = 15, text = 'Line 800', bufnr = 3 },
+        {
+          lnum = 700,
+          end_lnum = 0,
+          col = 10,
+          end_col = 0,
+          text = 'Line 700',
+          module = '',
+          nr = -1,
+          bufnr = 2,
+          valid = 1,
+          pattern = '',
+          vcol = 0,
+          ['type'] = '',
+        },
+        {
+          lnum = 800,
+          end_lnum = 0,
+          col = 15,
+          end_col = 0,
+          text = 'Line 800',
+          module = '',
+          nr = -1,
+          bufnr = 3,
+          valid = 1,
+          pattern = '',
+          vcol = 0,
+          ['type'] = '',
+        },
       }
-      eq_qflist(list, getlist())
+      eq(list, getlist())
       eq(('%s-1.res'):format(file), fn.bufname(list[1].bufnr))
       eq(('%s-2.res'):format(file), fn.bufname(list[2].bufnr))
 
@@ -85,8 +93,21 @@ for _, c in ipairs({ 'l', 'c' }) do
       ]]):format(file)
       )
       command(('%s %s'):format(addfcmd, file))
-      list[#list + 1] = { lnum = 900, col = 30, text = 'Line 900', bufnr = 5 }
-      eq_qflist(list, getlist())
+      list[#list + 1] = {
+        lnum = 900,
+        end_lnum = 0,
+        col = 30,
+        end_col = 0,
+        text = 'Line 900',
+        module = '',
+        nr = -1,
+        bufnr = 5,
+        valid = 1,
+        pattern = '',
+        vcol = 0,
+        ['type'] = '',
+      }
+      eq(list, getlist())
       eq(('%s-3.res'):format(file), fn.bufname(list[3].bufnr))
 
       write_file(
@@ -99,10 +120,36 @@ for _, c in ipairs({ 'l', 'c' }) do
       command('enew!')
       command(('%s %s'):format(getfcmd, file))
       list = {
-        { lnum = 222, col = 77, text = 'Line 222', bufnr = 2 },
-        { lnum = 333, col = 88, text = 'Line 333', bufnr = 3 },
+        {
+          lnum = 222,
+          end_lnum = 0,
+          col = 77,
+          end_col = 0,
+          text = 'Line 222',
+          module = '',
+          nr = -1,
+          bufnr = 2,
+          valid = 1,
+          pattern = '',
+          vcol = 0,
+          ['type'] = '',
+        },
+        {
+          lnum = 333,
+          end_lnum = 0,
+          col = 88,
+          end_col = 0,
+          text = 'Line 333',
+          module = '',
+          nr = -1,
+          bufnr = 3,
+          valid = 1,
+          pattern = '',
+          vcol = 0,
+          ['type'] = '',
+        },
       }
-      eq_qflist(list, getlist())
+      eq(list, getlist())
       eq(('%s-1.res'):format(file), fn.bufname(list[1].bufnr))
       eq(('%s-2.res'):format(file), fn.bufname(list[2].bufnr))
     end)

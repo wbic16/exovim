@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it = t.describe, t.it
 local clear = n.clear
 local eq = t.eq
 local ok = t.ok
@@ -91,8 +90,8 @@ describe('version', function()
       end)
 
       it('tostring() ' .. input, function()
-        eq('string', type(tostring(range)))
-        eq(range, vim.version.range(tostring(range)))
+        eq(type(tostring(range)), 'string')
+        eq(vim.version.range(tostring(range)), range)
       end)
 
       it('[from] in range ' .. input, function()
@@ -150,11 +149,11 @@ describe('version', function()
       assert(vim.version.range('>1.2.3-0'):has('1.2.3-1'))
 
       local range_alpha = vim.version.range('1.2.3-alpha')
-      eq(range_alpha, vim.version.range(tostring(range_alpha)))
+      eq(vim.version.range(tostring(range_alpha)), range_alpha)
     end)
 
     it('returns nil with empty version', function()
-      eq(nil, vim.version.parse(''))
+      eq(vim.version.parse(''), nil)
     end)
   end)
 
@@ -163,16 +162,12 @@ describe('version', function()
       local r1 = vim.version.range(input[1])
       local r2 = vim.version.range(input[2])
       if output == nil then
-        eq(nil, vim.version.intersect(r1, r2))
-        eq(nil, vim.version.intersect(r2, r1))
+        eq(vim.version.intersect(r1, r2), nil)
+        eq(vim.version.intersect(r2, r1), nil)
       else
         local ref = vim.version.range(output)
-        local result1 = vim.version.intersect(r1, r2)
-        local result2 = vim.version.intersect(r2, r1)
-        eq(ref, result1)
-        eq(ref, result2)
-        assert(result1:has(result1.from))
-        eq(result1, vim.version.intersect(result1, r1))
+        eq(vim.version.intersect(r1, r2), ref)
+        eq(vim.version.intersect(r2, r1), ref)
       end
     end
 
@@ -461,8 +456,8 @@ describe('version', function()
     assert(v('v1.2.3') >= v('1.2.2'))
     assert(v('v1.2.3') > v('1.2.2'))
     assert(v('v1.2.3') > v('1.0.3'))
-    eq(v('2.0.0'), vim.version.last({ v('1.2.3'), v('2.0.0') }))
-    eq(v('2.0.0'), vim.version.last({ v('2.0.0'), v('1.2.3') }))
+    eq(vim.version.last({ v('1.2.3'), v('2.0.0') }), v('2.0.0'))
+    eq(vim.version.last({ v('2.0.0'), v('1.2.3') }), v('2.0.0'))
   end)
 
   it('le()', function()

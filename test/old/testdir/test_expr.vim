@@ -37,16 +37,12 @@ func Test_version()
   call assert_true(has('patch-6.9.999'))
   call assert_true(has('patch-7.1.999'))
   call assert_true(has('patch-7.4.123'))
-  call assert_true(has('patch-7.4.123 ')) " Trailing space can be allowed.
-  call assert_true(has('patch-9.1.0'))
-  call assert_true(has('patch-9.1.0000'))
-  call assert_true(has('patch-9.2.0'))
-  call assert_true(has('patch-9.2.0000'))
+  call assert_true(has('patch-7.4.123 ')) " Traling space can be allowed.
 
   call assert_false(has('patch-7'))
   call assert_false(has('patch-7.4'))
   call assert_false(has('patch-7.4.'))
-  call assert_false(has('patch-9.3.0'))
+  call assert_false(has('patch-9.1.0'))
   call assert_false(has('patch-9.9.1'))
 
   call assert_false(has('patch-abc'))
@@ -207,23 +203,6 @@ endfunc
 func Test_special_char()
   " The failure is only visible using valgrind.
   call CheckLegacyAndVim9Failure(['echo "\<C-">'], ['E15:', 'E1004:', 'E1004:'])
-endfunc
-
-" When something else than ")" follows a nested expression, E110 shows where
-" the expression ended; when nothing follows, the ")" is really missing.
-func Test_missing_closing_paren()
-  call CheckLegacyAndVim9Failure(['echo (0!)'], "E110: Missing ')': !)")
-  call CheckLegacyAndVim9Failure(['echo (1 2)'], "E110: Missing ')': 2)")
-  call CheckLegacyAndVim9Failure(['echo (1 + 2 ]'], "E110: Missing ')': ]")
-  call CheckLegacyAndVim9Failure(['echo ("a" "b")'], "E110: Missing ')': \"b\")")
-  " in a :def function the expression may continue on the next line
-  call CheckLegacyAndVim9Failure(['VAR x = ((1)'], ["E110: Missing ')'", 'E1097:', "E110: Missing ')'"])
-  try
-    echo ((1)
-    call assert_report('should not get here')
-  catch
-    call assert_equal("Vim(echo):E110: Missing ')'", v:exception)
-  endtry
 endfunc
 
 func Test_method_with_prefix()

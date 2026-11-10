@@ -33,8 +33,7 @@ CompilerSet errorformat=
       \%E%f:%l:%c:\ %trror:%m,
       \%E%f:%l:%c:\ %trror:,
       \%Z\ %\\+\|%.%#,
-      \%C%m,
-      \%-G%.%#
+      \%C%m
 
 let &cpo = s:save_cpo
 unlet s:save_cpo

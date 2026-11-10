@@ -1,6 +1,5 @@
 local t = require('test.unit.testutil')
-local describe, before_each = t.describe, t.before_each
-local itp = t.gen_itp(t.it)
+local itp = t.gen_itp(it)
 
 local child_call_once = t.child_call_once
 local cimport = t.cimport

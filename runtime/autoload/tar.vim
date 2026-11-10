@@ -19,13 +19,6 @@
 "   2025 Jul 13 by Vim Project: warn with path traversal attacks
 "   2026 Feb 06 by Vim Project: consider 'nowrapscan' (#19333)
 "   2026 Feb 07 by Vim Project: make the path traversal detection more robust (#19341)
-"   2026 Apr 06 by Vim Project: fix bugs with lz4 support (#19925)
-"   2026 Apr 09 by Vim Project: fix bugs with zstd support (#19930)
-"   2026 Apr 09 by Vim Project: fix bug with dotted filename (#19930)
-"   2026 Apr 15 by Vim Project: fix more path traversal issues (#19981)
-"   2026 Apr 16 by Vim Project: use g:tar_secure in tar#Extract()
-"   2026 May 14 by Vim Project: use correct shellescape() call in Vimuntar()
-"   2026 Jun 16 by Vim Project: fix lz4 extraction on non-linux systemd (#20555)
 "
 "	Contains many ideas from Michael Toren's <tar.vim>
 "
@@ -129,7 +122,7 @@ let g:tar_leading_pat='\m^\%([.]\{,2\}/\)\+'
 fun! s:Msg(func, severity, msg)
   redraw!
   if a:severity =~? 'error'
-    echohl Error
+    echohl Error 
   else
     echohl WarningMsg
   endif
@@ -615,143 +608,114 @@ fun! tar#Extract()
    let &report= repkeep
    return
   endif
-  if fname =~ '^[.]\?[.]/' || simplify(fname) =~ '\.\.[/\\]'
-   call s:Msg('tar#Extract', 'error', "Path Traversal Attack detected, not extracting!")
-   let &report= repkeep
-   return
-  endif
-  if has("unix")
-   if fname =~ '^/'
-    call s:Msg('tar#Extract', 'error', "Path Traversal Attack detected, not extracting!")
-    let &report= repkeep
-    return
-   endif
-  else
-   if fname =~ '^\%(\a:[\\/]\|[\\/]\)'
-    call s:Msg('tar#Extract', 'error', "Path Traversal Attack detected, not extracting!")
-    let &report= repkeep
-    return
-   endif
-  endif
+
+  let tarball = expand("%")
+  let tarbase = substitute(tarball,'\..*$','','')
 
   let extractcmd= s:WinPath(g:tar_extractcmd)
-  let tarball = expand("%")
-  if !filereadable(tarball)
-   let &report= repkeep
-   return
-  endif
-
-  if tarball =~# "\.tar$"
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+  if filereadable(tarbase.".tar")
+   call system(extractcmd." ".shellescape(tarbase).".tar ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar {fname}: failed!")
    else
     echo "***note*** successfully extracted ". fname
    endif
 
-  elseif tarball =~# "\.tgz$"
+  elseif filereadable(tarbase.".tgz")
    let extractcmd= substitute(extractcmd,"-","-z","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tgz ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tgz {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.gz$"
+  elseif filereadable(tarbase.".tar.gz")
    let extractcmd= substitute(extractcmd,"-","-z","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tar.gz ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.gz {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tbz$"
+  elseif filereadable(tarbase.".tbz")
    let extractcmd= substitute(extractcmd,"-","-j","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tbz ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tbz {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.bz2$"
+  elseif filereadable(tarbase.".tar.bz2")
    let extractcmd= substitute(extractcmd,"-","-j","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tar.bz2 ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.bz2 {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.bz3$"
+  elseif filereadable(tarbase.".tar.bz3")
    let extractcmd= substitute(extractcmd,"-","-j","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tar.bz3 ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.bz3 {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.txz$"
+  elseif filereadable(tarbase.".txz")
    let extractcmd= substitute(extractcmd,"-","-J","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".txz ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.txz {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.xz$"
+  elseif filereadable(tarbase.".tar.xz")
    let extractcmd= substitute(extractcmd,"-","-J","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+   call system(extractcmd." ".shellescape(tarbase).".tar.xz ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.xz {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tzst$"
-   let extractcmd= substitute(extractcmd,"-","--zstd -","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+  elseif filereadable(tarbase.".tzst")
+   let extractcmd= substitute(extractcmd,"-","--zstd","")
+   call system(extractcmd." ".shellescape(tarbase).".tzst ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tzst {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.zst$"
-   let extractcmd= substitute(extractcmd,"-","--zstd -","")
-   call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
+  elseif filereadable(tarbase.".tar.zst")
+   let extractcmd= substitute(extractcmd,"-","--zstd","")
+   call system(extractcmd." ".shellescape(tarbase).".tar.zst ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.zst {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tlz4$"
-   if has("linux")
-    let extractcmd= substitute(extractcmd,"-","-I lz4 -","")
-    call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
-   else
-    call system("lz4 --decompress --stdout -- ".shellescape(tarball)." | ".extractcmd." - ".g:tar_secure.shellescape(fname))
-   endif
+  elseif filereadable(tarbase.".tlz4")
+   let extractcmd= substitute(extractcmd,"-","-I lz4","")
+   call system(extractcmd." ".shellescape(tarbase).".tlz4 ".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tlz4 {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif
 
-  elseif tarball =~# "\.tar\.lz4$"
-   if has("linux")
-    let extractcmd= substitute(extractcmd,"-","-I lz4 -","")
-    call system(extractcmd." ".shellescape(tarball)." ".g:tar_secure.shellescape(fname))
-   else
-    call system("lz4 --decompress --stdout -- ".shellescape(tarball)." | ".extractcmd." - ".g:tar_secure.shellescape(fname))
-   endif
+  elseif filereadable(tarbase.".tar.lz4")
+   let extractcmd= substitute(extractcmd,"-","-I lz4","")
+   call system(extractcmd." ".shellescape(tarbase).".tar.lz4".shellescape(fname))
    if v:shell_error != 0
-    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarball} {fname}: failed!")
+    call s:Msg('tar#Extract', 'error', $"{extractcmd} {tarbase}.tar.lz4 {fname}: failed!")
    else
     echo "***note*** successfully extracted ".fname
    endif

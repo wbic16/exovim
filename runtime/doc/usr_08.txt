@@ -4,8 +4,7 @@
 		     VIM USER MANUAL	by Bram Moolenaar
 
 
-==============================================================================
-Splitting windows
+			      Splitting windows
 
 
 Display two different files above each other.  Or view two locations in the

@@ -1,10 +1,8 @@
 -- Test for linebreak and list option (non-utf8)
 
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local feed, insert, source = n.feed, n.insert, n.source
 local clear, command, feed_command, expect = n.clear, n.command, n.feed_command, n.expect
 
@@ -185,8 +183,8 @@ describe('listlbr', function()
       1111-2222-1111-11-1111-2222-1111
       Test 9: using redo after block visual mode
 
-      AAA
-      AAA
+      AaA
+      AaA
       A
       Test 10: using normal commands after block-visual
 
@@ -330,35 +328,21 @@ describe('listlbr', function()
     ]])
   end)
 
-  it('extends a background highlight into the filler only with hl_eol', function()
+  it('extends a background highlight into the filler for the last word on a line', function()
     local screen = Screen.new(20, 5)
     screen:add_extra_attr_ids({ [100] = { background = Screen.colors.Red } })
     source([[
       set wrap linebreak
       call setline(1, 'word1.word2verylongwordthatpushesdown')
       highlight TestBg guibg=Red ctermbg=Red
-      let g:ns = nvim_create_namespace('')
     ]])
 
-    -- 'hl_eol' covers cells with no text behind them, so the filler is covered too.
-    command(
-      'call nvim_buf_set_extmark(0, g:ns, 0, 0, '
-        .. "{'end_row': 1, 'hl_group': 'TestBg', 'hl_eol': v:true})"
-    )
-    screen:expect([[
-      {100:^word1.              }|
-      {100:word2verylongwordtha}|
-      {100:tpushesdown         }|
-      {1:~                   }|
-                          |
-    ]])
-
-    -- Without it the highlight decorates characters, so it stops where they do, just as an
-    -- underline already does (see tests above).
-    command('call nvim_buf_clear_namespace(0, -1, 0, -1)')
+    -- The pushed-down word is the last thing on the line, so nothing absorbs the width overflow: a
+    -- background highlight must still extend into the filler, since a solid color looks fine over
+    -- blank cells (unlike underline/strikethrough, see tests above).
     command([[call nvim_buf_add_highlight(0, -1, 'TestBg', 0, 0, -1)]])
     screen:expect([[
-      {100:^word1.}              |
+      {100:^word1.              }|
       {100:word2verylongwordtha}|
       {100:tpushesdown}         |
       {1:~                   }|

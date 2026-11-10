@@ -5,7 +5,8 @@
 " go.vim: Vim syntax file for Go.
 " Language:             Go
 " Maintainer:           Billie Cleek <bhcleek@gmail.com>
-" Latest Revision:      2026-07-24
+" Latest Revision:      2024-04-13
+"  2024-03-17:          - fix goPackageComment highlight (by Vim Project)
 " License:              BSD-style. See LICENSE file in source repository.
 " Repository:           https://github.com/fatih/vim-go
 
@@ -190,7 +191,7 @@ else
   syn region      goRawString         start=+`+ end=+`+
 endif
 
-syn match       goImportString      /^\%(\s\+\|import \)\(\h\w* \)\?\zs"[^"\\]\+"/ contained containedin=goImport
+syn match       goImportString      /^\%(\s\+\|import \)\(\h\w* \)\?\zs"[^"]\+"/ contained containedin=goImport
 
 if s:HighlightFormatStrings()
   " [n] notation is valid for specifying explicit argument indexes
@@ -239,20 +240,20 @@ endif
 " var, const
 if s:FoldEnable('varconst')
   syn region    goVar               start='var ('   end='^\s*)$' transparent fold
-                                  \ contains=ALLBUT,goImport,goImportString,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
+                                  \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
   syn match     goVar               /var ()/ transparent fold
                                   \ contains=goVar
   syn region    goConst             start='const (' end='^\s*)$' transparent fold
-                                  \ contains=ALLBUT,goImport,goImportString,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
+                                  \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
   syn match     goConst             /const ()/ transparent fold
                                   \ contains=goConst
 else
   syn region    goVar               start='var ('   end='^\s*)$' transparent
-                                  \ contains=ALLBUT,goImport,goImportString,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
+                                  \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
   syn match     goVar               /var ()/ transparent
                                   \ contains=goVar
   syn region    goConst             start='const (' end='^\s*)$' transparent
-                                  \ contains=ALLBUT,goImport,goImportString,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
+                                  \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar,goParamName,goParamType,goSimpleParams,goPointerOperator
   syn match     goConst             /const ()/ transparent
                                   \ contains=goConst
 endif

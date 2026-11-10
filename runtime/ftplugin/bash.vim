@@ -15,6 +15,6 @@ unlet! b:is_sh
 unlet! b:is_kornshell
 let b:is_bash = 1
 
-runtime! ftplugin/sh[.]{vim,lua} ftplugin/sh_*.{vim,lua} ftplugin/sh/*.{vim,lua}
+runtime! ftplugin/sh.vim ftplugin/sh_*.vim ftplugin/sh/*.vim
 
 " vim: ts=8

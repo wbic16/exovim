@@ -12,16 +12,6 @@
 (column_heading
   (heading) @markup.heading.4)
 
-; Table header: block starting with a tab-separated column_heading (see tree-sitter-vimdoc README).
-(block
-  .
-  (line
-    (column_heading
-      (heading) @markup.underline
-      (#lua-match? @markup.underline "%S\t")))
-  .
-  (line))
-
 (column_heading
   (delimiter) @markup.heading.4
   (#set! conceal ""))
@@ -62,10 +52,6 @@
   (#set! conceal ""))
 
 (block
-  "<" @markup.raw
-  (#set! conceal ""))
-
-(line_li
   "<" @markup.raw
   (#set! conceal ""))
 

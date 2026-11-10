@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each, after_each = t.describe, t.it, t.before_each, t.after_each
 local clear = n.clear
 local command = n.command
 local expect = n.expect
@@ -57,17 +56,14 @@ describe('u CTRL-R g- g+', function()
     undo_and_redo(0, 'u', '<C-r>', '')
     undo_and_redo(0, 'g-', 'g+', '')
   end)
-
   it('undoes a change when at a leaf', function()
     undo_and_redo(1, 'u', '<C-r>', '')
     undo_and_redo(1, 'g-', 'g+', '')
   end)
-
   it('undoes a change when in a non-leaf', function()
     undo_and_redo(2, 'u', '<C-r>', '1')
     undo_and_redo(2, 'g-', 'g+', '1')
   end)
-
   it('undoes properly around a branch point', function()
     undo_and_redo(
       3,
@@ -87,35 +83,9 @@ describe('u CTRL-R g- g+', function()
       3]]
     )
   end)
-
   it('can find the previous sequence after undoing to a branch', function()
     undo_and_redo(4, 'u', '<C-r>', '1')
     undo_and_redo(4, 'g-', 'g+', '1')
-  end)
-
-  it('u restores the pre-change cursor position #5989', function()
-    local api = n.api
-    local function undo_restores(row, col, keys, pre)
-      if pre then
-        command(pre)
-      end
-      api.nvim_buf_set_lines(0, 0, -1, true, { 'this is a test' })
-      api.nvim_win_set_cursor(0, { row, col })
-      feed(keys)
-      feed('u')
-      eq({ row, col }, api.nvim_win_get_cursor(0))
-    end
-    undo_restores(1, 5, 'diw') -- Operator moves to the word start before deleting.
-    undo_restores(1, 5, 'd^') -- Backwards motion.
-    undo_restores(1, 5, 'atest<Esc>') -- Insert entered after the cursor.
-    undo_restores(1, 5, 'viwd')
-    undo_restores(1, 2, ',x', 'nnoremap ,x wdiw') -- Mapping: where it was triggered.
-    -- i_CTRL-G_u breaks: each block restores to its own start.
-    api.nvim_win_set_cursor(0, { 1, 5 })
-    feed('ifoo<C-G>ubar<Esc>u')
-    eq({ 1, 8 }, api.nvim_win_get_cursor(0))
-    feed('u')
-    eq({ 1, 5 }, api.nvim_win_get_cursor(0))
   end)
 
   describe('undo works correctly when writing in Insert mode', function()
@@ -200,7 +170,6 @@ describe(':undo! command', function()
     feed('oTake 1 down, patch it around<Esc>')
     feed('o99 little bugs in the code<Esc>')
   end)
-
   it('works', function()
     command('undo!')
     expect([[
@@ -210,7 +179,6 @@ describe(':undo! command', function()
     feed('<C-r>')
     eq('Already at newest change', lastmessage())
   end)
-
   it('works with arguments', function()
     command('undo! 2')
     expect([[
@@ -219,7 +187,6 @@ describe(':undo! command', function()
     feed('<C-r>')
     eq('Already at newest change', lastmessage())
   end)
-
   it('correctly sets alternative redo', function()
     feed('uo101 little bugs in the code<Esc>')
     command('undo!')
@@ -239,29 +206,7 @@ describe(':undo! command', function()
       1 little bug in the code
       Take 1 down, patch it around
       99 little bugs in the code]])
-
-    -- The root header: its alternate must take over as the root, not only as the redo branch.
-    command('new')
-    feed('ia<Esc>')
-    feed('u')
-    feed('ib<Esc>')
-    -- seq 2 is the root, with seq 1 nested as its alternate.
-    local tree = fn.undotree()
-    eq(2, tree.seq_last)
-    eq(1, #tree.entries)
-    eq(2, tree.entries[1].seq)
-    eq(1, tree.entries[1].alt[1].seq)
-    command('undo!')
-    expect('')
-    -- seq 1 is the root now, nothing nested, and it is the redo position.
-    tree = fn.undotree()
-    eq(1, tree.seq_last)
-    eq(1, #tree.entries)
-    eq({ seq = 1, curhead = 1 }, t.pick(tree.entries[1], 'seq', 'curhead', 'alt'))
-    feed('<C-r>')
-    expect('a')
   end)
-
   it('fails when attempting to redo or move to different undo branch', function()
     eq(
       'Vim(undo):E5767: Cannot use :undo! to redo or move to a different undo branch',
@@ -278,83 +223,5 @@ describe(':undo! command', function()
       'Vim(undo):E5767: Cannot use :undo! to redo or move to a different undo branch',
       pcall_err(command, 'undo! 4')
     )
-  end)
-end)
-
-describe("opening file when 'undofile' is on", function()
-  before_each(function()
-    clear({ args = { '--cmd', 'set undofile' } })
-  end)
-
-  it("does not crash when 'undodir' contains empty entry", function()
-    command('set undodir=,.')
-    command('edit test/functional/fixtures/bigfile.txt')
-    n.assert_alive()
-  end)
-end)
-
-describe('undo file', function()
-  before_each(clear)
-
-  --- Offset of the first undo entry in `blob`: magic bytes 0xf5 0x18, followed by 4-byte ue_top,
-  --- ue_bot, ue_lcount, ue_size.
-  local function find_entry(blob)
-    for i = 1, #blob - 18 do
-      if blob:byte(i) == 0xf5 and blob:byte(i + 1) == 0x18 then
-        local ok = true
-        -- This expects the ue_xx values to be small, so other data (e.g. a timestamp) containing
-        -- the magic bytes is not mistaken for an entry.
-        for field = 0, 3 do
-          local off = i + 2 + field * 4
-          ok = ok
-            and blob:byte(off) == 0
-            and blob:byte(off + 1) == 0
-            and blob:byte(off + 2) == 0
-            and blob:byte(off + 3) <= 8
-        end
-        if ok then
-          return i
-        end
-      end
-    end
-  end
-
-  -- If a corrupted entry is not rejected on load, it would be linked into the undo tree, then
-  -- u_undoredo() acts on its line numbers and u_freeentry() walks ue_array.
-  it('rejects corrupted entry (E825)', function()
-    local txt = t.tmpname()
-    local undo = txt .. '.undo'
-
-    t.write_file(txt, 'one\ntwo\n')
-    command('edit ' .. txt)
-    command('set undolevels=100')
-    command("call setline(1, ['three', 'four'])")
-    command('write')
-    command('wundo! ' .. undo)
-
-    local blob = assert(t.read_file(undo))
-    local entry = assert(find_entry(blob))
-
-    --- Writes `bytes` over `blob` at `pos` and reads it via :rundo.
-    local function rundo(pos, bytes)
-      t.write_file(undo, blob:sub(1, pos - 1) .. bytes .. blob:sub(pos + #bytes))
-      return pcall_err(command, 'rundo ' .. undo)
-    end
-
-    -- ue_size larger than the file can hold.
-    for _, bad in ipairs({ '\127\255\255\240', '\255\255\255\255' }) do
-      eq(
-        ('Vim(rundo):E825: Corrupted undo file (entry size): %s'):format(undo),
-        rundo(entry + 14, bad)
-      )
-    end
-
-    -- Negative ue_top/ue_bot/ue_lcount.
-    for field = 0, 2 do
-      eq(
-        ('Vim(rundo):E825: Corrupted undo file (entry lnum): %s'):format(undo),
-        rundo(entry + 2 + field * 4, '\255\255\255\251')
-      )
-    end
   end)
 end)

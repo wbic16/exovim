@@ -43,10 +43,8 @@ typedef struct {
 // extmark was updated
 typedef struct {
   uint64_t mark;  // raw mark id of the marktree
-  int undo_row;
-  colnr_T undo_col;
-  int redo_row;   // -1: nothing to redo (the mark was not explicitly moved).
-  colnr_T redo_col;
+  int old_row;
+  colnr_T old_col;
   bool invalidated;
 } ExtmarkSavePos;
 

@@ -4,8 +4,6 @@ Contributing to Neovim
 Getting started
 ---------------
 
-Before sending a PR, read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed and you may be blocked from the org.
-
 If you are new to the codebase, read [:help dev-quickstart](https://neovim.io/doc/user/dev_tools.html#dev-quickstart)
 to see how to run tests and start hacking on the codebase.
 
@@ -13,6 +11,7 @@ If you want to help but don't know where to start, here are some
 low-risk/isolated tasks:
 
 - Try a [complexity:low] issue.
+- Fix bugs found by [Coverity](#coverity).
 - [Merge a Vim patch] (requires strong familiarity with Vim)
   - NOTE: read the above link before sending improvements to "runtime files" (anything in `runtime/`).
     - *Vimscript* files are (mostly) maintained by [Vim], not Nvim.
@@ -69,29 +68,15 @@ Pull requests (PRs)
 
 ### AI-assisted work
 
-AI work is only valuable if you, the human, review it and ask questions to drive
-further improvements. Do not send AI "one-shot" PRs.
+Using AI for contributions is acceptable, given the following:
 
-You are expected to review the generated code yourself, understand it, ask your
-AI questions and guide it through improvements and refinements that consider the
-"whole picture". AI is more valuable when it's guided by you, the human, with
-the goal of producing elegant code that fits the project vision, conventions,
-and architecture.
-
-You are expected to:
-
-- Review the output yourself before sending a non-Draft PR. Do NOT request
-  review until YOU have checked the AI generated code.
+- YOU review the output before sending a non-Draft PR. Do NOT request review
+  until YOU have checked the AI generated PR and verify the following:
 - REMOVE verbosity and blathering from documentation, comments, PR description,
   commit message, etc. All resources, including names, should be CONCISE and
   CLEAR. They should contain USEFUL information and nothing more.
 - REMOVE and DEDUPLICATE redundant code, tests, explanations, etc. Explicitness
   and clarity are GOOD but verbosity, over-explanation, and redundancy is BAD.
-
-If your PR description includes noise such as a "Testing" section with
-excruciating detail about how the AI tested the code (completely useless for
-reviewers: we have CI), that indicates you didn't understand the above guidance;
-your PR will be closed and you will be blocked from the org.
 
 ### Merging to master
 
@@ -229,6 +214,13 @@ make lint  # or lintc, lintlua, lintquery, lintdoc
     setlocal formatprg=uncrustify\ -q\ -l\ C\ -c\ src/uncrustify.cfg\ --no-backup
   endif
   ```
+- There is also `.clang-format` which is "mostly" aligned with uncrustify.
+  To use the Nvim `gq` command with `clang-format`:
+  ```vim
+  if !empty(findfile('.clang-format', ';'))
+    setlocal formatprg=clang-format\ -style=file
+  endif
+  ```
 
 ### Navigate
 
@@ -315,11 +307,8 @@ If you need to modify or debug the documentation flow, these are the main files:
 
 ### Lua docstrings
 
-Use [LuaCATS] annotations in Lua docstrings to annotate parameter types, return
+Use [LuaLS] annotations in Lua docstrings to annotate parameter types, return
 types, etc. See [:help dev-lua-doc][dev-lua-doc].
-
-Run `make emmylua-check` to check the runtime with [EmmyLua]. The build downloads
-the pinned checker automatically. Settings are in `.emmyrc.json`.
 
 Third-party dependencies
 ------------------------
@@ -371,8 +360,7 @@ as context, use the `-W` argument as well.
 [conventional_commits]: https://www.conventionalcommits.org
 [dev-doc-guide]: https://neovim.io/doc/user/dev.html#dev-doc
 [dev-lua-doc]: https://neovim.io/doc/user/dev.html#dev-lua-doc
-[LuaCATS]: https://luals.github.io/wiki/annotations/
-[EmmyLua]: https://github.com/EmmyLuaLs/emmylua-analyzer-rust
+[LuaLS]: https://luals.github.io/wiki/annotations/
 [gcc-warnings]: https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
 [gh]: https://cli.github.com/
 [git-bisect]: http://git-scm.com/book/en/v2/Git-Tools-Debugging-with-Git
@@ -381,6 +369,7 @@ as context, use the `-W` argument as well.
 [github-issues]: https://github.com/neovim/neovim/issues
 [include-what-you-use-install]: https://github.com/include-what-you-use/include-what-you-use#how-to-install
 [include-what-you-use]: https://github.com/include-what-you-use/include-what-you-use#using-with-cmake
+[lua-language-server]: https://github.com/sumneko/lua-language-server/
 [nvim-lspconfig/clangd]: https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#clangd
 [pr-draft]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request
 [pr-ready]: https://docs.github.com/en/github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request

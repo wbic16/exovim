@@ -4,9 +4,8 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
-Command-line mode		*cmdline* *Command-line* *mode-cmdline* *:*
 				*Cmdline-mode* *Command-line-mode* *Cmdline*
+Command-line mode		*cmdline* *Command-line* *mode-cmdline* *:*
 
 Command-line mode is used to enter Ex commands (":"), search patterns
 ("/" and "?"), and filter commands ("!").
@@ -67,8 +66,8 @@ Notes:
 There is an automatic completion of names on the command-line; see
 |cmdline-completion|.
 
-CTRL-V							*c_CTRL-V*
-		Insert next non-digit literally.  Up to three digits form the
+							*c_CTRL-V*
+CTRL-V		Insert next non-digit literally.  Up to three digits form the
 		decimal value of a single byte.  The non-digit and the three
 		digits are not considered for mapping.  This works the same
 		way as in Insert mode (see above, |i_CTRL-V|).
@@ -81,9 +80,8 @@ CTRL-V							*c_CTRL-V*
 CTRL-Q		Same as CTRL-V.  But with some terminals it is used for
 		control flow, it doesn't work then.
 
-CTRL-SHIFT-V						*c_CTRL-SHIFT-V*
-CTRL-SHIFT-Q						*c_CTRL-SHIFT-Q*
-		Works just like CTRL-V, but do not try to include the CTRL
+CTRL-SHIFT-V				*c_CTRL-SHIFT-V* *c_CTRL-SHIFT-Q*
+CTRL-SHIFT-Q	Works just like CTRL-V, but do not try to include the CTRL
 		modifier into the key.
 		Note: When CTRL-SHIFT-V is intercepted by your system (e.g.,
 		to paste text) you can often use CTRL-SHIFT-Q instead.
@@ -134,7 +132,7 @@ CTRL-U		Remove all characters between the cursor position and
 						*c_<Insert>* *c_Insert*
 <Insert>	Toggle between insert and overstrike.
 
-{char1} <BS> {char2}					*c_digraph*
+{char1} <BS> {char2}	or				*c_digraph*
 CTRL-K {char1} {char2}					*c_CTRL-K*
 		enter digraph (see |digraphs|).  When {char1} is a special
 		key, the code for that key is inserted in <> form.
@@ -241,23 +239,22 @@ CTRL-\ e {expr}						*c_CTRL-\_e*
 <		This doesn't work recursively, thus not when already editing
 		an expression.  But it is possible to use in a mapping.
 
-CTRL-Y							*c_CTRL-Y*
-		When there is a modeless selection, copy the selection into
+							*c_CTRL-Y*
+CTRL-Y		When there is a modeless selection, copy the selection into
 		the clipboard.
 		If there is no selection CTRL-Y is inserted as a character.
 		See 'wildmenu' for behavior during wildmenu completion mode.
 
-CTRL-Z							*c_CTRL-Z*
-		Trigger 'wildmode'. Same as 'wildcharm', but always available.
+							*c_CTRL-Z*
+CTRL-Z		Trigger 'wildmode'. Same as 'wildcharm', but always available.
 
 CTRL-M or CTRL-J		*c_CTRL-M* *c_CTRL-J* *c_<NL>* *c_<CR>* *c_CR*
 <CR> or <NL>	start entered command
 
 CTRL-[						*c_CTRL-[* *c_<Esc>* *c_Esc*
 <Esc>		When typed and 'x' not present in 'cpoptions', quit
-		Command-line mode without executing, otherwise start entered
-		command (this is vi compatible).  Use CTRL-C in a mapping
-		to abandon the command-line (see below).
+		Command-line mode without executing.  In macros or when 'x'
+		present in 'cpoptions', start entered command.
 		Note: If your <Esc> key is hard to hit on your keyboard, train
 		yourself to use CTRL-[.
 						*c_META* *c_ALT*
@@ -291,8 +288,8 @@ CTRL-P		command-line completion (see |cmdline-completion|)
 CTRL-A		command-line completion (see |cmdline-completion|)
 CTRL-L		command-line completion (see |cmdline-completion|)
 
-CTRL-^							*c_CTRL-^*
-		Toggle the use of language |:lmap| mappings and/or Input
+							*c_CTRL-^*
+CTRL-^		Toggle the use of language |:lmap| mappings and/or Input
 		Method.
 		When typing a pattern for a search command and 'imsearch' is
 		not -1, VAL is the value of 'imsearch', otherwise VAL is the
@@ -315,8 +312,8 @@ CTRL-^							*c_CTRL-^*
 		switching it on with CTRL-^, the new state is not used again
 		for the next command or Search pattern.
 
-CTRL-]							*c_CTRL-]*
-		Trigger abbreviation, without inserting a character.
+						*c_CTRL-]*
+CTRL-]		Trigger abbreviation, without inserting a character.
 
 For Emacs-style editing on the command-line see |emacs-keys|.
 
@@ -329,8 +326,8 @@ The same could be done by typing <S-Up> a number of times until the desired
 command-line is shown.  (Note: the shifted arrow keys do not work on all
 terminals)
 
-:his[tory]						*:his* *:history*
-		Print the history of last entered commands.
+							*:his* *:history*
+:his[tory]	Print the history of last entered commands.
 
 :his[tory] [{name}] [{first}][, [{last}]]
 		List the contents of history {name} which can be:
@@ -393,15 +390,16 @@ see |cmdline-autocompletion|.
 
 These are the commands that can be used:
 
-CTRL-D							*c_CTRL-D*
-		List names that match the pattern in front of the cursor.
+							*c_CTRL-D*
+CTRL-D		List names that match the pattern in front of the cursor.
 		When showing file names, directories are highlighted (see
 		|highlight-groups|).  Names where 'suffixes' matches are moved
 		to the end.
 		The 'wildoptions' option can be set to "tagfile" to list the
 		file of matching tags.
 
-'wildchar' option		*c_CTRL-I* *c_wildchar* *c_<Tab>* */_<Tab>*
+				*c_CTRL-I* *c_wildchar* *c_<Tab>* */_<Tab>*
+'wildchar' option
 		A match is done on the pattern in front of the cursor.  The
 		match (if there are several, the first match) is inserted
 		in place of the pattern.  (Note: does not work inside a
@@ -420,22 +418,22 @@ CTRL-D							*c_CTRL-D*
 <S-Tab>		Like 'wildchar' or <Tab>, but begin with the last match and
 		then go to the previous match.
 
-CTRL-N							*c_CTRL-N*
-		After using 'wildchar' which got multiple matches, go to next
+							*c_CTRL-N*
+CTRL-N		After using 'wildchar' which got multiple matches, go to next
 		match.  Otherwise recall more recent command-line from
 		history.
 
-CTRL-P							*c_CTRL-P*
-		After using 'wildchar' which got multiple matches, go to
+							*c_CTRL-P*
+CTRL-P		After using 'wildchar' which got multiple matches, go to
 		previous match.  Otherwise recall older command-line from
 		history.
 
-CTRL-A							*c_CTRL-A*
-		All names that match the pattern in front of the cursor are
+							*c_CTRL-A*
+CTRL-A		All names that match the pattern in front of the cursor are
 		inserted.
 
-CTRL-L							*c_CTRL-L*
-		A match is done on the pattern in front of the cursor.  If
+							*c_CTRL-L*
+CTRL-L		A match is done on the pattern in front of the cursor.  If
 		there is one match, it is inserted in place of the pattern.
 		If there are multiple matches the longest common part is
 		inserted in place of the pattern.  If the result is shorter
@@ -448,20 +446,18 @@ CTRL-L							*c_CTRL-L*
 		no uppercase characters, the added character is converted to
 		lowercase.
 
-CTRL-G							*c_CTRL-G* */_CTRL-G*
-		While the "/" or "?" 'incsearch' prompt is active, CTRL-G
+	                                            *c_CTRL-G* */_CTRL-G*
+CTRL-G		While the "/" or "?" 'incsearch' prompt is active, CTRL-G
 		moves to the next match (without changing the |jumplist|).
-		The |search-offset| is applied when <CR> is pressed, but does
-		not affect the match highlighting.
+		Does not take |search-offset| into account.
 
 		Use CTRL-T to move to the previous match.
 		Mnemonic: on a regular keyboard G is below T.
 
-CTRL-T							*c_CTRL-T* */_CTRL-T*
-		While the "/" or "?" 'incsearch' prompt is active, CTRL-T
+	                                            *c_CTRL-T* */_CTRL-T*
+CTRL-T		While the "/" or "?" 'incsearch' prompt is active, CTRL-T
 		moves to the previous match (without changing the |jumplist|).
-		The |search-offset| is applied when <CR> is pressed, but does
-		not affect the match highlighting.
+		Does not take |search-offset| into account.
 
 		Use CTRL-G to move to the next match.
 		Mnemonic: on a regular keyboard T is above G.
@@ -608,13 +604,11 @@ line.  If you want to use '|' in an argument, precede it with '\'.
 
 These commands see the '|' as their argument, and can therefore not be
 followed by another Vim command:
-    :append
     :argdo
     :autocmd
     :bufdo
     :cdo
     :cfdo
-    :change
     :command
     :debug
     :eval
@@ -624,7 +618,6 @@ followed by another Vim command:
     :global
     :help
     :helpgrep
-    :insert
     :ldo
     :lfdo
     :lhelpgrep
@@ -817,32 +810,30 @@ When a number is added this is done after the adjustment to the last line of
 the fold.  This means these lines are additionally included in the range.  For
 example: >
    :3,4+2print
-On this text: >
-	1 one
-	2 two
-	3 three
-	4 four FOLDED
-	5 five FOLDED
-	6 six
-	7 seven
-	8 eight
-<
+On this text:
+	1 one ~
+	2 two ~
+	3 three ~
+	4 four FOLDED ~
+	5 five FOLDED ~
+	6 six ~
+	7 seven ~
+	8 eight ~
 Where lines four and five are a closed fold, ends up printing lines 3 to 7.
 The 7 comes from the "4" in the range, which is adjusted to the end of the
 closed fold, which is 5, and then the offset 2 is added.
 
 An example for subtracting (which isn't very useful): >
    :2,4-1print
-On this text: >
-	1 one
-	2 two
-	3 three FOLDED
-	4 four FOLDED
-	5 five FOLDED
-	6 six FOLDED
-	7 seven
-	8 eight
-<
+On this text:
+	1 one ~
+	2 two ~
+	3 three FOLDED ~
+	4 four FOLDED ~
+	5 five FOLDED ~
+	6 six FOLDED ~
+	7 seven ~
+	8 eight ~
 Where lines three to six are a closed fold, ends up printing lines 2 to 6.
 The 6 comes from the "4" in the range, which is adjusted to the end of the
 closed fold, which is 6, and then 1 is subtracted, then this is still in the
@@ -895,9 +886,7 @@ Reverse Range						*E493*
 
 A range should have the lower line number first.  If this is not the case, Vim
 will ask you if it should swap the line numbers.
->
-	Backwards range given, OK to swap
-<
+	Backwards range given, OK to swap ~
 This is not done within the global command ":g".
 
 You can use ":silent" before a command to avoid the question, the range will
@@ -931,7 +920,6 @@ Visual Mode and Range
 These flags are supported by a selection of Ex commands.  They print the line
 that the cursor ends up after executing the command:
 
-	Flag	Meaning ~
 	l	output like for |:list|
 	#	add line number
 	p	output like for |:print|
@@ -983,12 +971,10 @@ that contain a quote and wildcards): >
 To avoid the special meaning of '%' and '#' insert a backslash before it.
 Detail: The special meaning is always escaped when there is a backslash before
 it, no matter how many backslashes.
-
 	you type:		result	~
 	   #			alternate.file
 	   \#			#
 	   \\#			\#
-
 Also see |`=|.
 
 							*E499* *E500*
@@ -1048,7 +1034,7 @@ Note: these are typed literally, they are not special keys!
 		   the script line number in any situation.  *E961*
 
 							 *filename-modifiers*
-     *:_%:* *::8* *::p* *::.* *::~* *::h* *::t* *::r* *::e* *::s* *::gs* *::S*
+*:_%:* *::8* *::p* *::.* *::~* *::h* *::t* *::r* *::e* *::s* *::gs* *::S*
      *%:8* *%:p* *%:.* *%:~* *%:h* *%:t* *%:r* *%:e* *%:s* *%:gs* *%:S*
 The file name modifiers can be used after "%", "#", "#n", "<cfile>",
 "<script>", "<afile>" or "<abuf>".  They are also used with the |fnamemodify()|
@@ -1200,66 +1186,72 @@ Also see |`=|.
 ==============================================================================
 7. Command-line window				*cmdline-window* *cmdwin*
 							*command-line-window*
-The command-line window ("cmdwin") is a buffer+window in which the command
-line can be edited. See also |:exmode|, a REPL-like mode based on the cmdwin.
+In the command-line window the command line can be edited just like editing
+text in any window.  It is a special kind of window, because you cannot leave
+it in a normal way.
 
 
 OPEN						*c_CTRL-F* *q:* *q/* *q?*
 
 There are two ways to open the command-line window:
-1. From Command-line mode, use <C-F> (or the 'cedit' key).
-   - Not supported from the expr-register cmdline (|c_CTRL-R_=| |i_CTRL-R_=|).
+1. From Command-line mode, use the key specified with the 'cedit' option.
 2. From Normal mode, use the "q:", "q/" or "q?" command.
    This starts editing an Ex command-line ("q:") or search string ("q/" or
    "q?").  Note that this is not possible while recording is in progress (the
    "q" stops recording then).
 
-When the window opens it is filled with the command-line history.  The editor
-opens in Normal mode.  The last line contains the command as typed so far.  The
-|cmdwin-char| is shown in 'statuscolumn', indicating the type of command-line.
-The window is full width, positioned just above the command-line; its height
-is decided by 'cmdwinheight' (if there is room).
+When the window opens it is filled with the command-line history.  The last
+line contains the command as typed so far.  The left column will show a
+character that indicates the type of command-line being edited, see
+|cmdwin-char|.
 
-Window and tabpage commands work as usual while cmdwin is open: you can
-navigate, resize, close and open windows/tabpages. The mouse works as in any
-window: clicks focus other windows, and statuslines and vertical separators
-can be dragged to resize.
-
+Vim will be in Normal mode when the editor is opened.
 								*E1292*
-Only one command-line window can be open at a time.
+Once a command-line window is open it is not possible to open another one.
+
+The height of the window is specified with 'cmdwinheight' (or smaller if there
+is no room).  The window is always full width and is positioned just above the
+command-line.
 
 
 EDIT
 
-You can use any commands to move around and edit the text in the window, both
-in Normal and Insert mode.
+You can now use commands to move around and edit the text in the window.  Both
+in Normal mode and Insert mode.
 
 It is possible to use ":", "/" and other commands that use the command-line,
-but it's not possible to open another cmdwin from there.  There is no
+but it's not possible to open another command-line window then.  There is no
 nesting.
+							*E11* *E1188*
+The command-line window is not a normal window.  It is not possible to move to
+another window or edit another buffer.  All commands that would do this are
+disabled in the command-line window.  Of course it _is_ possible to execute
+any command that you entered in the command-line window.  Other text edits are
+discarded when closing the window.
 
 
-CLOSE
+CLOSE							*E199*
 
 There are several ways to leave the command-line window:
 
-Key		Action ~
-<Enter>		Execute the command-line under the cursor, then close the
-		window(s) where cmdwin is visible.  Works both in Insert and
-		in Normal mode.
-CTRL-C		Continue in Command-line mode.  The command-line under the
-		cursor is pre-filled in the command-line.  Works both in
+<CR>		Execute the command-line under the cursor.  Works both in
 		Insert and in Normal mode.
+CTRL-C		Continue in Command-line mode.  The command-line under the
+		cursor is used as the command-line.  Works both in Insert and
+		in Normal mode.  There is no redraw, thus the window will
+		remain visible.
 :quit		Discard the command line and go back to Normal mode.
 		":close", CTRL-W c, ":exit", ":xit" and CTRL-\ CTRL-N also
 		work.
-:qall		Quit Nvim, unless there are changes in some buffer.
-:qall!		Quit Nvim, discarding changes to any buffer.
+:qall		Quit Vim, unless there are changes in some buffer.
+:qall!		Quit Vim, discarding changes to any buffer.
 
-When the cmdwin closes, focus returns to the window where the command-line
-was started from (if possible).  The cmdwin scratch buffer is destroyed
-(`bufhidden=wipe`).  Any text edits other than the line executed by <Enter>
-are lost.
+Once the command-line window is closed the old window sizes are restored.  The
+executed command applies to the window and buffer where the command-line was
+started from.  This works as if the command-line window was not there, except
+that there will be an extra screen redraw.
+The buffer used for the command-line window is deleted.  Any changes to lines
+other than the one that is executed with <CR> are lost.
 
 If you would like to execute the command under the cursor and then have the
 command-line window open again, you may find this mapping useful: >
@@ -1269,15 +1261,15 @@ command-line window open again, you may find this mapping useful: >
 
 VARIOUS
 
-Buffer and window options set on cmdwin open:
+The command-line window cannot be used when there already is a command-line
+window (no nesting).
 
-Option		Value ~
-'bufhidden'	"wipe"
-'buflisted'	off
+Some options are set when the command-line window is opened:
+'filetype'	"vim", when editing an Ex command-line; this starts Vim syntax
+		highlighting if it was enabled
+'rightleft'	off
+'modifiable'	on
 'buftype'	"nofile"
-'filetype'	"vim" (only for ":" type)
-'foldenable'	off
-'statuscolumn'	shows the |cmdwin-char|
 'swapfile'	off
 
 It is allowed to write the buffer contents to a file.  This is an easy way to
@@ -1294,6 +1286,11 @@ If you don't want these mappings, disable them with: >
 	au CmdwinEnter [:>] iunmap <buffer> <Tab>
 	au CmdwinEnter [:>] nunmap <buffer> <Tab>
 You could put these lines in your vimrc file.
+
+While in the command-line window you cannot use the mouse to put the cursor in
+another window, or drag statuslines of other windows.  You can drag the
+statusline of the command-line window itself and the statusline above it.
+Thus you can resize the command-line window, but not others.
 
 The |getcmdwintype()| function returns the type of the command-line being
 edited as described in |cmdwin-char|.
@@ -1321,8 +1318,6 @@ See also |cmdline-autocompletion|.
 
 					*cmdline-char* *cmdwin-char*
 The character used for the pattern indicates the type of command-line:
-
-	Char	Type ~
 	:	normal Ex command
 	>	debug mode command |debug-mode|
 	/	forward search string

@@ -4,7 +4,6 @@
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
 
 
-==============================================================================
 Vim client-server communication				*client-server*
 
                                       Type |gO| to see the table of contents.
@@ -18,6 +17,8 @@ Nvim running as a server. These arguments match those provided by Vim's
 clientserver option.
 
 The following command line arguments are available:
+
+    argument			meaning	~
 
    --remote [+{cmd}] {file} ...					*--remote*
 				Open the file list in a remote Vim.  When
@@ -92,6 +93,8 @@ Vim supports additional functionality in clientserver that's not yet
 implemented in Nvim. In particular, none of the "wait" variants are supported
 yet. The following command line arguments are not yet available:
 
+    argument			meaning	~
+
    --remote-wait [+{cmd}] {file} ...				*--remote-wait*
 				Not yet supported by Nvim.
 				As --remote, but wait for files to complete
@@ -108,5 +111,25 @@ yet. The following command line arguments are not yet available:
    --remote-tab-wait-silent	Not yet supported by Nvim.
 				Like --remote-wait-silent but open each file
 				in a new tabpage.
+							    *--servername*
+   --servername {name}          Not yet supported by Nvim.
+				Become the server {name}.  When used together
+                                with one of the --remote commands: connect to
+                                server {name} instead of the default (see
+                                below).  The name used will be uppercase.
+
+								*--serverlist*
+   --serverlist			Not yet supported by Nvim.
+				Output a list of server names.
+
+
+
+
+SERVER NAME						*client-server-name*
+
+By default Vim will try to register the name under which it was invoked (gvim,
+egvim ...).  This can be overridden with the --servername argument.  Nvim
+either listens on a named pipe or a socket and does not yet support this
+--servername functionality.
 
  vim:tw=78:sw=4:ts=8:noet:ft=help:norl:

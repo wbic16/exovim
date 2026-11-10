@@ -1,7 +1,6 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local assert_alive = n.assert_alive
 local command = n.command
 local feed_command = n.feed_command
@@ -56,7 +55,7 @@ describe('exit:', function()
 
   it('v:exiting=0, v:exitreason=quit on exit from Ex mode try-catch vim-patch:8.0.0184', function()
     test_exiting(function()
-      feed('1q:')
+      feed('gQ')
       feed_command('try', 'call NoFunction()', 'catch', 'echo "bye"', 'endtry', 'quit')
     end)
   end)
@@ -65,36 +64,6 @@ describe('exit:', function()
     n.api.nvim_buf_set_lines(0, 0, -1, true, { 'modified' })
     pcall_err(command, 'quit')
     eq('', eval('v:exitreason'))
-  end)
-
-  it('interrupts prompts after the UI detached', function()
-    local testlog = 'Xtest-exit-prompt.log'
-    local fname = 'Xtest-corrupt.shada'
-    t.finally(function()
-      os.remove(fname)
-      os.remove(testlog)
-    end)
-    -- Spins forever unless getchar() is interrupted.
-    for _, loop in ipairs({
-      [[while getchar() != char2nr('q') | endwhile]],
-      [[lua while vim.fn.getchar() ~= ('q'):byte() do end]],
-    }) do
-      os.remove(testlog)
-      -- Not --headless: a server that lost its UI is not headless. #42097
-      n.clear({ args_rm = { '--headless' }, env = { NVIM_LOG_FILE = testlog } })
-      n.api.nvim_ui_attach(80, 20, {})
-      n.api.nvim_ui_detach()
-      command(('autocmd VimLeavePre * %s'):format(loop))
-      -- The ShaDa write at exit reads the unparseable file and emits an error (hit-enter prompt).
-      t.write_file(fname, 'x')
-      command(('set shadafile=%s'):format(fname))
-      n.api.nvim_input(':qall!<CR>')
-      n.expect_exit(2000, function() end)
-
-      -- Positive confirmation
-      t.assert_log('Interrupted prompt %(mode=n%)', testlog, 100)
-      t.assert_log('Exiting with error: "E%d+: ', testlog, 100)
-    end
   end)
 end)
 

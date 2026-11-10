@@ -1,8 +1,6 @@
 local n = require('test.functional.testnvim')()
-local t = require('test.testutil')
 local Screen = require('test.functional.ui.screen')
 
-local describe, it, before_each = t.describe, t.it, t.before_each
 local clear = n.clear
 local exec = n.exec
 local feed = n.feed
@@ -15,7 +13,7 @@ describe('matchparen', function()
   it('redraws properly after scrolling with scrolloff=1', function()
     local screen = Screen.new(30, 7)
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       set scrolloff=1
       call setline(1, ['a', 'b', 'c', 'd', 'e', '', '{', '}', '{', 'f', 'g', '}'])
       call cursor(5, 1)
@@ -27,7 +25,7 @@ describe('matchparen', function()
       {17:}}                             |
       {17:{}                             |
       {17:f}                             |
-      {17:^g}                             |
+      ^g                             |
       }                             |
       {5:-- VISUAL LINE --}             |
     ]])
@@ -52,7 +50,7 @@ describe('matchparen', function()
     ]]
 
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       set hidden
       call setline(1, ['()'])
       normal 0
@@ -82,7 +80,7 @@ describe('matchparen', function()
     }
 
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       let s:win = win_getid()
       call setline(1, '{}')
       split
@@ -109,7 +107,7 @@ describe('matchparen', function()
     local screen = Screen.new(30, 9)
 
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       set completeopt=menuone
       call setline(1, ['aa', 'aaa', 'aaaa', '(a)'])
       call cursor(4, 3)
@@ -137,7 +135,7 @@ describe('matchparen', function()
     }
 
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       call setline(1, ['aaaaaaaa（', 'bbbb）cc'])
       set matchpairs+=（:）
     ]])
@@ -204,7 +202,7 @@ describe('matchparen', function()
     local screen = Screen.new(40, 15)
     exec([[
       syntax on
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       set ft=sh
       call setline(1, [
             \ '#!/bin/sh',
@@ -227,7 +225,7 @@ describe('matchparen', function()
     })
     screen:expect([[
       {18:#!/bin/sh}                               |
-      {25:SUSUWU_PRINT}{16:()} {15:(}                        |
+      {25:SUSUWU_PRINT()} {15:(}                        |
         {15:case} {15:"}{100:${LEVEL}}{15:"} {15:in}                    |
           {15:"}{100:$SUSUWU_SH_NOTICE}{15:"^)}                |
           {100:${SUSUWU_S}} {15:&&} {15:return} {26:1}             |
@@ -248,7 +246,7 @@ describe('matchparen', function()
     end
     screen:expect([[
       {18:#!/bin/sh}                               |
-      {25:SUSUWU_PRINT}{16:()} {15:(}                        |
+      {25:SUSUWU_PRINT()} {15:(}                        |
         {15:case} {15:"}{100:${LEVEL}}{15:"} {15:in}                    |
           {15:"}{100:$SUSUWU_SH_NOTICE}{15:")} foobar^         |
           {100:${SUSUWU_S}} {15:&&} {15:return} {26:1}             |
@@ -268,7 +266,7 @@ describe('matchparen', function()
   it('with scrolling', function()
     local screen = Screen.new(30, 7)
     exec([[
-      source $VIMRUNTIME/plugin/matchparen.lua
+      source $VIMRUNTIME/plugin/matchparen.vim
       set scrolloff=1
       call setline(1, ['foobar {', '', '', '', '}'])
       call cursor(5, 1)

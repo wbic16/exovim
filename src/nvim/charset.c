@@ -33,68 +33,132 @@
 
 #include "charset.c.generated.h"
 
-// a chartab is an array with 256 bits, each bit representing one of the characters 0-255.
-#define SET_CHARTAB(chartab, c) (chartab)[(unsigned)(c) >> 6] |= (1ull << ((c) & 0x3f))
-#define RESET_CHARTAB(chartab, c) (chartab)[(unsigned)(c) >> 6] &= ~(1ull << ((c) & 0x3f))
-#define GET_CHARTAB(chartab, c) ((chartab)[(unsigned)(c) >> 6] & (1ull << ((c) & 0x3f)))
+static bool chartab_initialized = false;
 
-static uint64_t isf_chartab[4];  // chartab for 'isfname'
-static uint64_t isi_chartab[4];  // chartab for 'isindent'
+// b_chartab[] is an array with 256 bits, each bit representing one of the
+// characters 0-255.
+#define SET_CHARTAB(buf, c) \
+  (buf)->b_chartab[(unsigned)(c) >> 6] |= (1ull << ((c) & 0x3f))
+#define RESET_CHARTAB(buf, c) \
+  (buf)->b_chartab[(unsigned)(c) >> 6] &= ~(1ull << ((c) & 0x3f))
+#define GET_CHARTAB_TAB(chartab, c) \
+  ((chartab)[(unsigned)(c) >> 6] & (1ull << ((c) & 0x3f)))
 
-int buf_init_isk_chartab(buf_T *buf)
+// Table used below, see init_chartab() for an explanation
+static uint8_t g_chartab[256];
+
+// Flags for g_chartab[].
+#define CT_CELL_MASK  0x07  ///< mask: nr of display cells (1, 2 or 4)
+#define CT_PRINT_CHAR 0x10  ///< flag: set for printable chars
+#define CT_ID_CHAR    0x20  ///< flag: set for ID chars
+#define CT_FNAME_CHAR 0x40  ///< flag: set for file name chars
+
+/// Fill g_chartab[].  Also fills curbuf->b_chartab[] with flags for keyword
+/// characters for current buffer.
+///
+/// Depends on the option settings 'iskeyword', 'isident', 'isfname',
+/// 'isprint' and 'encoding'.
+///
+/// The index in g_chartab[] is the character when first byte is up to 0x80,
+/// if the first byte is 0x80 and above it depends on further bytes.
+///
+/// The contents of g_chartab[]:
+/// - The lower two bits, masked by CT_CELL_MASK, give the number of display
+///   cells the character occupies (1 or 2).  Not valid for UTF-8 above 0x80.
+/// - CT_PRINT_CHAR bit is set when the character is printable (no need to
+///   translate the character before displaying it).  Note that only DBCS
+///   characters can have 2 display cells and still be printable.
+/// - CT_FNAME_CHAR bit is set when the character can be in a file name.
+/// - CT_ID_CHAR bit is set when the character can be in an identifier.
+///
+/// @return FAIL if 'iskeyword', 'isident', 'isfname' or 'isprint' option has
+/// an error, OK otherwise.
+int init_chartab(void)
 {
-  uint64_t save_chartab[4];
-  memcpy(save_chartab, buf->b_chartab, sizeof save_chartab);
-  memset(buf->b_chartab, 0, sizeof buf->b_chartab);
-  if (buf->b_p_lisp) {  // don't ask
-    SET_CHARTAB(buf->b_chartab, '-');
-  }
-  if (parse_isopt(buf->b_p_isk, buf->b_chartab) == FAIL) {
-    memcpy(buf->b_chartab, save_chartab, sizeof save_chartab);
-    return FAIL;
-  }
-  return OK;
+  return buf_init_chartab(curbuf, true);
 }
 
-int init_isf_chartab(void)
+/// Helper for init_chartab
+///
+/// @param global false: only set buf->b_chartab[]
+///
+/// @return FAIL if 'iskeyword', 'isident', 'isfname' or 'isprint' option has
+/// an error, OK otherwise.
+int buf_init_chartab(buf_T *buf, bool global)
 {
-  uint64_t save_chartab[4];
-  memcpy(save_chartab, isf_chartab, sizeof save_chartab);
-  memset(isf_chartab, 0, sizeof isf_chartab);
-  isf_chartab[2] = 0xFFFFFFFF00000000;  // there is no need
-  isf_chartab[3] = 0xFFFFFFFFFFFFFFFF;  // to worry
-  if (parse_isopt(p_isf, isf_chartab) == FAIL) {
-    memcpy(isf_chartab, save_chartab, sizeof save_chartab);
-    return FAIL;
-  }
-  return OK;
-}
+  if (global) {
+    // Set the default size for printable characters:
+    // From <Space> to '~' is 1 (printable), others are 2 (not printable).
+    // This also inits all 'isident' and 'isfname' flags to false.
+    int c = 0;
 
-int init_isi_chartab(void)
-{
-  uint64_t save_chartab[4];
-  memcpy(save_chartab, isi_chartab, sizeof save_chartab);
-  memset(isi_chartab, 0, sizeof isi_chartab);
-  if (parse_isopt(p_isi, isi_chartab) == FAIL) {
-    memcpy(isi_chartab, save_chartab, sizeof save_chartab);
-    return FAIL;
+    while (c < ' ') {
+      g_chartab[c++] = (dy_flags & kOptDyFlagUhex) ? 4 : 2;
+    }
+
+    while (c <= '~') {
+      g_chartab[c++] = 1 + CT_PRINT_CHAR;
+    }
+
+    while (c < 256) {
+      if (c >= 0xa0) {
+        // UTF-8: bytes 0xa0 - 0xff are printable (latin1)
+        // Also assume that every multi-byte char is a filename character.
+        g_chartab[c++] = (CT_PRINT_CHAR | CT_FNAME_CHAR) + 1;
+      } else {
+        // the rest is unprintable by default
+        g_chartab[c++] = (dy_flags & kOptDyFlagUhex) ? 4 : 2;
+      }
+    }
   }
+
+  // Init word char flags all to false
+  CLEAR_FIELD(buf->b_chartab);
+
+  // In lisp mode the '-' character is included in keywords.
+  if (buf->b_p_lisp) {
+    SET_CHARTAB(buf, '-');
+  }
+
+  // Walk through the 'isident', 'iskeyword', 'isfname' and 'isprint' options.
+  for (int i = global ? 0 : 3; i <= 3; i++) {
+    const char *p;
+    if (i == 0) {
+      // first round: 'isident'
+      p = p_isi;
+    } else if (i == 1) {
+      // second round: 'isprint'
+      p = p_isp;
+    } else if (i == 2) {
+      // third round: 'isfname'
+      p = p_isf;
+    } else {  // i == 3
+      // fourth round: 'iskeyword'
+      p = buf->b_p_isk;
+    }
+    if (parse_isopt(p, buf, false) == FAIL) {
+      return FAIL;
+    }
+  }
+
+  chartab_initialized = true;
   return OK;
 }
 
 /// Checks the format for the option settings 'iskeyword', 'isident', 'isfname'
+/// or 'isprint'.
 /// Returns FAIL if has an error, OK otherwise.
 int check_isopt(char *var)
 {
-  return parse_isopt(var, NULL);
+  return parse_isopt(var, NULL, true);
 }
 
-/// @param chartab  if NULL only check if option string is valid
-int parse_isopt(const char *var, uint64_t *chartab)
+/// @param only_check  if false: refill g_chartab[]
+static int parse_isopt(const char *var, buf_T *buf, bool only_check)
 {
   const char *p = var;
 
-  // Parses the 'isident', 'iskeyword', 'isfname' options.
+  // Parses the 'isident', 'iskeyword', 'isfname' and 'isprint' options.
   // Each option is a list of characters, character numbers or ranges,
   // separated by commas, e.g.: "200-210,x,#-178,-"
   while (*p) {
@@ -108,7 +172,7 @@ int parse_isopt(const char *var, uint64_t *chartab)
 
     int c;
     if (ascii_isdigit(*p)) {
-      c = getdigits_int((char **)&p, false, 0);
+      c = getdigits_int((char **)&p, true, 0);
     } else {
       c = mb_ptr2char_adv(&p);
     }
@@ -118,7 +182,7 @@ int parse_isopt(const char *var, uint64_t *chartab)
       p++;
 
       if (ascii_isdigit(*p)) {
-        c2 = getdigits_int((char **)&p, false, 0);
+        c2 = getdigits_int((char **)&p, true, 0);
       } else {
         c2 = mb_ptr2char_adv(&p);
       }
@@ -136,7 +200,7 @@ int parse_isopt(const char *var, uint64_t *chartab)
       return FAIL;
     }
 
-    if (chartab == NULL) {  // only check!
+    if (only_check) {
       continue;
     }
 
@@ -158,11 +222,38 @@ int parse_isopt(const char *var, uint64_t *chartab)
       // Use the MB_ functions here, because isalpha() doesn't
       // work properly when 'encoding' is "latin1" and the locale is
       // "C".
-      if (!do_isalpha || mb_islower(c) || mb_isupper(c)) {
-        if (tilde) {
-          RESET_CHARTAB(chartab, c);
-        } else {
-          SET_CHARTAB(chartab, c);
+      if (!do_isalpha
+          || mb_islower(c)
+          || mb_isupper(c)) {
+        if (var == p_isi) {  // (re)set ID flag
+          if (tilde) {
+            g_chartab[c] &= (uint8_t) ~CT_ID_CHAR;
+          } else {
+            g_chartab[c] |= CT_ID_CHAR;
+          }
+        } else if (var == p_isp) {  // (re)set printable
+          if (c < ' ' || c > '~') {
+            if (tilde) {
+              g_chartab[c] = (uint8_t)((g_chartab[c] & ~CT_CELL_MASK)
+                                       + ((dy_flags & kOptDyFlagUhex) ? 4 : 2));
+              g_chartab[c] &= (uint8_t) ~CT_PRINT_CHAR;
+            } else {
+              g_chartab[c] = (uint8_t)((g_chartab[c] & ~CT_CELL_MASK) + 1);
+              g_chartab[c] |= CT_PRINT_CHAR;
+            }
+          }
+        } else if (var == p_isf) {  // (re)set fname flag
+          if (tilde) {
+            g_chartab[c] &= (uint8_t) ~CT_FNAME_CHAR;
+          } else {
+            g_chartab[c] |= CT_FNAME_CHAR;
+          }
+        } else {  // (var == p_isk || var == buf->b_p_isk) (re)set keyword flag
+          if (tilde) {
+            RESET_CHARTAB(buf, c);
+          } else {
+            SET_CHARTAB(buf, c);
+          }
         }
       }
       c++;
@@ -240,9 +331,9 @@ size_t transstr_len(const char *const s, bool untab)
       len += 1;
       p++;
     } else {
+      const int b2c_l = byte2cells((uint8_t)(*p++));
       // Illegal byte sequence may occupy up to 4 characters.
-      uint8_t c = (uint8_t)(*p++);
-      len += (size_t)(c < 0x80 ? ascii2cells(c) : 4);
+      len += (size_t)(b2c_l > 0 ? b2c_l : 4);
     }
   }
   return len;
@@ -427,6 +518,9 @@ char *str_foldcase(char *str, int orglen, char *buf, int buflen)
   return buf;
 }
 
+// Catch 22: g_chartab[] can't be initialized before the options are
+// initialized, and initializing options may cause transchar() to be called!
+// When chartab_initialized == false don't use g_chartab[].
 // Does NOT work for multi-byte characters, c must be <= 255.
 // Also doesn't work for the first byte of a multi-byte, "c" must be a
 // character!
@@ -455,7 +549,8 @@ char *transchar_buf(const buf_T *buf, int c)
     c = K_SECOND(c);
   }
 
-  if ((c <= 0xFF) && vim_isprintc(c)) {
+  if ((!chartab_initialized && (c >= ' ' && c <= '~'))
+      || ((c <= 0xFF) && vim_isprintc(c))) {
     // printable character
     transchar_charbuf[i] = (uint8_t)c;
     transchar_charbuf[i + 1] = NUL;
@@ -585,6 +680,26 @@ static inline unsigned nr2hex(unsigned n)
   return (n & 0xf) - 10 + 'a';
 }
 
+/// Return number of display cells occupied by byte "b".
+///
+/// Caller must make sure 0 <= b <= 255.
+/// For multi-byte mode "b" must be the first byte of a character.
+/// A TAB is counted as two cells: "^I".
+/// This will return 0 for bytes >= 0x80, because the number of
+/// cells depends on further bytes in UTF-8.
+///
+/// @param b
+///
+/// @return Number of display cells.
+int byte2cells(int b)
+  FUNC_ATTR_PURE
+{
+  if (b >= 0x80) {
+    return 0;
+  }
+  return g_chartab[b] & CT_CELL_MASK;
+}
+
 /// Return number of display cells occupied by character "c".
 ///
 /// "c" can be a special key (negative number) in which case 3 or 4 is returned.
@@ -595,11 +710,33 @@ static inline unsigned nr2hex(unsigned n)
 /// @return Number of display cells.
 int char2cells(int c)
 {
+  if (IS_SPECIAL(c)) {
+    return char2cells(K_SECOND(c)) + 2;
+  }
+
   if (c >= 0x80) {
     // UTF-8: above 0x80 need to check the value
     return utf_char2cells(c);
   }
-  return ascii2cells(c);
+  return g_chartab[c & 0xff] & CT_CELL_MASK;
+}
+
+/// Return number of display cells occupied by character at "*p".
+/// A TAB is counted as two cells: "^I" or four: "<09>".
+///
+/// @param p
+///
+/// @return number of display cells.
+int ptr2cells(const char *p_in)
+{
+  uint8_t *p = (uint8_t *)p_in;
+  // For UTF-8 we need to look at more bytes if the first byte is >= 0x80.
+  if (*p >= 0x80) {
+    return utf_ptr2cells(p_in);
+  }
+
+  // For DBCS we can tell the cell count from the first byte.
+  return g_chartab[*p] & CT_CELL_MASK;
 }
 
 /// Return the number of character cells string "s" will take on the screen,
@@ -628,24 +765,23 @@ int vim_strnsize(const char *s, int len)
 {
   assert(s != NULL);
   int size = 0;
-  StrCharInfo ci = utf_ptr2StrCharInfo(s);
-  while (*ci.ptr != NUL && len > 0) {
-    ClusterInfo cli = utf_ClusterInfo(ci);
-    size += cli.cells;
-    len -= (int)(cli.next.ptr - ci.ptr);
-    ci = cli.next;
+  while (*s != NUL && --len >= 0) {
+    int l = utfc_ptr2len(s);
+    size += ptr2cells(s);
+    s += l;
+    len -= l - 1;
   }
   return size;
 }
 
-/// Checks that `c` is an identifier character, as decided by the 'isident' option.
-/// Chars >= 256 never are.
+/// Check that "c" is a normal identifier character:
+/// Letters and characters from the 'isident' option.
 ///
 /// @param  c  character to check
 bool vim_isIDc(int c)
   FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 {
-  return c > 0 && c < 0x100 && GET_CHARTAB(isi_chartab, c);
+  return c > 0 && c < 0x100 && (g_chartab[c] & CT_ID_CHAR);
 }
 
 /// Check that "c" is a keyword character:
@@ -670,7 +806,7 @@ bool vim_iswordc_tab(const int c, const uint64_t *const chartab)
 {
   return (c >= 0x100
           ? (utf_class_tab(c, chartab) >= 2)
-          : (c > 0 && GET_CHARTAB(chartab, c) != 0));
+          : (c > 0 && GET_CHARTAB_TAB(chartab, c) != 0));
 }
 
 /// Check that "c" is a keyword character:
@@ -723,7 +859,7 @@ bool vim_iswordp_buf(const char *const p, buf_T *const buf)
 bool vim_isfilec(int c)
   FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 {
-  return c >= 0x100 || (c > 0 && GET_CHARTAB(isf_chartab, c));
+  return c >= 0x100 || (c > 0 && (g_chartab[c] & CT_FNAME_CHAR));
 }
 
 /// Check if "c" is a valid file-name character, including characters left
@@ -746,7 +882,7 @@ bool vim_isfilec_or_wc(int c)
   char buf[2];
   buf[0] = (char)c;
   buf[1] = NUL;
-  return vim_isfilec(c) || c == ']' || path_has_wildcard(buf, true);
+  return vim_isfilec(c) || c == ']' || path_has_wildcard(buf);
 }
 
 /// Check that "c" is a printable character.
@@ -758,7 +894,7 @@ bool vim_isprintc(int c)
   if (c >= 0x100) {
     return utf_printable(c);
   }
-  return c > 0 && ((c & 0x60) != 0 && c != 0x7f);
+  return c > 0 && (g_chartab[c] & CT_PRINT_CHAR);
 }
 
 /// skipwhite: skip over ' ' and '\t'.

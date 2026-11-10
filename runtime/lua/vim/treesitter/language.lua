@@ -2,7 +2,7 @@ local api = vim.api
 
 local M = {}
 
----@type table<string,string?>
+---@type table<string,string>
 local ft_to_lang = {
   help = 'vimdoc',
   checkhealth = 'vimdoc',
@@ -46,10 +46,6 @@ function M.get_lang(filetype)
 end
 
 ---@deprecated
----@param lang string
----@param path? string
----@param silent? boolean
----@param symbol_name? string
 function M.require_language(lang, path, silent, symbol_name)
   vim.deprecate(
     'vim.treesitter.language.require_language()',
@@ -135,7 +131,7 @@ function M.add(lang, opts)
     if #paths == 0 then
       return nil, string.format('No parser for language "%s"', lang)
     end
-    path = assert(paths[1])
+    path = paths[1]
   end
 
   local res = loadparser(path, lang, symbol_name)

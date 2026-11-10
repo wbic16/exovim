@@ -39,7 +39,7 @@
 // OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 // SUCH DAMAGE.
 //
-// Changes done by the neovim project follow the Apache v2 license available
+// Changes done by by the neovim project follow the Apache v2 license available
 // at the repo root.
 
 #include <assert.h>
@@ -126,7 +126,7 @@ static int key_cmp(MTKey a, MTKey b)
   }
 
   // TODO(bfredl): MT_FLAG_REAL could go away if we fix marktree_getp_aux for real
-  const uint32_t cmp_mask = MT_FLAG_RIGHT_GRAVITY | MT_FLAG_END | MT_FLAG_REAL | MT_FLAG_LAST;
+  const uint16_t cmp_mask = MT_FLAG_RIGHT_GRAVITY | MT_FLAG_END | MT_FLAG_REAL | MT_FLAG_LAST;
   return mt_generic_cmp(a.flags & cmp_mask, b.flags & cmp_mask);
 }
 
@@ -305,9 +305,9 @@ void marktree_put(MarkTree *b, MTKey key, int end_row, int end_col, bool end_rig
 
   if (end_row >= 0) {
     MTKey end_key = key;
-    end_key.flags = (key.flags & ~MT_FLAG_RIGHT_GRAVITY)
-                    | MT_FLAG_END
-                    | (end_right ? MT_FLAG_RIGHT_GRAVITY : 0);
+    end_key.flags = (uint16_t)((uint16_t)(key.flags & ~MT_FLAG_RIGHT_GRAVITY)
+                               |(uint16_t)MT_FLAG_END
+                               |(uint16_t)(end_right ? MT_FLAG_RIGHT_GRAVITY : 0));
     end_key.pos = (MTPos){ end_row, end_col };
     marktree_put_key(b, end_key);
     MarkTreeIter itr[1] = { 0 };
@@ -332,44 +332,36 @@ static bool intersection_has(Intersection *x, uint64_t id)
   return false;
 }
 
-/// Finds the one position `id` can occupy in the ascending "intersect" array of `x`.
-///
-/// @return Index of `id`, or the index it would be inserted at if absent.
-static size_t intersect_item_pos(MTNode *x, uint64_t id)
-{
-  size_t lo = 0;
-  size_t hi = kv_size(x->intersect);
-  while (lo < hi) {
-    size_t mid = lo + (hi - lo) / 2;
-    if (kv_A(x->intersect, mid) < id) {
-      lo = mid + 1;
-    } else {
-      hi = mid;
-    }
-  }
-  return lo;
-}
-
 static void intersect_node(MarkTree *b, MTNode *x, uint64_t id)
 {
   assert(!(id & MARKTREE_END_FLAG));
-  // Common case: ids arrive in ascending order, so the new key belongs at the end.
-  if (kv_size(x->intersect) == 0 || kv_A(x->intersect, kv_size(x->intersect) - 1) < id) {
-    kvi_push(x->intersect, id);
-    return;
-  }
-  size_t i = intersect_item_pos(x, id);
   kvi_pushp(x->intersect);
-  memmove(&kv_A(x->intersect, i + 1), &kv_A(x->intersect, i),
-          (kv_size(x->intersect) - i - 1) * sizeof(kv_A(x->intersect, 0)));
-  kv_A(x->intersect, i) = id;
+  // optimized for the common case: new key is always in the end
+  for (ssize_t i = (ssize_t)kv_size(x->intersect) - 1; i >= 0; i--) {
+    if (i > 0 && kv_A(x->intersect, i - 1) > id) {
+      kv_A(x->intersect, i) = kv_A(x->intersect, i - 1);
+    } else {
+      kv_A(x->intersect, i) = id;
+      break;
+    }
+  }
 }
 
 static void unintersect_node(MarkTree *b, MTNode *x, uint64_t id, bool strict)
 {
   assert(!(id & MARKTREE_END_FLAG));
-  size_t i = intersect_item_pos(x, id);
-  bool seen = i < kv_size(x->intersect) && kv_A(x->intersect, i) == id;
+  bool seen = false;
+  size_t i;
+  for (i = 0; i < kv_size(x->intersect); i++) {
+    if (kv_A(x->intersect, i) < id) {
+      continue;
+    } else if (kv_A(x->intersect, i) == id) {
+      seen = true;
+      break;
+    } else {  // (kv_A(x->intersect, i) > id)
+      break;
+    }
+  }
   if (strict) {
 #ifndef RELDEBUG
     // TODO(bfredl): This assert has been seen to fail for end users
@@ -456,7 +448,6 @@ static void meta_describe_key_inc(uint32_t *meta_inc, MTKey *k)
     meta_inc[kMTMetaLines] += (k->flags & MT_FLAG_DECOR_VIRT_LINES) ? 1 : 0;
     meta_inc[kMTMetaSignHL] += (k->flags & MT_FLAG_DECOR_SIGNHL) ? 1 : 0;
     meta_inc[kMTMetaSignText] += (k->flags & MT_FLAG_DECOR_SIGNTEXT) ? 1 : 0;
-    meta_inc[kMTMetaConceal] += (k->flags & MT_FLAG_DECOR_CONCEAL) ? 1 : 0;
     meta_inc[kMTMetaConcealLines] += (k->flags & MT_FLAG_DECOR_CONCEAL_LINES) ? 1 : 0;
   }
 }
@@ -1389,8 +1380,8 @@ void marktree_restore_pair(MarkTree *b, MTKey key)
     // this function will be called again for the other end.
     return;
   }
-  rawkey(itr).flags &= ~MT_FLAG_ORPHANED;
-  rawkey(end_itr).flags &= ~MT_FLAG_ORPHANED;
+  rawkey(itr).flags &= (uint16_t) ~MT_FLAG_ORPHANED;
+  rawkey(end_itr).flags &= (uint16_t) ~MT_FLAG_ORPHANED;
 
   marktree_intersect_pair(b, mt_lookup_key_side(key, false), itr, end_itr, false);
 }
@@ -1626,13 +1617,12 @@ bool marktree_itr_next_filter(MarkTree *b, MarkTreeIter *itr, int stop_row, int 
   return marktree_itr_check_filter(b, itr, stop_row, stop_col, meta_filter);
 }
 
-static const uint32_t meta_map[kMTMetaCount] = {
+const uint32_t meta_map[kMTMetaCount] = {
   MT_FLAG_DECOR_VIRT_TEXT_INLINE,
   MT_FLAG_DECOR_VIRT_LINES,
   MT_FLAG_DECOR_SIGNHL,
   MT_FLAG_DECOR_SIGNTEXT,
-  MT_FLAG_DECOR_CONCEAL,
-  MT_FLAG_DECOR_CONCEAL_LINES,
+  MT_FLAG_DECOR_CONCEAL_LINES
 };
 static bool marktree_itr_check_filter(MarkTree *b, MarkTreeIter *itr, int stop_row, int stop_col,
                                       MetaFilter meta_filter)
@@ -2278,7 +2268,7 @@ static void marktree_itr_fix_pos(MarkTree *b, MarkTreeIter *itr)
 void marktree_put_test(MarkTree *b, uint32_t ns, uint32_t id, int row, int col, bool right_gravity,
                        int end_row, int end_col, bool end_right, bool meta_inline)
 {
-  uint32_t flags = mt_flags(right_gravity, false, false, false);
+  uint16_t flags = mt_flags(right_gravity, false, false, false);
   // The specific choice is irrelevant here, we pick one counted decor
   // type to test the counting and filtering logic.
   flags |= meta_inline ? MT_FLAG_DECOR_VIRT_TEXT_INLINE : 0;
