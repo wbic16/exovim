@@ -35,12 +35,40 @@ M.navigate = navigate
 ---@field _eff_revision integer
 ---@field _outline table|nil outline (table-of-contents) state
 ---@field _outline_cache table|nil cached outline lines/actions
+---@field _banner string|nil scroll-break banner text for the current scroll
 
 ---@type table<integer, PhextSession>
 local sessions = {}
 M._sessions = sessions
 
 local ns = vim.api.nvim_create_namespace('nvim.phext')
+
+-- Scroll-break banner highlight (see show_banner below). `default = true`:
+-- a user's own :highlight PhextScrollBreak always wins.
+vim.api.nvim_set_hl(0, 'PhextScrollBreak', { link = 'Title', default = true })
+
+--- Phext-native UI switches, both on by default. Two equivalent spellings:
+---   g:phext_ui = { banner = false }   (one table, per-feature keys)
+---   g:phext_ui_banner = 0             (one global per feature)
+---@param name string feature key ('banner' or 'statusline')
+---@return boolean
+local function ui_enabled(name)
+  -- Vim-style booleans: 0 is OFF (in Lua only nil and false are falsy,
+  -- so a g: variable set to 0 must be read explicitly).
+  local function on(v)
+    return v ~= nil and v ~= false and v ~= 0
+  end
+  local ui = vim.g.phext_ui
+  if type(ui) == 'table' and ui[name] ~= nil then
+    return on(ui[name])
+  end
+  local v = vim.g['phext_ui_' .. name]
+  if v ~= nil then
+    return on(v)
+  end
+  return true
+end
+M._ui_enabled = ui_enabled
 
 -- ---------------------------------------------------------------------------
 -- small helpers
@@ -206,6 +234,37 @@ local function capture_current(session)
 end
 M._capture = capture_current
 
+--- Render the scroll-break banner for the scroll now on screen.
+--- The banner text is remembered on the session, so a same-scroll
+--- re-display (:write, :PhextDelete) re-applies the same banner instead
+--- of dropping it: there is always exactly one banner, for the current
+--- scroll, naming where it came from. A scroll *change* also echoes the
+--- transition once. Display-only: an extmark with virt_lines — buffer
+--- bytes and undo history are untouched.
+---@param session PhextSession
+---@param old_key string|nil coordinate key on screen before this display
+local function show_banner(session, old_key)
+  local new_key = coord_mod.key(session.coord)
+  if old_key == nil then
+    local total = #eff_index(session).entries
+    session._banner = ('─── scroll %s ───  (%d scroll%s in file)'):format(
+      new_key,
+      total,
+      total == 1 and '' or 's'
+    )
+    vim.api.nvim_echo({ { session._banner, '' } }, false, {})
+  elseif old_key ~= new_key then
+    session._banner = ('─── scroll break ─── %s → %s ───'):format(old_key, new_key)
+    vim.api.nvim_echo({ { session._banner, '' } }, false, {})
+  end
+  if session._banner and ui_enabled('banner') then
+    vim.api.nvim_buf_set_extmark(session.bufnr, ns, 0, 0, {
+      virt_lines = { { { session._banner, 'PhextScrollBreak' } } },
+      virt_lines_above = true,
+    })
+  end
+end
+
 --- Show `coord`'s scroll in the session buffer.
 ---@param session PhextSession
 ---@param coord integer[]
@@ -213,6 +272,7 @@ M._capture = capture_current
 local function display(session, coord, opts)
   opts = opts or {}
   local buf = session.bufnr
+  local old_key = session.coord and coord_mod.key(session.coord) or nil
   local win = vim.fn.bufwinid(buf)
   if win == -1 then
     win = vim.api.nvim_get_current_win()
@@ -241,6 +301,7 @@ local function display(session, coord, opts)
       virt_text_pos = 'eol',
     })
   end
+  show_banner(session, old_key)
   local line_count = vim.api.nvim_buf_line_count(buf)
   local cursor = opts.line and { opts.line, 0 } or session.cursors[coord_mod.key(coord)] or { 1, 0 }
   cursor[1] = math.max(1, math.min(cursor[1], line_count))
