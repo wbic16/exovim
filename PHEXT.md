@@ -100,6 +100,36 @@ fills the quickfix list (module = coordinate); `:PhextTitles` picks a
 scroll by first line via `vim.ui.select`. Full reference:
 `runtime/doc/phext.txt`.
 
+## Phext-native UI
+
+Two pieces of presentation make the editor feel phext-native rather
+than like a text editor with a plugin bolted on; both are on by
+default and both are display-only (buffer bytes and undo history are
+never touched):
+
+- **The coordinate is always on screen.** Phext buffers get a
+  buffer-local statusline: `require('nvim.phext').status()` — the full
+  9D coordinate, the scroll's rank among the occupied scrolls, the
+  active dimension, and `[+]` when the session holds unsaved edits —
+  followed by the cursor's line,column *inside* the scroll, which the
+  statusline refreshes natively on every cursor move. Coordinate and
+  line/column are shown together, never instead of each other. If you
+  keep your own statusline, the same segment is available to it (and
+  to `'rulerformat'`) as `require('nvim.phext').status()`; the
+  coordinate is the part the ruler cannot show natively, which is why
+  it lives in the segment rather than in `'ruler'`.
+- **Scroll breaks are visible.** Whenever the displayed scroll
+  changes, a virtual line above line 1 — `PhextScrollBreak`
+  highlight — shows `─── scroll break ─── <old> → <new> ───`, and the
+  transition is echoed once. On open it shows the landing scroll and
+  the file's scroll count instead. Exactly one banner exists at a
+  time, always for the current scroll: you can always see where you
+  are and where you came from.
+
+Opt out per feature (Vim-style, 0 = off): `g:phext_ui_banner`,
+`g:phext_ui_statusline`, or the table form
+`g:phext_ui = { banner = false, statusline = false }`.
+
 ## Editing invariants (test-enforced)
 
 1. Delimiter bytes are never user-editable text (see buffer model).
@@ -203,10 +233,75 @@ identically under the phcc-built editor (cross-tested headlessly:
 open / goto / edit / write / mutation control / no-op write identity
 against an agi-scale phext).
 
+## Working with scrolls — proposed enhancements
+
+Status: **proposals, not implemented** (2026-11-09). They are recorded
+here so the design pressure is visible and v2 work starts from a
+considered list rather than rediscovering it.
+
+The premise every proposal shares: a coordinate is an *address*, not
+a *position*. Inserting a scroll never renumbers its neighbours — the
+address space is sparse and gaps are free, so "insert" means "occupy
+a free address", never "shift everything down". That single
+difference from line-based editing is what makes most of these cheap.
+
+- **`:PhextInsert {coord}`** — create-and-jump: like `:PhextNew`, but
+  it refuses an occupied coordinate instead of landing on it, so a
+  script or a fat-fingered goto can never silently land on someone
+  else's scroll. Nothing shifts; the scroll exists on `:write`. **(S)**
+- **Insert-relative in the TOC (`o` / `O`)** — in the `:PhextToc`
+  window, `o` creates a sibling scroll after the node under the cursor
+  (next free coordinate along the active dimension) and jumps to it;
+  `O` does the same before it. The outline is where structure is
+  visible, so it is where structure should be editable. **(M)**
+- **`:PhextDelete {coord}`** — delete any scroll by coordinate (today
+  `:PhextDelete` only empties the current one): asks for confirmation,
+  and the deleted text goes to a one-slot restore register, so a
+  single `:PhextRestore` (or a paste) brings it back. The coordinate
+  is freed; the gap remains — sparsity is a feature, not damage. **(S)**
+- **`:PhextMove {from} {to}`** — transplant a scroll's content to a
+  free coordinate and free the source: the move v1 punts on (goto +
+  yank + write + delete by hand). Refuses an occupied target unless
+  given `!`. Both coordinates land in the session jumplist, so `<C-o>`
+  still tells the truth. **(S)**
+- **Drag in the TOC; `g>` / `g<` drag keys** — in the outline, drag a
+  scroll entry up/down to re-home it along its lowest differing
+  dimension (a `:PhextMove` whose target is computed from the drop
+  point); in a scroll buffer, `g>` / `g<` nudge the current scroll one
+  step along the active dimension into the next free coordinate.
+  Spatial re-homing for the reordering people actually do. **(M)**
+- **Yank / paste a whole scroll** — `yP` yanks the current scroll
+  (coordinate + bytes) into the unnamed register as a scroll object,
+  not bare text; `gpP` pastes it at a prompted coordinate (completion
+  over free coordinates near the current one). Cross-file paste works:
+  the register carries the bytes, the target file's session supplies
+  the address space. **(M)**
+- **`:PhextDup`** — duplicate the current scroll at the next free
+  coordinate along the active dimension and jump to the copy: the
+  boilerplate-scroll workflow (headers, journal entries, per-day
+  scrolls) in one command. **(S)**
+- **`:PhextFree {prefix}`** — the next-free-coordinate finder: prints
+  (and preloads into the `gP` prompt) the lowest unoccupied coordinate
+  under a prefix — the answer to "where is there room in this book?",
+  which a sparse format should never make the user scan for. **(S)**
+- **Split / merge scrolls at the cursor** — `gS` splits the current
+  scroll at the cursor line: text below moves to the next free
+  coordinate along the active dimension; `gJ` (in the TOC) or
+  `:PhextMerge {coord}` merges a scroll into its populated successor.
+  The two structural edits a scroll-based document actually needs. **(M)**
+- **Compaction wizard (`:PhextCompact`)** — for the rare case where
+  gaps *are* the problem (publishing, handing a phext to a reader):
+  computes a renumbering plan that closes the gaps, shows it as a
+  preview-only diff (old → new for every moved scroll), and applies
+  it only on an explicit confirm — never silent, never automatic, and
+  the plan itself is kept as a scroll, the migration record. **(L)**
+
 ## Honest limits (v1)
 
 - No raw phext editing mode; no persistent empty scrolls; no scroll
-  rename/move command (goto + yank + write + delete covers it).
+  rename/move command (goto + yank + write + delete covers it;
+  first-class insert/delete/move commands are proposed in "Working
+  with scrolls — proposed enhancements" above).
 - Undo is per scroll *visit*: returning to a scroll restores its edited
   content (held in session state), but its undo stack starts fresh.
   Undo never crosses a scroll boundary.

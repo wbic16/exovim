@@ -14,7 +14,9 @@ CONTENTS							*phext-contents*
 4. Mappings .................... |phext-mappings|
 5. Lua API ..................... |phext-lua|
 6. Options ..................... |phext-options|
-7. Limits ...................... |phext-limits|
+7. Interface ................... |phext-interface|
+8. Roadmap ..................... |phext-roadmap|
+9. Limits ...................... |phext-limits|
 
 ==============================================================================
 1. Introduction						*phext-intro*
@@ -214,13 +216,79 @@ g:phext_no_section_motions
 			inside scrolls; populated motion remains on
 			|:PhextNext| / |:PhextPrev| and ]P / [P.
 
+						*g:phext_ui_banner*
+g:phext_ui_banner	Set to 0 to hide the scroll-break banner
+			(see |phext-interface|).
+
+						*g:phext_ui_statusline*
+g:phext_ui_statusline	Set to 0 to keep your own statusline in phext
+			buffers; the coordinate segment remains
+			available (see |phext-lua|).
+
+						*g:phext_ui*
+g:phext_ui		A table with boolean `banner` / `statusline`
+			keys; equivalent to the two globals above.
+
 ==============================================================================
-7. Limits						*phext-limits*
+7. Interface						*phext-interface*
+
+Statusline ~
+	Phext buffers carry a buffer-local 'statusline' (set by
+	ftplugin/phext.lua, on by default): the segment from
+	require('nvim.phext').status() — the full 9D coordinate of
+	the current scroll, its rank among the occupied scrolls, the
+	active dimension, and `[+]` when the session holds unsaved
+	edits — followed by the cursor's line and column inside the
+	scroll. The coordinate is shown in addition to line and
+	column, never instead of them, and the statusline refreshes
+	on every cursor move, so both are always current.
+
+	If you prefer the ruler, the same segment is available to
+	'rulerformat': >
+		let &rulerformat = "%{v:lua.require'nvim.phext'.status()}"
+<
+	(the coordinate is the part 'ruler' cannot show natively,
+	which is why it lives in the segment rather than the ruler).
+
+Scroll-break banner ~
+	Whenever the displayed scroll changes — |:PhextGoto|, |]]| /
+	|[[|, dimension steps, TOC and search jumps, |:PhextNew| — a
+	virtual line above line 1 shows the transition: >
+		─── scroll break ─── 1.1.1/1.1.1/1.1.1 → 1.1.1/1.1.1/1.1.2 ───
+<
+	and the same transition is echoed once. On file open the
+	banner shows the landing scroll and the scroll count: >
+		─── scroll 1.1.1/1.1.1/1.1.1 ───  (830 scrolls in file)
+<
+	Exactly one banner exists at a time, always for the current
+	scroll. It is an extmark: display-only, it never touches
+	buffer bytes or undo history.
+
+						*PhextScrollBreak*
+PhextScrollBreak	Highlight group for the scroll-break banner.
+			Linked to Title by default; define your own
+			highlight before the plugin loads to override it.
+
+==============================================================================
+8. Roadmap						*phext-roadmap*
+
+Proposed, not implemented: first-class scroll management —
+:PhextInsert and TOC-relative insert, :PhextDelete {coord} with
+restore, :PhextMove, TOC dragging and drag keys, whole-scroll
+yank/paste, :PhextDup, :PhextFree, split/merge at the cursor, and a
+preview-only compaction wizard. The full proposals, with the design
+premise (coordinates are addresses, not positions — inserting never
+renumbers neighbours), live in PHEXT.md at the repository root,
+section "Working with scrolls — proposed enhancements".
+
+==============================================================================
+9. Limits						*phext-limits*
 
 Deliberate v1 limits (see PHEXT.md for the full list and rationale):
 
 - No raw whole-file editing mode; delimiter bytes are never editable.
-- No persistent empty scrolls; no scroll rename/move command.
+- No persistent empty scrolls; no scroll rename/move command yet
+  (first-class scroll management is proposed — see |phext-roadmap|).
 - Undo history is per scroll visit within the session; it is not
   persisted into the file.
 - One window onto one scroll per file; no multi-scroll splits of the
