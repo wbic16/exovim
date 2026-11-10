@@ -1,0 +1,238 @@
+*phext.txt*	Nvim
+
+==============================================================================
+Phext scroll navigation					*phext*
+
+Author: wbic16 fork (runtime plugin; see PHEXT.md at the repository root)
+License: same as Nvim
+
+CONTENTS							*phext-contents*
+
+1. Introduction ................ |phext-intro|
+2. Concepts .................... |phext-concepts|
+3. Commands .................... |phext-commands|
+4. Mappings .................... |phext-mappings|
+5. Lua API ..................... |phext-lua|
+6. Options ..................... |phext-options|
+7. Limits ...................... |phext-limits|
+
+==============================================================================
+1. Introduction						*phext-intro*
+
+A phext is a plain-text format that addresses text in eleven dimensions:
+2D text (lines and columns) inside a scroll, and a 9-component coordinate
+addressing the scroll itself:
+
+	library.shelf.series/collection.volume.book/chapter.section.scroll
+
+Components are 1-based, never below 1, and have no upper bound. Coordinates
+are internal to one phext: the same coordinate in another file names a
+different scroll. The coordinate space is sparse — most coordinates are
+empty address space, not scrolls.
+
+This plugin makes a `.phext` file navigable at phext scale inside Nvim.
+The file on disk stays the single canonical byte stream. Opening it builds
+a sparse index of the occupied scrolls once; you then edit one scroll at a
+time in an ordinary buffer whose contents are exactly that scroll's text.
+Phext delimiter bytes (0x01, 0x1F, 0x1E, 0x1D, 0x1C, 0x1A, 0x19, 0x18,
+0x17) never appear in any buffer: they exist only in the on-disk stream
+and in the serialiser.
+
+Detection is done by this plugin itself (autocmds for `*.phext`), so the
+feature can be disabled wholesale: >
+
+	let g:loaded_phext = 1
+<
+in your init file, before plugins load (or start with --clean).
+
+==============================================================================
+2. Concepts						*phext-concepts*
+
+Scroll-as-buffer ~
+	One buffer per file, reused across scrolls. Navigating swaps the
+	buffer's contents to the target scroll and pushes the jumplist
+	(`m'`), so <C-o>/<C-i> work across coordinate jumps. The buffer is
+	named `phext://<path>@<coordinate>`.
+
+Occupied ~
+	A coordinate whose text span is at least one byte. Zero-length
+	spans (consecutive delimiters) are address space, not scrolls.
+	Consequence: emptying a scroll and writing deletes that scroll.
+	`:PhextDelete` is sugar for exactly that.
+
+Arithmetic vs populated motion ~
+	Stepping a dimension (see |phext-commands|) is arithmetic: it may land on
+	empty space, which is how new scrolls are created. Populated
+	motion (see |phext-commands|) jumps between occupied scrolls only and
+	never lands on empty space. Both are first-class; do not confuse
+	them.
+
+Active dimension ~
+	One of the nine dimensions is "active" (Scroll by default). The
+	generic step keys `g]`/`g[` apply to it. Select it with |g1|..|g9|
+	or `:PhextDim`.
+
+Saving ~
+	`:write` serialises (original bytes + your per-scroll edits).
+	An unmodified `:write` does not touch the file at all. An edit's
+	byte-level effect is confined to the edited scroll's span. If the
+	file changed on disk since it was loaded, `:write` refuses rather
+	than overwrite stale spans.
+
+==============================================================================
+3. Commands						*phext-commands*
+
+All commands are buffer workflows: they act on the phext session of the
+current buffer and warn outside one.
+
+						*:PhextGoto*
+:PhextGoto {coord}	Go to a coordinate. Accepts the full form
+			`33.5.9/7.5.9/5.5.8`, trailing-arm partial forms
+			(`5.5.8` sets chapter.section.scroll and keeps the
+			rest; `7.5.9/5.5.8` keeps library..series), and
+			empty arms (`/7.5.9/` keeps the other arms).
+			Landing on an empty coordinate is legal; the
+			scroll is created when you type and `:write`.
+			With no argument, prompts (like |gP|). Tab
+			completion offers occupied coordinates only.
+
+						*:PhextCoord*
+:PhextCoord		Show the current coordinate, active dimension,
+			occupancy and rank, and the previous/next
+			populated coordinates.
+
+						*:PhextDim*
+:PhextDim {name|1..9}	Set the active dimension (1 = Scroll ..
+			9 = Library; names scroll..library accepted).
+			With no argument, shows the current one.
+
+						*:PhextStep*
+:PhextStep {dim} [+n|-n]
+			Step a dimension arithmetically: the dimension
+			increments (or decrements, clamped at 1) and every
+			lower dimension resets to 1 — exactly what the
+			corresponding delimiter byte does when parsing.
+			The dimension may be omitted when the argument is
+			a signed count; the active dimension is used.
+
+						*:PhextNext* *:PhextPrev*
+:PhextNext [count]	Next populated scroll in document order.
+:PhextPrev [count]	Previous populated scroll in document order.
+
+						*:PhextToc*
+:PhextToc [outer|middle|inner]
+			Open the outline in a vertical split. The outline
+			shows one zoom arm at a time — Outer
+			(library.shelf.series), Middle
+			(collection.volume.book, scoped to the current
+			Outer arm), Inner (the individual scrolls of the
+			current Outer+Middle scope) — populated nodes
+			only, each with a scroll count and a first-line
+			preview. <CR> descends an arm or jumps to a
+			scroll; `>`/`+` zoom in, `<`/`-` zoom out, `q`
+			closes.
+
+						*:PhextSearch* *:PhextGrep*
+:PhextSearch {pattern}	Search all occupied scrolls for a Vim regex and
+			fill the quickfix list; each entry's module is
+			the scroll's coordinate. <CR> in the quickfix
+			window jumps to the scroll and line. Honours
+			'ignorecase' and 'smartcase'. (In-scroll `/`,
+			`?`, `n`, `*` stay native and scroll-scoped.)
+
+						*:PhextTitles*
+:PhextTitles {pattern}	Pick a scroll by its first line (plain-text
+			filter) through |vim.ui.select()|.
+
+						*:PhextNew*
+:PhextNew {coord}	Go to a coordinate intending to create the
+			scroll there. Identical to |:PhextGoto| to an
+			empty coordinate; a scroll that is still empty
+			at `:write` time is not created.
+
+						*:PhextDelete*
+:PhextDelete		Empty the current scroll. On `:write` the
+			scroll is deleted (see |phext-concepts|).
+
+						*:PhextMarks*
+:PhextMarks		List the phext mark (see |phext-mappings|) and the buffer
+			and global marks pointing into this file.
+
+==============================================================================
+4. Mappings						*phext-mappings*
+
+All mappings are buffer-local to phext buffers.
+
+gP			Prompt for a coordinate (prefilled with the
+			current one, with completion) and go there.
+g1 .. g9		Select the active dimension (1 = Scroll ..
+			9 = Library).
+g] / g[			Step the active dimension +1 / -1 (arithmetic;
+			a count repeats the step).
+]] / [[			Next / previous populated scroll. (Section-
+			motion override; disable with
+			|g:phext_no_section_motions|.)
+]P / [P			Next / previous populated scroll within the
+			active dimension (step the dimension, skipping
+			empty coordinates).
+mP			Set the phext mark at the current coordinate.
+'P			Return to the phext mark.
+
+Native marks work per scroll and are restored when you return to a
+scroll; the cursor position inside a scroll is likewise remembered for
+the session.
+
+==============================================================================
+5. Lua API						*phext-lua*
+
+require('nvim.phext').coordinate() ~
+	Returns the current coordinate as a 9-element array
+	{library, shelf, series, collection, volume, book, chapter,
+	section, scroll}, or nil outside a phext buffer. For user
+	statuslines.
+
+require('nvim.phext').status() ~
+	Returns the statusline segment used by ftplugin/phext.lua:
+	"33.5.9/7.5.9/5.5.8 · scroll 8 of 7,281 · dim: Book [+]".
+
+Modules (all under runtime/lua/nvim/phext/):
+	nvim.phext.coord	coordinate parse/format/arithmetic
+	nvim.phext.index	single-pass delimiter walk + serialiser
+	nvim.phext.navigate	populated/arithmetic navigation decisions
+	nvim.phext.outline	the TOC buffer
+	nvim.phext.search	cross-scroll search + title picker
+
+==============================================================================
+6. Options						*phext-options*
+
+						*g:loaded_phext*
+g:loaded_phext		Set before plugin load to disable phext support.
+
+						*g:phext_no_section_motions*
+g:phext_no_section_motions
+			Set to 1 to keep the native ]] / [[ motions
+			inside scrolls; populated motion remains on
+			|:PhextNext| / |:PhextPrev| and ]P / [P.
+
+==============================================================================
+7. Limits						*phext-limits*
+
+Deliberate v1 limits (see PHEXT.md for the full list and rationale):
+
+- No raw whole-file editing mode; delimiter bytes are never editable.
+- No persistent empty scrolls; no scroll rename/move command.
+- Undo history is per scroll visit within the session; it is not
+  persisted into the file.
+- One window onto one scroll per file; no multi-scroll splits of the
+  same file, no 9D grid/minimap.
+- No treesitter grammar, LSP, or SQ sync.
+- Scroll text containing NUL bytes cannot be represented faithfully in
+  an Nvim buffer (Nvim displays NUL as a line break); such scrolls
+  are outside the editing model.
+
+Note: this help file is not yet listed in runtime/doc/index.txt in this
+fork patch (that file is upstream-owned; indexing is a follow-up), so
+`:help phext` works via the tags file only after `make doc` /
+:helptags regenerates tags, or with `:help phext.txt` directly.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
