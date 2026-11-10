@@ -55,7 +55,7 @@ isn't a fork change.
 | `PATCHES.md` | — | This file. |
 | `runtime/plugin/phext.lua` | 115 | Plugin entry: `g:loaded_phext` opt-out guard; autocmd detection for `*.phext`; `BufWriteCmd` for `phext://*` buffer names; registers all `:Phext*` user commands. |
 | `runtime/lua/nvim/phext/init.lua` | 794 | Session layer: scroll-as-buffer model (one buffer per file, content swapped per scroll), per-scroll edit capture, serialise-on-write with external-change refusal, buffer-local mappings (`gP`, `g1`–`g9`, `g]`/`g[`, `]]`/`[[`, `]P`/`[P`, `mP`/`'P`), command implementations, `coordinate()`/`status()` Lua API. |
-| `runtime/lua/nvim/phext/coord.lua` | 254 | Coordinate parse/format/arithmetic: 1-based floor, **no upper cap** (libphext 0.4.0 removed the 999 cap — do not reintroduce), delimiter-break semantics, dimension stepping with reset-lower, full and trailing-arm partial parsing. Pure Lua, unit-tested outside Neovim. |
+| `runtime/lua/nvim/phext/coord.lua` | 254 | Coordinate parse/format/arithmetic: 1-based floor, **no upper cap** (libphext 0.4.0 removed the 999 cap — do not reintroduce), delimiter-break semantics, dimension stepping with reset-lower, full and trailing-arm partial parsing. Pure Lua, unit-tested outside exovim. |
 | `runtime/lua/nvim/phext/index.lua` | 291 | Sparse index: single-pass delimiter walk (delimiter bytes from libphext-rs `phext.rs`: library 0x01, shelf 0x1F, series 0x1E, collection 0x1D, volume 0x1C, book 0x1A, chapter 0x19, section 0x18, scroll 0x17), occupied = span ≥ 1 byte, binary-search populated lookup, and the serialiser (verbatim gap splice around untouched scrolls; canonical gap breaks only where edits force them). |
 | `runtime/lua/nvim/phext/navigate.lua` | 143 | Navigation decisions (pure logic): arithmetic step, next/prev populated, next/prev within a dimension (filtered binary search, prefix fixed), coordinate description for `:PhextCoord`. |
 | `runtime/lua/nvim/phext/outline.lua` | 272 | The TOC outline buffer: one zoom arm at a time (Outer/Middle/Inner), populated nodes only, cached per (revision, arm, scope); `<CR>` descends/jumps, `>`/`<` zoom, `q` closes. |
@@ -78,7 +78,7 @@ isn't a fork change.
 - Model: **scroll-as-buffer** (design decision): the on-disk byte
   stream is the only truth; buffers hold exactly one scroll's text;
   delimiters never enter a buffer. Whole-file-as-buffer was rejected
-  on Neovim's own invariants (byte identity unrecoverable in a
+  on exovim's own invariants (byte identity unrecoverable in a
   line-oriented buffer; delimiters would become user-editable).
 - Semantics ported from the proven editors (phext-lattice
   `Navigator`, Phext Notepad native core): dimension step resets
@@ -137,3 +137,27 @@ claimed until it is measured on this base.
   (Will's); this fork does not depend on it.
 - phcc compilation of the bundled deps (libuv last) remains open
   (the L2b caveat in PHEXT.md).
+
+## Fork convention — the product is named exovim (2026-11-09)
+
+The repository was renamed `wbic16/neovim` → `wbic16/exovim` and its
+main branch renamed `master` → `exo`. From this point the fork is its
+own product, and fork-owned files follow one naming rule:
+
+- **The product is "exovim".** In every file the phext patch set owns
+  (the runtime plugin, its help, `PHEXT.md`, this file, the phext
+  functional spec), prose, help text, and messages that name the editor
+  say **exovim** (help files previously said "Nvim" after the upstream
+  vimdoc lint pass; that is now "exovim" too).
+- **The host API is NOT renamed.** `vim.api.nvim_*`, the autocmd and
+  namespace machinery, the Lua module namespace `nvim.phext`, the
+  binary name `nvim` (the C tree is unmodified upstream), upstream CI
+  artifact names (`nvim.wasm`), and upstream test-infra module names
+  (`test.functional.testnvim`) keep their names — they are the
+  editor's platform surface that every plugin and the build itself
+  call into, not product branding.
+- **"upstream Neovim" still names the upstream project** wherever
+  lineage or a dated receipt is being recorded (this file's header,
+  base pins, the 2026-11-08 verification receipts: the binaries
+  measured then really were stock Neovim 0.11.4 / the phcc-built
+  `nvim`). Renaming a receipt would falsify it.

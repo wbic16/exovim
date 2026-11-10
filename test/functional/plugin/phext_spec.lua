@@ -1,6 +1,6 @@
 -- Functional tests for the phext runtime plugin (runtime/plugin/phext.lua,
 -- runtime/lua/nvim/phext/*). The plugin is runtime-only, so these run
--- against any nvim build; the same assertions are also exercised by the
+-- against any exovim build; the same assertions are also exercised by the
 -- standalone harness described in PATCHES.md.
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()

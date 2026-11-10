@@ -1,6 +1,6 @@
-# PHEXT.md — phext support for this Neovim fork
+# PHEXT.md — phext support for this exovim fork
 
-This fork adds **phext scroll navigation** to Neovim as a purely additive
+This fork adds **phext scroll navigation** to exovim as a purely additive
 runtime/Lua plugin: no C changes, no changes to any existing upstream file.
 The patch set is recorded in [PATCHES.md](PATCHES.md); the design this
 implements is summarised below (full design: task 33.5.9/7.5.9/5.5.8 design
@@ -45,7 +45,7 @@ conforming phext is valid UTF-8 as a whole byte stream.
 | The `.phext` file format handling (load / index / serialise) | **A — canonical phext** | The file already *is* canonical phext: text, stable coordinate identity per scroll, per-scroll granularity, single-scroll access without scanning, provenance via git/SQ. The plugin adds no conversion, no sidecar, no shadow format; its Lua delimiter walk reads/writes the canonical stream and is cross-checked against an independent Python walker and (as test oracle) libphext semantics. |
 | Buffer contents (what the user edits) | **B — derived view** | A scroll buffer is a materialisation of one scroll, rebuilt from the canonical stream on every jump and disposable without loss; changes flow back only through `:write` (`buftype=acwrite`). |
 | The sparse index, outline (TOC), quickfix results, title list | **B — derived view** | All are rebuilt-from-canonical structures, invalidated by the session revision counter, never written back as truth. |
-| Undo history | **D — leave alone** | Session state with no stable identity or provenance value. Neovim's per-buffer undo is used as-is; undo is not persisted into the `.phext`. |
+| Undo history | **D — leave alone** | Session state with no stable identity or provenance value. exovim's per-buffer undo is used as-is; undo is not persisted into the `.phext`. |
 | Treesitter grammar, LSP, SQ sync, xz sealing | **D — leave alone (v1)** | Real projects with their own invariants; none is needed for navigation or byte-identical editing. Named refusals, not omissions. |
 
 ## Coordinate map
@@ -210,14 +210,14 @@ against an agi-scale phext).
 - Undo is per scroll *visit*: returning to a scroll restores its edited
   content (held in session state), but its undo stack starts fresh.
   Undo never crosses a scroll boundary.
-- The jumplist is Neovim's: entries record buffer + line, so after a
+- The jumplist is exovim's: entries record buffer + line, so after a
   coordinate jump swaps the buffer's content, `<C-o>` restores the
   scroll's buffer position approximately (the plugin pushes `m'` on
   every jump and restores per-scroll cursor positions itself, but a
   dedicated phext history stack is v2).
 - One buffer per file: no split view of two scrolls of the same file.
 - Scroll text containing NUL bytes cannot be represented faithfully in
-  a Neovim buffer and is outside the editing model.
+  an exovim buffer and is outside the editing model.
 - `:PhextSearch` is O(file bytes) per invocation — the one legitimately
   linear operation, run on demand only.
 - The help file is not yet listed in `runtime/doc/index.txt` (an

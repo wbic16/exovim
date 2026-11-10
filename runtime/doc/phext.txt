@@ -1,10 +1,10 @@
-*phext.txt*	Nvim
+*phext.txt*	exovim
 
 ==============================================================================
 Phext scroll navigation					*phext*
 
 Author: wbic16 fork (runtime plugin; see PHEXT.md at the repository root)
-License: same as Nvim
+License: same as exovim
 
 CONTENTS							*phext-contents*
 
@@ -30,7 +30,7 @@ are internal to one phext: the same coordinate in another file names a
 different scroll. The coordinate space is sparse — most coordinates are
 empty address space, not scrolls.
 
-This plugin makes a `.phext` file navigable at phext scale inside Nvim.
+This plugin makes a `.phext` file navigable at phext scale inside exovim.
 The file on disk stays the single canonical byte stream. Opening it builds
 a sparse index of the occupied scrolls once; you then edit one scroll at a
 time in an ordinary buffer whose contents are exactly that scroll's text.
@@ -227,7 +227,7 @@ Deliberate v1 limits (see PHEXT.md for the full list and rationale):
   same file, no 9D grid/minimap.
 - No treesitter grammar, LSP, or SQ sync.
 - Scroll text containing NUL bytes cannot be represented faithfully in
-  an Nvim buffer (Nvim displays NUL as a line break); such scrolls
+  an exovim buffer (exovim displays NUL as a line break); such scrolls
   are outside the editing model.
 
 Note: this help file is not yet listed in runtime/doc/index.txt in this

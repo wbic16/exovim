@@ -1,4 +1,4 @@
--- nvim.phext — phext scroll navigation for Neovim.
+-- nvim.phext — phext scroll navigation for exovim.
 --
 -- Primary model: scroll-as-buffer. The .phext file on disk stays the single
 -- canonical byte stream; opening it builds a sparse coordinate index once
