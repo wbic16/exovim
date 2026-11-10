@@ -1,6 +1,6 @@
 -- Functional tests for the phext runtime plugin (runtime/plugin/phext.lua,
 -- runtime/lua/nvim/phext/*). The plugin is runtime-only, so these run
--- against any nvim build; the same assertions are also exercised by the
+-- against any exovim build; the same assertions are also exercised by the
 -- standalone harness described in PATCHES.md.
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
@@ -200,6 +200,72 @@ describe('phext runtime plugin', function()
     feed('<CR>')
     eq('1.1.1/1.1.1/1.2.1', cur_coord())
     eq('gamma', buf_text())
+  end)
+
+  it('shows a scroll-break banner naming the old and new coordinates', function()
+    local path = edit_copy('basic.phext')
+    command('edit ' .. path)
+    local function banner()
+      return exec_lua([[
+        local nsid = vim.api.nvim_get_namespaces()['nvim.phext']
+        for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, nsid, 0, -1, { details = true })) do
+          if m[4].virt_lines then
+            local parts = {}
+            for _, line in ipairs(m[4].virt_lines) do
+              for _, chunk in ipairs(line) do
+                parts[#parts + 1] = chunk[1]
+              end
+            end
+            return table.concat(parts)
+          end
+        end
+        return ''
+      ]])
+    end
+    eq('─── scroll 1.1.1/1.1.1/1.1.1 ───  (3 scrolls in file)', banner())
+    local seq = exec_lua([[return vim.fn.undotree().seq_cur]])
+    command('PhextGoto 1.1.1/1.1.1/1.1.2')
+    eq('─── scroll break ─── 1.1.1/1.1.1/1.1.1 → 1.1.1/1.1.1/1.1.2 ───', banner())
+    eq(seq, exec_lua([[return vim.fn.undotree().seq_cur]]))
+  end)
+
+  it('statusline shows the 9D coordinate together with line and column', function()
+    local path = edit_copy('basic.phext')
+    command('edit ' .. path)
+    exec_lua([[vim.api.nvim_win_set_cursor(0, { 2, 1 })]])
+    local rendered = exec_lua(
+      [[return vim.api.nvim_eval_statusline(vim.wo.statusline, { winid = 0, maxwidth = 300 }).str]]
+    )
+    assert(rendered:find('1.1.1/1.1.1/1.1.1', 1, true), rendered)
+    assert(rendered:find('2,2', 1, true), rendered)
+  end)
+
+  it('renders every scroll of a fixture byte-faithfully', function()
+    local path = edit_copy('basic.phext')
+    command('edit ' .. path)
+    eq(
+      1,
+      exec_lua(
+        [[
+        local phext = require('nvim.phext')
+        local index = require('nvim.phext.index')
+        local f = assert(io.open(..., 'rb'))
+        local bytes = f:read('*a')
+        f:close()
+        local idx = index.build(bytes)
+        local s = phext._current_session()
+        for _, e in ipairs(idx.entries) do
+          phext.goto_coord(s, e.coord)
+          local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+          if vim.fn.sha256(text) ~= vim.fn.sha256(index.entry_text(idx, e)) then
+            return 0
+          end
+        end
+        return 1
+      ]],
+        path
+      )
+    )
   end)
 
   it('refuses to overwrite a file changed on disk since load', function()
